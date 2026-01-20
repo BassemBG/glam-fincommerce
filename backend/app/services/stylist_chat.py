@@ -1,0 +1,89 @@
+import google.generativeai as genai
+from app.core.config import settings
+import json
+import logging
+from typing import List, Dict, Any, Optional
+from app.services.outfit_composer import outfit_composer
+from app.models.models import ClothingItem, Outfit
+
+class StylistChatAgent:
+    def __init__(self):
+        if settings.GEMINI_API_KEY:
+            genai.configure(api_key=settings.GEMINI_API_KEY)
+            self.model = genai.GenerativeModel('gemini-1.5-flash')
+        else:
+            self.model = None
+
+    async def chat(self, user_id: str, message: str, closet_items: List[ClothingItem], user_photo: Optional[str] = None, outfits: List[Outfit] = [], history: List[Dict] = []) -> Dict[str, Any]:
+        """Main conversational interface for the stylist."""
+        if not self.model:
+            return {"response": "I'm sorry, my styling brain is currently offline. Please check the API key."}
+
+        # 1. Identify Intent (Outfit planning, viewing clothes, etc.)
+        # For simplicity, we'll assume the chat can handle various requests.
+        
+        closet_summary = [
+            {
+                "id": str(item.id),
+                "desc": f"{item.sub_category} ({item.body_region})",
+                "vibe": item.metadata_json.get('vibe', ''),
+                "image": item.image_url
+            }
+            for item in closet_items
+        ]
+
+        system_prompt = f"""
+        You are 'Ava', a friendly, fashion-forward, and supportive virtual stylist for women. 
+        Your goal is to help users feel confident and stylish.
+        
+        Context:
+        - User's Closet: {json.dumps(closet_summary[:20])}
+        - Existing Outfits: {json.dumps([{"name": o.name, "items": o.items} for o in outfits[:5]])}
+        - User's Body Image: {user_photo if user_photo else 'Not provided yet'}
+        - You speak like a stylist: "That would look chic!", "Let's try a bold pairing."
+        
+        VIRTUAL TRY-ON RULES:
+        - When an outfit is finalized or proposed, ALWAYS emphasize that it's designed to be 'tried on' over the User's Body Image provided.
+        - Mention: "I've visualized this look on your photo so you can see the fit!"
+        
+        RESPONSE FORMAT:
+        Always return a JSON object with:
+        {{
+            "response": "Your conversational text here",
+            "images": ["url1", "url2"],  // If you are showing specific items
+            "suggested_outfits": [...]   // If you are suggesting outfits
+        }}
+        """
+
+        try:
+            # Simple orchestration for now: if user asks for an outfit, call composer.
+            if any(word in message.lower() for word in ["wear", "outfit", "date", "work", "event"]):
+                # Extract occasion/vibe from message (Simplified)
+                occasion = "casual"
+                if "work" in message.lower(): occasion = "work"
+                elif "date" in message.lower(): occasion = "date"
+                
+                outfits = await outfit_composer.compose_outfits(closet_items, occasion, "chic")
+                
+                return {
+                    "response": f"I've curated some fresh looks for your {occasion}! The first one is my personal favorite.",
+                    "suggested_outfits": outfits,
+                    "images": [item["image_url"] for outfit in outfits for item in outfit.get("item_details", [])[:3]]
+                }
+            
+            # Default chat response
+            # We want Gemini to ALWAYS return JSON now
+            chat_prompt = f"{system_prompt}\n\nUser: {message}\n\nReturn ONLY a JSON object."
+            response = self.model.generate_content(chat_prompt)
+            
+            text = response.text.strip()
+            if text.startswith("```json"):
+                text = text.replace("```json", "", 1).rsplit("```", 1)[0].strip()
+            
+            return json.loads(text)
+
+        except Exception as e:
+            logging.error(f"Stylist chat error: {e}")
+            return {"response": "Oops, something went wrong while I was thinking about your style!"}
+
+stylist_chat = StylistChatAgent()

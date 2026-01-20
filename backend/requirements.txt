@@ -1,0 +1,17 @@
+fastapi
+uvicorn
+sqlalchemy
+sqlmodel
+alembic
+psycopg2-binary
+pgvector
+python-jose[cryptography]
+passlib[bcrypt]
+python-multipart
+python-dotenv
+boto3
+pydantic-settings
+google-generativeai
+pytest
+httpx
+rembg[cpu]
