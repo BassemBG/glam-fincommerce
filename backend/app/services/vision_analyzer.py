@@ -1,0 +1,155 @@
+import google.generativeai as genai
+from app.core.config import settings
+import json
+import logging
+import random
+from typing import Dict, Any
+
+# Static demo responses for when AI is unavailable
+DEMO_RESPONSES = [
+    {
+        "category": "clothing",
+        "sub_category": "Silk Blouse",
+        "body_region": "top",
+        "colors": ["Cream", "Ivory"],
+        "material": "Silk",
+        "vibe": "chic",
+        "season": "All Seasons",
+        "description": "A luxurious cream silk blouse with elegant draping and mother-of-pearl buttons. Perfect for both professional settings and evening occasions.",
+        "styling_tips": "Pair with high-waisted trousers and gold jewelry for a sophisticated look."
+    },
+    {
+        "category": "clothing",
+        "sub_category": "Tailored Blazer",
+        "body_region": "outerwear",
+        "colors": ["Navy", "Dark Blue"],
+        "material": "Wool Blend",
+        "vibe": "classic",
+        "season": "Autumn",
+        "description": "A perfectly tailored navy blazer with subtle peak lapels. The structured silhouette creates a powerful, polished appearance.",
+        "styling_tips": "Layer over a white tee and jeans for smart-casual, or with tailored pants for business meetings."
+    },
+    {
+        "category": "clothing",
+        "sub_category": "High-Waisted Jeans",
+        "body_region": "bottom",
+        "colors": ["Indigo", "Blue"],
+        "material": "Denim",
+        "vibe": "casual",
+        "season": "All Seasons",
+        "description": "Classic high-waisted straight-leg jeans in a deep indigo wash. Features a flattering rise and comfortable stretch.",
+        "styling_tips": "Tuck in a simple blouse and add loafers for effortless French-girl style."
+    },
+    {
+        "category": "shoes",
+        "sub_category": "Leather Loafers",
+        "body_region": "feet",
+        "colors": ["Tan", "Camel"],
+        "material": "Leather",
+        "vibe": "minimalist",
+        "season": "Spring",
+        "description": "Handcrafted Italian leather loafers in a warm tan shade. The cushioned insole provides all-day comfort.",
+        "styling_tips": "Perfect with cropped trousers or midi skirts for a polished finish."
+    },
+    {
+        "category": "clothing",
+        "sub_category": "Midi Dress",
+        "body_region": "full_body",
+        "colors": ["Emerald", "Green"],
+        "material": "Satin",
+        "vibe": "chic",
+        "season": "Summer",
+        "description": "An elegant emerald satin midi dress with a flattering cowl neckline and delicate spaghetti straps.",
+        "styling_tips": "Add strappy heels and a clutch for date night or special occasions."
+    },
+    {
+        "category": "accessory",
+        "sub_category": "Leather Tote",
+        "body_region": "accessory",
+        "colors": ["Black"],
+        "material": "Leather",
+        "vibe": "minimalist",
+        "season": "All Seasons",
+        "description": "A spacious structured leather tote with elegant gold hardware. Features interior pockets for organization.",
+        "styling_tips": "Your everyday essential—pairs with everything from workwear to weekend outfits."
+    }
+]
+
+class VisionAnalyzer:
+    def __init__(self):
+        if settings.GEMINI_API_KEY:
+            genai.configure(api_key=settings.GEMINI_API_KEY)
+            self.model = genai.GenerativeModel('gemini-2.0-flash')
+        else:
+            logging.warning("GEMINI_API_KEY not found. Using demo mode.")
+            self.model = None
+        
+        self._rembg_session = None
+
+    def _get_demo_response(self) -> Dict[str, Any]:
+        """Returns a random demo response for when AI is unavailable."""
+        return random.choice(DEMO_RESPONSES).copy()
+
+    async def analyze_clothing(self, image_data: bytes) -> Dict[str, Any]:
+        """Analyzes a clothing item image using Gemini, falls back to demo data."""
+        if not self.model:
+            logging.info("Using demo response (no API key)")
+            return self._get_demo_response()
+
+        prompt = """
+        Analyze this clothing item image. Return ONLY valid JSON with these fields:
+        {
+          "category": "clothing|shoes|accessory",
+          "sub_category": "e.g., T-shirt, Jeans, Midi Dress, Sneakers",
+          "body_region": "head|top|bottom|feet|full_body|outerwear|accessory",
+          "colors": ["list of primary colors"],
+          "material": "denim, silk, wool, cotton, etc.",
+          "vibe": "minimalist|boho|chic|streetwear|classic|casual",
+          "season": "Spring|Summer|Autumn|Winter|All Seasons",
+          "description": "Brief natural language description of the item",
+          "styling_tips": "One sentence on how to style this piece"
+        }
+        Return ONLY the JSON object, no markdown or extra text.
+        """
+
+        try:
+            response = self.model.generate_content([
+                prompt, 
+                {"mime_type": "image/jpeg", "data": image_data}
+            ])
+            
+            text = response.text.strip()
+            if text.startswith("```"):
+                text = text.split("```")[1]
+                if text.startswith("json"):
+                    text = text[4:]
+                text = text.strip()
+            
+            result = json.loads(text)
+            logging.info(f"Analysis complete: {result.get('sub_category', 'Unknown')}")
+            return result
+            
+        except Exception as e:
+            logging.warning(f"AI analysis failed ({e}), using demo response")
+            return self._get_demo_response()
+
+    async def remove_background(self, image_data: bytes) -> bytes:
+        """Removes background from an image using rembg library."""
+        try:
+            from rembg import remove, new_session
+            
+            if self._rembg_session is None:
+                logging.info("Initializing background removal model...")
+                self._rembg_session = new_session("u2net")
+            
+            logging.info("Removing background...")
+            return remove(image_data, session=self._rembg_session)
+            
+        except ImportError:
+            logging.warning("rembg not installed. Skipping background removal.")
+            return image_data
+        except Exception as e:
+            logging.error(f"Background removal error: {e}")
+            return image_data
+
+vision_analyzer = VisionAnalyzer()
