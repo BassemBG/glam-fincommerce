@@ -81,9 +81,44 @@ class StylistChatAgent:
                 text = text.replace("```json", "", 1).rsplit("```", 1)[0].strip()
             
             return json.loads(text)
-
         except Exception as e:
             logging.error(f"Stylist chat error: {e}")
             return {"response": "Oops, something went wrong while I was thinking about your style!"}
+
+    async def generate_outfit_metadata(self, items: List[ClothingItem]) -> Dict[str, Any]:
+        """Generates a global description and style tags for an outfit."""
+        if not self.model or not items:
+            return {"description": "", "style_tags": []}
+
+        items_desc = "\n".join([
+            f"- {item.sub_category} (Region: {item.body_region}, Vibe: {item.metadata_json.get('vibe', 'N/A')})"
+            for item in items
+        ])
+
+        prompt = f"""
+        Given the following clothing items in an outfit:
+        {items_desc}
+
+        Task:
+        1. Create a professional, fashion-forward global description of how these items work together as an outfit. (2-3 sentences)
+        2. Generate 5-8 relevant style tags (e.g., #minimalist, #streetwear, #chic, #earthtones).
+
+        Return the result in JSON format:
+        {{
+            "description": "...",
+            "style_tags": ["tag1", "tag2", ...]
+        }}
+        """
+
+        try:
+            response = self.model.generate_content(prompt)
+            text = response.text.strip()
+            if text.startswith("```json"):
+                text = text.replace("```json", "", 1).rsplit("```", 1)[0].strip()
+            
+            return json.loads(text)
+        except Exception as e:
+            logging.error(f"Metadata generation error: {e}")
+            return {"description": "A stylish combination of items.", "style_tags": ["#style"]}
 
 stylist_chat = StylistChatAgent()
