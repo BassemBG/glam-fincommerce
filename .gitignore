@@ -1,8 +1,20 @@
-﻿node_modules
-venv
-__pycache__
-*.db
-.env
+﻿# --- Frontend (Next.js) ---
+# Dependencies: local clones of your linked libraries
+node_modules/
+# Next.js build output
+.next/
+# Local environment variables (sensitive data)
 .env.local
-.next
+
+# --- Backend (FastAPI / Python) ---
+# Python virtual environment
+venv/
+# Compiled Python files
+__pycache__/
+# SQLite database files
+*.db
+# Local uploads directory (user images)
 uploads/
+# Backend environment variables
+.env
+
