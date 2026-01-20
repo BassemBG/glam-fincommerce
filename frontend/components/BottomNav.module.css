@@ -1,0 +1,80 @@
+.bottomNav {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: calc(75px + var(--safe-area-inset-bottom));
+    background: rgba(255, 255, 255, 0.95);
+    backdrop-filter: blur(12px);
+    border-top: 1px solid rgba(0, 0, 0, 0.05);
+    display: flex;
+    justify-content: space-around;
+    align-items: center;
+    padding: 0 8px;
+    padding-bottom: var(--safe-area-inset-bottom);
+    z-index: 10000;
+    /* Above everything but critical modals */
+}
+
+.navItem {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    color: #94a3b8;
+    text-decoration: none;
+    font-size: 0.7rem;
+    font-weight: 500;
+    transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+    flex: 1;
+    min-width: 0;
+}
+
+.iconWrapper {
+    width: 24px;
+    height: 24px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    transition: transform 0.2s;
+}
+
+.navItem:active .iconWrapper {
+    transform: scale(0.9);
+}
+
+.navItemActive {
+    color: var(--primary) !important;
+}
+
+.navItemActive .iconWrapper {
+    color: var(--primary);
+}
+
+.navItem svg {
+    width: 22px;
+    height: 22px;
+}
+
+.navItem span {
+    font-size: 0.65rem;
+    letter-spacing: 0.01em;
+    text-transform: capitalize;
+}
+
+.uploadBtn {
+    width: 52px;
+    height: 52px;
+    background: var(--primary);
+    border-radius: 18px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    box-shadow: 0 10px 25px rgba(34, 197, 94, 0.4);
+    transform: translateY(-16px);
+    transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.uploadBtn:active {
+    transform: translateY(-16px) scale(0.92);
+}
