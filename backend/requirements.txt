@@ -11,6 +11,8 @@ python-multipart
 python-dotenv
 boto3
 pydantic-settings
+qdrant-client
+fastembed
 google-generativeai
 pytest
 httpx

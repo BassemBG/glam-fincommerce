@@ -43,6 +43,11 @@ class Outfit(SQLModel, table=True):
     score: float = Field(default=0.0)
     reasoning: Optional[str] = None
     tryon_image_url: Optional[str] = None
+    description: Optional[str] = None
+    style_tags: Optional[str] = Field(default="[]", sa_column=Column(Text))  # JSON string of tags
     created_by: str = Field(default="user", max_length=20)
+    # New fields added below
+    qdrant_vector_id: Optional[str] = Field(default=None, index=True)
+    qdrant_payload: Dict = Field(default={}, sa_column=Column(JSON))
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
