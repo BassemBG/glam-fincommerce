@@ -5,6 +5,8 @@ import { useRouter } from 'next/navigation';
 import styles from './page.module.css';
 import TryOnVisualizer from '../components/TryOnVisualizer';
 import { API } from '../lib/api';
+import { authFetch } from '../lib/auth';
+import { useAuthGuard } from '../lib/useAuthGuard';
 
 interface ClothingItem {
   id: string;
@@ -35,20 +37,28 @@ export default function Home() {
   const [userPhoto, setUserPhoto] = useState<string | null>(null);
   const [items, setItems] = useState<ClothingItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const token = useAuthGuard();
 
   const timerRef = useRef<any>(null);
 
   useEffect(() => {
+    if (!token) return;
     const fetchData = async () => {
       try {
         const [userRes, itemsRes] = await Promise.all([
-          fetch(API.users.me),
-          fetch(API.closet.items)
+          authFetch(API.users.me),
+          authFetch(API.closet.items)
         ]);
 
         if (userRes.ok) {
           const userData = await userRes.json();
           setUserPhoto(userData.full_body_image);
+          
+          // Check if user has completed onboarding
+          if (!userData.onboarding_completed) {
+            router.push('/onboarding');
+            return;
+          }
         }
 
         if (itemsRes.ok) {
@@ -62,7 +72,7 @@ export default function Home() {
       }
     };
     fetchData();
-  }, []);
+  }, [token]);
 
   const handleTouchStart = (id: string) => {
     if (isSelectionMode) return;

@@ -1,18 +1,24 @@
 "use client";
 
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import styles from './page.module.css';
 import { API } from '../../lib/api';
+import { authFetch, clearToken } from '../../lib/auth';
+import { useAuthGuard } from '../../lib/useAuthGuard';
 
 export default function MePage() {
     const [user, setUser] = useState<any>(null);
     const [uploading, setUploading] = useState(false);
     const [showFullPhoto, setShowFullPhoto] = useState(false);
+    const router = useRouter();
+    const token = useAuthGuard();
 
     useEffect(() => {
+        if (!token) return;
         const fetchUser = async () => {
             try {
-                const res = await fetch(API.users.me);
+                const res = await authFetch(API.users.me);
                 if (res.ok) {
                     const data = await res.json();
                     setUser(data);
@@ -22,7 +28,7 @@ export default function MePage() {
             }
         };
         fetchUser();
-    }, []);
+    }, [token]);
 
     const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
@@ -33,7 +39,7 @@ export default function MePage() {
         formData.append('file', file);
 
         try {
-            const res = await fetch(API.users.bodyPhoto, {
+            const res = await authFetch(API.users.bodyPhoto, {
                 method: 'POST',
                 body: formData
             });
@@ -124,7 +130,15 @@ export default function MePage() {
                 </div>
             </div>
 
-            <button className={styles.logoutBtn}>Sign Out</button>
+            <button
+                className={styles.logoutBtn}
+                onClick={() => {
+                    clearToken();
+                    router.replace('/auth/login');
+                }}
+            >
+                Sign Out
+            </button>
 
             {/* Full Photo Modal */}
             {showFullPhoto && user?.full_body_image && (

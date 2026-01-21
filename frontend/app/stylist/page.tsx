@@ -2,8 +2,10 @@
 
 import { useState, useRef, useEffect } from 'react';
 import styles from './page.module.css';
+import { useAuthGuard } from '../../lib/useAuthGuard';
 
 export default function StylistChat() {
+    useAuthGuard();
     const [messages, setMessages] = useState([
         { role: 'assistant', text: "Hi! I'm Ava, your personal stylist. What are we planning for today? A date, work, or just a chic casual look?" },
     ]);

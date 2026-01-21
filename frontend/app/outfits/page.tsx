@@ -4,19 +4,23 @@ import { useState, useEffect } from 'react';
 import styles from './page.module.css';
 import TryOnVisualizer from '../../components/TryOnVisualizer';
 import { API } from '../../lib/api';
+import { authFetch } from '../../lib/auth';
+import { useAuthGuard } from '../../lib/useAuthGuard';
 
 export default function OutfitsPage() {
     const [selectedOutfit, setSelectedOutfit] = useState<any>(null);
     const [outfits, setOutfits] = useState<any[]>([]);
     const [userPhoto, setUserPhoto] = useState<string | null>(null);
     const [showTryOn, setShowTryOn] = useState(false);
+    const token = useAuthGuard();
 
     useEffect(() => {
+        if (!token) return;
         const fetchData = async () => {
             try {
                 const [outfitsRes, userRes] = await Promise.all([
-                    fetch(API.outfits.list),
-                    fetch(API.users.me)
+                    authFetch(API.outfits.list),
+                    authFetch(API.users.me)
                 ]);
 
                 if (outfitsRes.ok) setOutfits(await outfitsRes.json());
@@ -29,7 +33,7 @@ export default function OutfitsPage() {
             }
         };
         fetchData();
-    }, []);
+    }, [token]);
 
     const handleTryOn = (outfit: any) => {
         setSelectedOutfit(outfit);

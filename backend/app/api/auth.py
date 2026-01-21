@@ -2,16 +2,22 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 from datetime import timedelta
+import logging
 from app.db.session import get_db
 from app.core import security
 from app.core.config import settings
 from app.models.models import User
 from app.schemas.user import UserCreate, UserOut, Token
+from app.services.zep_service import create_zep_user
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
-@router.post("/signup", response_model=UserOut)
+@router.post("/signup", response_model=Token)
 def signup(user_in: UserCreate, db: Session = Depends(get_db)):
+    logger.info(f"Signup request: email={user_in.email}, full_name={user_in.full_name}")
+    
     user = db.query(User).filter(User.email == user_in.email).first()
     if user:
         raise HTTPException(
@@ -27,7 +33,24 @@ def signup(user_in: UserCreate, db: Session = Depends(get_db)):
     db.add(db_user)
     db.commit()
     db.refresh(db_user)
-    return db_user
+    
+    logger.info(f"User created: id={db_user.id}, email={db_user.email}")
+    
+    # Create user in Zep Cloud for profiling
+    create_zep_user(
+        user_id=db_user.id,
+        email=db_user.email,
+        full_name=db_user.full_name
+    )
+    
+    # Return access token for automatic login
+    access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+    return {
+        "access_token": security.create_access_token(
+            db_user.id, expires_delta=access_token_expires
+        ),
+        "token_type": "bearer",
+    }
 
 @router.post("/login", response_model=Token)
 def login(

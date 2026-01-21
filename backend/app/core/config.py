@@ -13,6 +13,9 @@ class Settings(BaseSettings):
     
     # Gemini API Key
     GEMINI_API_KEY: str = ""
+    
+    # Zep API Key
+    ZEP_API_KEY: str = ""
 
     # AWS S3 (optional - for image storage)
     S3_BUCKET: str = "virtual-closet-assets"

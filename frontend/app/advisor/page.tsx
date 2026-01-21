@@ -2,8 +2,10 @@
 
 import { useState } from 'react';
 import styles from './page.module.css';
+import { useAuthGuard } from '../../lib/useAuthGuard';
 
 export default function AdvisorPage() {
+    useAuthGuard();
     const [file, setFile] = useState<File | null>(null);
     const [preview, setPreview] = useState<string | null>(null);
     const [status, setStatus] = useState<'idle' | 'analyzing' | 'chatting'>('idle');

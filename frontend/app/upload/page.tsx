@@ -4,6 +4,8 @@ import { useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import styles from './page.module.css';
 import { API } from '../../lib/api';
+import { authFetch } from '../../lib/auth';
+import { useAuthGuard } from '../../lib/useAuthGuard';
 
 export default function UploadPage() {
     const router = useRouter();
@@ -12,6 +14,7 @@ export default function UploadPage() {
     const [status, setStatus] = useState<'idle' | 'uploading' | 'analyzing' | 'done' | 'error'>('idle');
     const [analysis, setAnalysis] = useState<any>(null);
     const [errorMsg, setErrorMsg] = useState<string>('');
+    const token = useAuthGuard();
 
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files && e.target.files[0]) {
@@ -36,7 +39,7 @@ export default function UploadPage() {
             setStatus('analyzing');
 
             // Call the real backend API
-            const response = await fetch(API.closet.upload, {
+            const response = await authFetch(API.closet.upload, {
                 method: 'POST',
                 body: formData
             });
