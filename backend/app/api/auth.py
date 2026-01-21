@@ -36,12 +36,20 @@ def signup(user_in: UserCreate, db: Session = Depends(get_db)):
     
     logger.info(f"User created: id={db_user.id}, email={db_user.email}")
     
-    # Create user in Zep Cloud for profiling
-    create_zep_user(
+    # Create user in Zep Cloud for profiling and get thread_id
+    zep_user, thread_id = create_zep_user(
         user_id=db_user.id,
         email=db_user.email,
         full_name=db_user.full_name
     )
+    
+    # Store thread_id if created successfully
+    if thread_id:
+        db_user.zep_thread_id = thread_id
+        db.add(db_user)
+        db.commit()
+        db.refresh(db_user)
+        logger.info(f"Thread created for user {db_user.id}: {thread_id}")
     
     # Return access token for automatic login
     access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)

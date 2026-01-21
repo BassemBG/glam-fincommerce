@@ -22,6 +22,10 @@ export default function MePage() {
                 if (res.ok) {
                     const data = await res.json();
                     setUser(data);
+                } else {
+                    console.error("Failed to fetch user. Status:", res.status, res.statusText);
+                    const errorData = await res.json().catch(() => null);
+                    console.error("Error response:", errorData);
                 }
             } catch (err) {
                 console.error("Failed to fetch user:", err);

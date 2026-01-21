@@ -18,12 +18,18 @@ export const getToken = () => {
 };
 
 export const authFetch = async (input: RequestInfo | URL, init: RequestInit = {}) => {
-  const token = getToken();
-  const headers = new Headers(init.headers || {});
-  if (token) {
-    headers.set("Authorization", `Bearer ${token}`);
+  try {
+    const token = getToken();
+    const headers = new Headers(init.headers || {});
+    if (token) {
+      headers.set("Authorization", `Bearer ${token}`);
+    }
+    const response = await fetch(input, { ...init, headers });
+    return response;
+  } catch (error) {
+    console.error("authFetch error:", error);
+    throw error;
   }
-  return fetch(input, { ...init, headers });
 };
 
 export const isAuthed = () => !!getToken();

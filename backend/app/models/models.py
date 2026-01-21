@@ -14,6 +14,9 @@ class User(SQLModel, table=True):
     full_body_image: Optional[str] = None
     style_profile: Dict = Field(default={}, sa_column=Column(JSON))
     
+    # Zep Cloud integration
+    zep_thread_id: Optional[str] = None  # Thread ID for storing onboarding data in Zep
+    
     # Onboarding profile fields
     age: Optional[int] = None
     education: Optional[str] = None  # Where they study
