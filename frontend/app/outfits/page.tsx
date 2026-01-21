@@ -106,7 +106,13 @@ export default function OutfitsPage() {
                         {/* Try-on Image */}
                         {selectedOutfit.tryon_image_url && (
                             <div className={styles.tryOnPreview}>
-                                <img src={selectedOutfit.tryon_image_url} alt="Try-on preview" />
+                                <img
+                                    src={selectedOutfit.tryon_image_url.startsWith('http')
+                                        ? selectedOutfit.tryon_image_url
+                                        : `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}${selectedOutfit.tryon_image_url}`
+                                    }
+                                    alt="Try-on preview"
+                                />
                             </div>
                         )}
 
