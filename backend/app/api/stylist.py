@@ -38,7 +38,9 @@ async def chat_with_stylist(
 
 from app.services.embedding_service import embedding_service
 from app.services.qdrant_service import qdrant_service
+from app.services.tryon_generator import tryon_generator
 import json
+import logging
 
 @router.post("/outfits/save")
 async def save_outfit(
@@ -64,7 +66,27 @@ async def save_outfit(
     description = meta.get("description", "")
     style_tags = json.dumps(meta.get("style_tags", []))
     
-    # 3. Create initial DB record
+    # 3. Generate try-on image if user has a body photo
+    tryon_image_url = None
+    if dummy_user.full_body_image and db_items:
+        clothing_items = [
+            {
+                "image_url": item.image_url,
+                "mask_url": item.mask_url,
+                "body_region": item.body_region
+            }
+            for item in db_items
+        ]
+        try:
+            tryon_image_url = await tryon_generator.generate_tryon_image(
+                body_image_url=dummy_user.full_body_image,
+                clothing_items=clothing_items
+            )
+            logging.info(f"Generated try-on image: {tryon_image_url}")
+        except Exception as e:
+            logging.error(f"Try-on generation failed: {e}")
+    
+    # 4. Create initial DB record
     db_outfit = Outfit(
         user_id=dummy_user.id,
         name=outfit_data.get("name"),
@@ -75,6 +97,7 @@ async def save_outfit(
         reasoning=outfit_data.get("reasoning"),
         description=description,
         style_tags=style_tags,
+        tryon_image_url=tryon_image_url,
         created_by="ai"
     )
     
@@ -82,8 +105,7 @@ async def save_outfit(
     db.commit()
     db.refresh(db_outfit)
     
-    # 4. Generate embedding and save to Qdrant
-    # We embed the global description which captures the essence of the outfit
+    # 5. Generate embedding and save to Qdrant
     embedding_text = f"{db_outfit.name or ''}. {description}. Tags: {style_tags}"
     vector = await embedding_service.get_text_embedding(embedding_text)
     
