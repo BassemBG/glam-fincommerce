@@ -1,5 +1,7 @@
 "use client";
 
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import styles from './page.module.css';
@@ -86,8 +88,33 @@ export default function Home() {
     }
   };
 
-  const handleCreateOutfit = () => {
+  const handleCreateOutfit = async () => {
     setIsAnimating(true);
+
+    // Build outfit data from selected items
+    const selectedItems = items.filter(item => selectedForOutfit.includes(item.id));
+    const outfitData = {
+      name: `Outfit ${new Date().toLocaleDateString()}`,
+      items: selectedForOutfit,
+      occasion: "casual",
+      vibe: selectedItems[0]?.metadata_json?.vibe || "chic"
+    };
+
+    try {
+      // Save outfit to backend
+      const response = await fetch(`${API_URL}/api/v1/stylist/outfits/save`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(outfitData)
+      });
+
+      if (!response.ok) {
+        console.error('Failed to save outfit');
+      }
+    } catch (err) {
+      console.error('Error saving outfit:', err);
+    }
+
     setTimeout(() => {
       setShowSparks(true);
       setTimeout(() => {
