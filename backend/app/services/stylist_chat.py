@@ -1,5 +1,4 @@
-import google.generativeai as genai
-from app.core.config import settings
+from app.services.groq_vision_service import groq_vision_service
 import json
 import logging
 from typing import List, Dict, Any, Optional
@@ -8,16 +7,12 @@ from app.models.models import ClothingItem, Outfit
 
 class StylistChatAgent:
     def __init__(self):
-        if settings.GEMINI_API_KEY:
-            genai.configure(api_key=settings.GEMINI_API_KEY)
-            self.model = genai.GenerativeModel('gemini-1.5-flash')
-        else:
-            self.model = None
+        self.groq_service = groq_vision_service
 
     async def chat(self, user_id: str, message: str, closet_items: List[ClothingItem], user_photo: Optional[str] = None, outfits: List[Outfit] = [], history: List[Dict] = []) -> Dict[str, Any]:
         """Main conversational interface for the stylist."""
-        if not self.model:
-            return {"response": "I'm sorry, my styling brain is currently offline. Please check the API key."}
+        if not self.groq_service.client:
+            return {"response": "I'm sorry, my styling brain is currently offline. Please check the GROQ_API_KEY."}
 
         # 1. Identify Intent (Outfit planning, viewing clothes, etc.)
         # For simplicity, we'll assume the chat can handle various requests.
@@ -72,13 +67,22 @@ class StylistChatAgent:
                 }
             
             # Default chat response
-            # We want Gemini to ALWAYS return JSON now
-            chat_prompt = f"{system_prompt}\n\nUser: {message}\n\nReturn ONLY a JSON object."
-            response = self.model.generate_content(chat_prompt)
+            # We want Groq to ALWAYS return JSON now
+            chat_prompt = f"{system_prompt}\n\nUser: {message}\n\nReturn ONLY a JSON object, no markdown, no code blocks."
+            response_text = await self.groq_service.generate_text(
+                prompt=chat_prompt,
+                temperature=0.7,
+                max_tokens=1024
+            )
             
-            text = response.text.strip()
+            text = response_text.strip()
             if text.startswith("```json"):
                 text = text.replace("```json", "", 1).rsplit("```", 1)[0].strip()
+            elif text.startswith("```"):
+                text = text.split("```")[1]
+                if text.startswith("json"):
+                    text = text[4:]
+                text = text.strip()
             
             return json.loads(text)
 

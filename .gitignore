@@ -18,3 +18,4 @@ uploads/
 # Backend environment variables
 .env
 
+.jpeg

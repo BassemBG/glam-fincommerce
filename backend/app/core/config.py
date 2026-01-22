@@ -11,14 +11,22 @@ class Settings(BaseSettings):
     # Database - SQLite by default (no installation needed)
     DATABASE_URL: str = "sqlite:///./virtual_closet.db"
     
-    # Gemini API Key
-    GEMINI_API_KEY: str = ""
+    # Groq API Key (Main AI service)
+    GROQ_API_KEY: str = ""
+    
+    # Tavily API Key (Price lookup)
+    TAVILY_API_KEY: str = ""
 
     # AWS S3 (optional - for image storage)
     S3_BUCKET: str = "virtual-closet-assets"
     AWS_ACCESS_KEY_ID: str = ""
     AWS_SECRET_ACCESS_KEY: str = ""
     AWS_REGION: str = "us-east-1"
+    
+    # Qdrant Vector Database
+    QDRANT_URL: str = "http://localhost:6333"
+    QDRANT_API_KEY: Optional[str] = None
+    QDRANT_COLLECTION_NAME: str = "clothing_embeddings"
 
     model_config = SettingsConfigDict(env_file=".env", case_sensitive=True, extra="ignore")
 
