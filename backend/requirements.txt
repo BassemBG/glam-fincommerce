@@ -17,3 +17,7 @@ google-generativeai
 pytest
 httpx
 rembg[cpu]
+Pillow
+requests
+aiofiles
+email-validator
