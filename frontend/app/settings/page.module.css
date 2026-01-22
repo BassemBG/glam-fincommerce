@@ -248,3 +248,61 @@
 .logoutBtn:hover {
     background: #fee2e2;
 }
+
+.analysisResults {
+    margin-top: 24px;
+    padding: 24px;
+    background: #f8fafc;
+    border-radius: 20px;
+    border: 1px solid #e2e8f0;
+}
+
+.analysisGrid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 16px;
+    margin-bottom: 20px;
+}
+
+.resultItem {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.resultLabel {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: #64748b;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.resultValue {
+    font-size: 1rem;
+    font-weight: 600;
+    color: #1e293b;
+    text-transform: capitalize;
+}
+
+.analysisSummary {
+    font-size: 0.9rem;
+    line-height: 1.6;
+    color: #475569;
+    padding-top: 16px;
+    border-top: 1px solid #e2e8f0;
+}
+
+.spinner {
+    width: 32px;
+    height: 32px;
+    border: 3px solid #e2e8f0;
+    border-top-color: var(--primary);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    margin-bottom: 12px;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}

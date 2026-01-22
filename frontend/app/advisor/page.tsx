@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import styles from './page.module.css';
+import { API } from '../../lib/api';
 
 export default function AdvisorPage() {
     const [file, setFile] = useState<File | null>(null);
@@ -19,24 +20,63 @@ export default function AdvisorPage() {
         }
     };
 
-    const startAnalysis = () => {
+    const startAnalysis = async () => {
         if (!file) return;
         setStatus('analyzing');
 
-        // Initial AI logic
-        setTimeout(() => {
-            const initialAnalysis = {
-                role: 'assistant',
-                text: "I've analyzed this Cashmere Sweater. It's a high-quality piece that matches 92% of your style profile. You have a similar grey merino wool sweater, but this one offers a more formal silhouette. Should we brainstorm some outfits with it?",
-                data: {
-                    score: 92,
-                    similarity: "Grey Merino Wool Sweater (85% match)",
-                    outfits: ["Quiet Luxury", "Winter Professional"]
+        const formData = new FormData();
+        formData.append('file', file);
+
+        try {
+            const res = await fetch(API.stylist.advisor, {
+                method: 'POST',
+                body: formData
+            });
+
+            if (res.ok) {
+                const data = await res.json();
+
+                // Create a nice AI response based on the results
+                const matchCount = data.matches?.length || 0;
+                const analysis = data.target_analysis;
+
+                let followUpText = `I've analyzed this ${analysis.sub_category || analysis.category}. `;
+
+                if (matchCount > 0) {
+                    const topMatch = data.matches[0];
+                    const similarity = Math.round(topMatch.score * 100);
+                    followUpText += `I found some similar items in your closet! Your ${topMatch.clothing?.sub_category || 'existing item'} is a ${similarity}% visual match. `;
+
+                    if (similarity > 80) {
+                        followUpText += "Since you already have something very similar, you might want to consider if this purchase adds enough value to your wardrobe.";
+                    } else {
+                        followUpText += "It complement's your existing pieces nicely without being a direct duplicate.";
+                    }
+                } else {
+                    followUpText += "This looks like a unique addition to your wardrobe! I didn't find anything too similar in your current collection.";
                 }
-            };
-            setMessages([initialAnalysis]);
-            setStatus('chatting');
-        }, 2500);
+
+                const initialAnalysis = {
+                    role: 'assistant',
+                    text: followUpText,
+                    data: {
+                        score: matchCount > 0 ? Math.round(data.matches[0].score * 100) : 0,
+                        similarity: matchCount > 0 ? (data.matches[0].clothing?.sub_category || "Visual match") : "No direct matches",
+                        matches: data.matches
+                    }
+                };
+
+                setMessages([initialAnalysis]);
+                setStatus('chatting');
+            } else {
+                alert("Analysis failed. Please try again.");
+                setStatus('idle');
+            }
+        } catch (err) {
+            console.error(err);
+            alert("An error occurred.");
+            setStatus('idle');
+        }
     };
 
     const handleSend = () => {
@@ -118,6 +158,20 @@ export default function AdvisorPage() {
                                             <div className={styles.simRow}>
                                                 <span>Similar Item: {msg.data.similarity}</span>
                                             </div>
+
+                                            {msg.data.matches && msg.data.matches.length > 0 && (
+                                                <div className={styles.matchesScroll}>
+                                                    <p className={styles.matchPrompt}>Items in your closet:</p>
+                                                    <div className={styles.matchesList}>
+                                                        {msg.data.matches.map((m: any, idx: number) => (
+                                                            <div key={idx} className={styles.matchItem}>
+                                                                <img src={m.image_url} alt="Match" title={`${m.clothing?.sub_category} (${Math.round(m.score * 100)}% match)`} />
+                                                                <span className={styles.matchScore}>{Math.round(m.score * 100)}%</span>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            )}
                                         </div>
                                     )}
                                 </div>

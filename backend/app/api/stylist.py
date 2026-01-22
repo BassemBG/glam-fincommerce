@@ -1,11 +1,14 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from sqlalchemy.orm import Session
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 from pydantic import BaseModel
 from app.db.session import get_db
 from app.services.stylist_chat import stylist_chat
+from app.services.vision_analyzer import vision_analyzer
+from app.services.clip_qdrant_service import clip_qdrant_service
 from app.models.models import ClothingItem, User, Outfit
 import uuid
+import json
 
 router = APIRouter()
 
@@ -61,3 +64,95 @@ async def save_outfit(
     db.refresh(db_outfit)
     
     return db_outfit
+
+@router.post("/advisor/compare")
+async def advisor_compare(
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db)
+):
+    """
+    Compare a potential purchase image with existing closet items.
+    Checks for:
+    1. Visual similarity (CLIP)
+    2. Category & Color matches
+    """
+    # Force demo user ID for consistency
+    user_id = "full_test_user"
+    
+    content = await file.read()
+    
+    try:
+        # Step 1: Analyze the target piece
+        analysis = await vision_analyzer.analyze_clothing(content)
+        category = analysis.get("category")
+        sub_category = analysis.get("sub_category")
+        colors = analysis.get("colors", [])
+        
+        # Step 2: Search visually (Low threshold to find 'vibe' matches)
+        visual_matches = await clip_qdrant_service.search_similar_clothing_by_image(
+            image_data=content,
+            user_id=user_id,
+            limit=10,
+            min_score=0.35 # Very permissive for comparison
+        )
+        
+        # Step 3: Global Metadata Check & Unified Scoring
+        all_items_resp = await clip_qdrant_service.get_user_items(user_id, limit=100)
+        all_items = all_items_resp.get("items", [])
+        
+        # Create a lookup for visual scores from CLIP
+        visual_scores = {str(item["id"]): item["score"] for item in visual_matches}
+        
+        matches = []
+        for item in all_items:
+            item_id = str(item.get("id"))
+            item_clothing = item.get("clothing", {})
+            
+            # 1. Base Score (Visual)
+            v_score = visual_scores.get(item_id, 0.0)
+            
+            # 2. Category Boost
+            cat_boost = 0.0
+            if item_clothing.get("category") == category:
+                cat_boost = 0.15 
+                if item_clothing.get("sub_category") == sub_category:
+                    cat_boost = 0.25 
+            
+            # 3. Color Boost
+            color_boost = 0.0
+            item_colors = item_clothing.get("colors", [])
+            shared_colors = set(colors) & set(item_colors)
+            if shared_colors:
+                color_boost = min(0.20, len(shared_colors) * 0.05)
+            
+            # Calculate Unified Score
+            if v_score > 0:
+                # Weighted: 60% Visual, 40% Metadata
+                unified_score = (v_score * 0.6) + (cat_boost + color_boost)
+            elif cat_boost > 0:
+                # No visual match found by CLIP (or below threshold), but metadata matches
+                unified_score = cat_boost + color_boost
+            else:
+                continue 
+                
+            item["score"] = min(0.98, unified_score) # Cap at 98%
+            
+            if item["score"] > 0.30:
+                img_b64 = item.get("image_base64", "")
+                item["image_url"] = f"data:image/jpeg;base64,{img_b64}" if img_b64 else ""
+                matches.append(item)
+        
+        # Sort by unified score
+        matches.sort(key=lambda x: x.get("score", 0), reverse=True)
+                
+        return {
+            "status": "success",
+            "target_analysis": analysis,
+            "matches": matches[:10],
+            "summary": f"Unified analysis complete. Found {len(matches)} relevant matches."
+        }
+        
+    except Exception as e:
+        import logging
+        logging.error(f"Advisor comparison failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))

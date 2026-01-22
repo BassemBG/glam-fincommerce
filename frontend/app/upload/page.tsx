@@ -35,8 +35,8 @@ export default function UploadPage() {
 
             setStatus('analyzing');
 
-            // Call the real backend API
-            const response = await fetch(API.closet.upload, {
+            // Call the real backend API (New Ingestion Pipeline)
+            const response = await fetch(API.clothing.ingest, {
                 method: 'POST',
                 body: formData
             });
@@ -48,17 +48,22 @@ export default function UploadPage() {
 
             const data = await response.json();
 
-            // Extract analysis from response
+            console.log("Ingestion response:", data);
+            console.log("Duplicate status:", data.qdrant_result?.status);
+
+            // Extract analysis from new response structure
             setAnalysis({
-                category: data.analysis?.category || 'Clothing',
-                sub_category: data.analysis?.sub_category || 'Item',
-                body_region: data.analysis?.body_region || 'top',
-                vibe: data.analysis?.vibe || 'Casual',
-                colors: data.analysis?.colors || [],
-                description: data.analysis?.description || 'A versatile piece for your wardrobe.',
-                styling_tips: data.analysis?.styling_tips || 'Style it your way!',
+                category: data.clothing?.category || 'Clothing',
+                sub_category: data.clothing?.sub_category || 'Item',
+                body_region: data.clothing?.body_region || 'top',
+                vibe: data.clothing?.vibe || 'Casual',
+                colors: data.clothing?.colors || [],
+                description: data.clothing?.description || 'A versatile piece for your wardrobe.',
+                styling_tips: data.clothing?.styling_tips || 'Style it your way!',
                 image_url: data.image_url,
-                mask_url: data.mask_url
+                mask_url: data.image_url, // No mask in new pipeline yet
+                brand: data.brand?.detected_brand,
+                price: data.price
             });
             setStatus('done');
 
@@ -134,8 +139,13 @@ export default function UploadPage() {
                             <div className={styles.tags}>
                                 <span className={styles.tag}>{analysis.body_region.replace('_', ' ')}</span>
                                 <span className={styles.tag}>{analysis.vibe}</span>
+                                {analysis.brand && <span className={styles.tag} style={{ background: '#000', color: '#fff' }}>{analysis.brand}</span>}
                             </div>
+
                             <h3>{analysis.sub_category}</h3>
+                            {analysis.price && (
+                                <p className={styles.priceTag}>${analysis.price} (Estimated)</p>
+                            )}
                             <p>{analysis.description}</p>
                             {analysis.styling_tips && (
                                 <p className={styles.stylingTip}>💡 {analysis.styling_tips}</p>

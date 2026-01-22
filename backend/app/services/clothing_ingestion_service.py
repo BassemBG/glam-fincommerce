@@ -6,6 +6,7 @@ from datetime import datetime
 from typing import Dict, Any, Optional
 import uuid
 from app.services.groq_vision_service import groq_vision_service
+from app.services.clip_qdrant_service import clip_qdrant_service
 
 logger = logging.getLogger(__name__)
 
@@ -50,13 +51,8 @@ class ClothingIngestionService:
         
         self.tavily_api_key = getattr(settings, 'TAVILY_API_KEY', None)
         
-        # Import Qdrant service
-        try:
-            from app.services.qdrant_service import qdrant_service
-            self.qdrant_service = qdrant_service
-        except Exception as e:
-            logger.warning(f"Could not initialize Qdrant: {e}")
-            self.qdrant_service = None
+        # Use CLIP Qdrant service (Primary storage)
+        self.clip_service = clip_qdrant_service
 
     # ==================== STEP 1: Clothing Analysis ====================
     
@@ -211,9 +207,9 @@ class ClothingIngestionService:
         
         prices = []
         
-        # Price regex pattern (matches $, €, £, USD, EUR) - exact same as test_serper.py
+        # Price regex pattern (matches $, €, £, USD, EUR) - updated for single digits
         price_regex = re.compile(
-            r"(?:\$|€|£|usd|eur)\s*(\d{2,4}(?:\.\d{1,2})?)",
+            r"(?:\$|€|£|usd|eur)\s*(\d{1,4}(?:\.\d{1,2})?)",
             re.IGNORECASE,
         )
         
@@ -236,9 +232,9 @@ class ClothingIngestionService:
                 except ValueError:
                     continue
         
-        # Need at least 3 prices for reliable analysis - exact same as test_serper.py
-        if len(prices) < 3:
-            logger.info(f"Not enough prices found ({len(prices)}), need at least 3")
+        # Need at least 1 price for results (lowered from 3 for better coverage)
+        if len(prices) < 1:
+            logger.info(f"No prices found for {brand} {sub_category}")
             return {
                 "brand": brand,
                 "price_range": "unknown",
@@ -283,7 +279,7 @@ class ClothingIngestionService:
             category = "luxury"
         
         # Output: median * 3.3 (TND conversion)
-        typical_price_tnd = round(median * 3, 2)
+        typical_price_tnd = round(median * 3.3, 2)
         typical_price_usd = round(median, 2)
         
         logger.info(f"Price analysis: median=${typical_price_usd:.2f} USD (${typical_price_tnd:.2f} TND), range={category}, found {len(filtered)}/{len(prices)} valid prices")
@@ -405,19 +401,6 @@ class ClothingIngestionService:
                     "metadata": metadata,
                     "error": str(e)
                 }
-        else:
-            logger.warning("Qdrant service not available. Returning prepared data.")
-            return {
-                "status": "prepared_for_storage",
-                "embeddings_size": len(embeddings),
-                "point_id": point_id,
-                "metadata": metadata,
-                "qdrant_point": {
-                    "vector": embeddings,
-                    "payload": metadata
-                }
-        }
-
     # ==================== ORCHESTRATION ====================
     
     async def ingest_clothing(
@@ -429,12 +412,11 @@ class ClothingIngestionService:
     ) -> Dict[str, Any]:
         """
         Complete clothing ingestion pipeline:
-        1. Analyze clothing item
-        2. Analyze body type (if full body image provided)
-        3. Detect brand
+        1. Analyze clothing item (Groq)
+        2. Analyze body type (Groq - if full body image provided)
+        3. Detect brand (Groq)
         4. Look up brand/price via Tavily
-        5. Generate embeddings
-        6. Store in Qdrant
+        5. Generate CLIP embeddings & Store in Qdrant (CLIP)
         
         Returns complete ingestion result with all analysis data
         """
@@ -456,7 +438,7 @@ class ClothingIngestionService:
             logger.info("Step 3: Detecting brand...")
             brand_info = await self.detect_brand(image_data, clothing_analysis)
             
-            # Step 4: Look up brand/price using sub_category + brand
+            # Step 4: Look up brand/price
             logger.info("Step 4: Looking up brand pricing...")
             price_info = await self.lookup_brand_price(
                 brand=brand_info.get("detected_brand", "Unknown"),
@@ -468,29 +450,36 @@ class ClothingIngestionService:
             # Use provided price or Tavily result
             final_price = price or (brand_info.get("typical_price"))
             
-            # Step 5: Generate embeddings
-            logger.info("Step 5: Generating embeddings...")
-            embeddings = await self.generate_embeddings(clothing_analysis, body_analysis)
+            # Step 5 & 6: CLIP Embeddings & Qdrant Storage
+            logger.info("Steps 5 & 6: Generating CLIP embeddings and storing in Qdrant...")
             
-            # Step 6: Store in Qdrant
-            logger.info("Step 6: Storing in Qdrant...")
-            qdrant_result = await self.store_in_qdrant(
-                embeddings=embeddings,
+            # Store in CLIP collection (this handles embeddings AND image storage)
+            point_id = str(uuid.uuid4())
+            success = await self.clip_service.store_clothing_with_image(
+                point_id=point_id,
+                image_data=image_data,
                 clothing_analysis=clothing_analysis,
                 brand_info=brand_info,
-                price=final_price,
-                user_id=user_id
+                user_id=user_id,
+                price=final_price
             )
+            
+            qdrant_result = {
+                "status": "stored" if success else "failed",
+                "point_id": point_id if success else None
+            }
+            
+            storage_status = "success" if success else "failed"
             
             result = {
                 "status": "success",
+                "storage": storage_status,
                 "user_id": user_id,
                 "clothing_analysis": clothing_analysis,
                 "body_analysis": body_analysis,
                 "brand_info": brand_info,
                 "price": final_price,
-                "qdrant_storage": qdrant_result,
-                "note": "Body analysis stored in database but not yet integrated with Qdrant embeddings"
+                "qdrant_result": qdrant_result
             }
             
             logger.info(f"✓ Clothing ingestion complete for {clothing_analysis.get('sub_category')}")
@@ -499,6 +488,44 @@ class ClothingIngestionService:
         except Exception as e:
             logger.error(f"Clothing ingestion failed: {e}")
             raise
+
+    async def check_duplicate(
+        self,
+        image_data: bytes,
+        user_id: str,
+        threshold: float = 0.70
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Check if an identical item already exists in the closet.
+        """
+        try:
+            # Helper to access CLIP service directly
+            results = await self.clip_service.search_similar_clothing_by_image(
+                image_data=image_data,
+                user_id=user_id,
+                limit=1,
+                min_score=threshold
+            )
+            
+            if results and len(results) > 0:
+                logger.info(f"Duplicate found! Score: {results[0]['score']}")
+                return results[0]
+            
+            return None
+            
+        except Exception as e:
+            logger.error(f"Duplicate check failed: {e}")
+            return None
+
+    # ==================== SEARCH METHODS ====================
+    
+    async def search_visually(self, image_data: bytes, user_id: str, **kwargs) -> list:
+        """Find visually similar items in the closet using CLIP"""
+        return await self.clip_service.search_similar_clothing_by_image(image_data, user_id, **kwargs)
+        
+    async def search_by_text(self, query: str, user_id: str, **kwargs) -> list:
+        """Search items by natural language using CLIP text-to-image"""
+        return await self.clip_service.search_by_text(query, user_id, **kwargs)
 
 
 # Global instance

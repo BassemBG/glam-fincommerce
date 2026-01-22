@@ -4,6 +4,7 @@ from app.db.session import get_db
 from app.services.storage import storage_service
 from app.models.models import User
 import uuid
+import os
 
 router = APIRouter()
 
@@ -32,12 +33,67 @@ async def upload_body_photo(
     
     return {"image_url": image_url}
 
+@router.post("/analyze-profile")
+async def analyze_user_profile(
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db)
+):
+    """
+    Uploads a full-body photo, analyzes physical characteristics via Groq,
+    and returns the morphology, skin tone, height, and weight.
+    """
+    from app.services.groq_vision_service import groq_vision_service
+    import json
+    
+    content = await file.read()
+    
+    prompt = """Analyze this full-body photo for fashion styling.
+    Return ONLY JSON:
+    {
+      "morphology": "body shape (hourglass, pear, apple, rectangle, inverted triangle, athletic)",
+      "skin_color": "skin tone",
+      "height": "estimated height in cm",
+      "weight": "estimated weight in kg",
+      "summary": "short physiological description"
+    }"""
+    
+    try:
+        # 1. Get AI analysis
+        raw_result = await groq_vision_service._call_vision(content, prompt, json_format=True)
+        
+        # Clean JSON
+        clean_text = raw_result.strip()
+        if clean_text.startswith("```"):
+            clean_text = clean_text.split("```")[1]
+            if clean_text.startswith("json"):
+                clean_text = clean_text[4:]
+            clean_text = clean_text.strip()
+            
+        analysis = json.loads(clean_text)
+        
+        # 2. Save result to a local JSON for 'stocking' as requested
+        file_id = str(uuid.uuid4())
+        save_dir = "profile_data"
+        os.makedirs(save_dir, exist_ok=True)
+        json_path = os.path.join(save_dir, f"user_{file_id}.json")
+        
+        with open(json_path, "w") as f:
+            json.dump(analysis, f, indent=2)
+            
+        return {
+            "status": "success",
+            "analysis": analysis,
+            "saved_to": json_path
+        }
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 @router.get("/me")
 def get_me(db: Session = Depends(get_db)):
     try:
         user = db.query(User).first()
         if not user:
-            # Return a mock user if no user exists yet
             return {
                 "id": None,
                 "email": "demo@example.com",
@@ -51,7 +107,6 @@ def get_me(db: Session = Depends(get_db)):
             "full_body_image": getattr(user, 'full_body_image', None)
         }
     except Exception as e:
-        # Fallback for schema issues
         return {
             "id": None,
             "email": "demo@example.com",

@@ -42,6 +42,10 @@ class StorageService:
         
         # Local storage fallback
         file_path = os.path.join(self.upload_dir, file_name)
+        
+        # Ensure parent directory exists (critical for nested paths like 'clothing/user_id/file.jpg')
+        os.makedirs(os.path.dirname(file_path), exist_ok=True)
+        
         with open(file_path, "wb") as f:
             f.write(file_content)
         logging.info(f"File saved locally: {file_path}")

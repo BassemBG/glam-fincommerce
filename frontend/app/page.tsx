@@ -107,6 +107,29 @@ export default function Home() {
     }, 2000);
   };
 
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  const handleDelete = async (e: React.MouseEvent, id: string) => {
+    e.stopPropagation();
+    if (!confirm('Are you sure you want to remove this item?')) return;
+
+    setIsDeleting(true);
+    try {
+      const res = await fetch(API.closet.delete(id), { method: 'DELETE' });
+      if (res.ok) {
+        setItems(prev => prev.filter(item => item.id !== id));
+        setSelectedItem(null);
+      } else {
+        alert('Failed to delete item');
+      }
+    } catch (err) {
+      console.error(err);
+      alert('Error deleting item');
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
   // Empty state when no items
   if (!loading && items.length === 0) {
     return (
@@ -274,7 +297,27 @@ export default function Home() {
 
             <div className={styles.detailBody}>
               <section className={styles.section}>
-                <h3>AI Perspective</h3>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                  <h3>AI Perspective</h3>
+                  <button
+                    onClick={(e) => handleDelete(e, selectedItem.id)}
+                    disabled={isDeleting}
+                    style={{
+                      background: 'none',
+                      border: '1px solid #ff4444',
+                      borderRadius: '4px',
+                      padding: '4px 8px',
+                      color: '#ff4444',
+                      cursor: 'pointer',
+                      fontSize: '0.8rem',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '4px'
+                    }}
+                  >
+                    {isDeleting ? 'Deleting...' : '🗑️ Delete Item'}
+                  </button>
+                </div>
                 <p className={styles.description}>
                   {selectedItem.metadata_json?.description || 'A versatile piece that can be styled in many ways.'}
                 </p>

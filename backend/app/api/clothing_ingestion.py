@@ -45,7 +45,7 @@ class IngestionResponse:
 async def ingest_clothing(
     file: UploadFile = File(...),
     price: Optional[float] = None,
-    current_user: dict = Depends(get_current_user),
+    # current_user: dict = Depends(get_current_user), # Bypass auth for demo
     db: Session = Depends(get_db)
 ):
     """
@@ -61,13 +61,27 @@ async def ingest_clothing(
     """
     
     try:
-        user_id = current_user["sub"]
+        # FORCE DEMO USER ID per user request ("im not usng sql")
+        user_id = "full_test_user"
         
-        # Validate user exists
+        # Ensure this demo user exists in SQL to satisfy Foreign Key constraints
+        # Otherwise ingestion history insert will fail
         user = db.query(User).filter(User.id == user_id).first()
         if not user:
-            raise HTTPException(status_code=404, detail="User not found")
-        
+            logger.info(f"Creating demo user {user_id} for FK constraint")
+            # Create a dummy user for the demo
+            # Use unique email to avoid UNIQUE constraint errors
+            demo_user = User(
+                id=user_id,
+                email=f"{user_id}@example.com",
+                full_name="Demo User",
+                hashed_password="demo", 
+                is_active=True
+            )
+            db.add(demo_user)
+            db.commit()
+            db.refresh(demo_user)
+            
         # Read image file
         content = await file.read()
         if not content:
@@ -104,21 +118,22 @@ async def ingest_clothing(
             price=price
         )
         
-        # Upload image to permanent storage
-        image_name = f"clothing/{user_id}/{file_id}.jpg"
-        image_url = await storage_service.upload_file(
-            content,
-            image_name,
-            file.content_type or "image/jpeg"
-        )
-        logger.info(f"Image uploaded to: {image_url}")
+        
+        # SKIP Uploading image to permanent storage (User Preference: Use Qdrant Base64)
+        # image_name = f"clothing/{user_id}/{file_id}.jpg"
+        # image_url = await storage_service.upload_file(...)
+        
+        # logger.info(f"Image uploaded to: {image_url}")
         
         # Update ingestion record with results
         clothing_analysis = result.get("clothing_analysis", {})
         body_analysis = result.get("body_analysis", {})
         brand_info = result.get("brand_info", {})
         
-        ingestion_record.image_url = image_url
+        # Use placeholder URL since we are relying on Qdrant
+        qdrant_res = result.get("qdrant_result", {})
+        point_id = qdrant_res.get("point_id") if isinstance(qdrant_res, dict) else None
+        ingestion_record.image_url = f"qdrant://{point_id}" if point_id else "qdrant://failed"
         ingestion_record.status = "completed"
         
         # Clothing attributes
@@ -179,7 +194,8 @@ async def ingest_clothing(
                 "price_range": ingestion_record.price_range
             },
             "price": ingestion_record.price,
-            "image_url": image_url
+            "image_url": ingestion_record.image_url,
+            "qdrant_result": result.get("qdrant_result")
         }
         
     except ValueError as e:

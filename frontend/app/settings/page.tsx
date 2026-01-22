@@ -24,6 +24,8 @@ export default function MePage() {
         fetchUser();
     }, []);
 
+    const [analysisResults, setAnalysisResults] = useState<any>(null);
+
     const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (!file) return;
@@ -33,16 +35,29 @@ export default function MePage() {
         formData.append('file', file);
 
         try {
-            const res = await fetch(API.users.bodyPhoto, {
+            // First upload the photo for visualization
+            const photoRes = await fetch(API.users.bodyPhoto, {
                 method: 'POST',
                 body: formData
             });
-            if (res.ok) {
-                const data = await res.json();
-                setUser((prev: any) => ({ ...prev, full_body_image: data.image_url }));
+
+            if (photoRes.ok) {
+                const photoData = await photoRes.json();
+                setUser((prev: any) => ({ ...prev, full_body_image: photoData.image_url }));
+
+                // Then trigger the background analysis
+                const analysisRes = await fetch(API.users.analyzeProfile, {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (analysisRes.ok) {
+                    const analysisData = await analysisRes.json();
+                    setAnalysisResults(analysisData.analysis);
+                }
             }
         } catch (err) {
-            console.error("Upload failed:", err);
+            console.error("Upload or analysis failed:", err);
         } finally {
             setUploading(false);
         }
@@ -73,7 +88,7 @@ export default function MePage() {
                     {uploading ? (
                         <div className={styles.previewContainer}>
                             <div className={styles.spinner}></div>
-                            <p>Analyzing morphology...</p>
+                            <p>Analyzing physical traits...</p>
                         </div>
                     ) : user?.full_body_image ? (
                         <div className={styles.previewContainer}>
@@ -112,6 +127,32 @@ export default function MePage() {
                         </label>
                     )}
                 </div>
+
+                {analysisResults && (
+                    <div className={styles.analysisResults}>
+                        <div className={styles.analysisGrid}>
+                            <div className={styles.resultItem}>
+                                <span className={styles.resultLabel}>Morphology</span>
+                                <span className={styles.resultValue}>{analysisResults.morphology}</span>
+                            </div>
+                            <div className={styles.resultItem}>
+                                <span className={styles.resultLabel}>Skin Tone</span>
+                                <span className={styles.resultValue}>{analysisResults.skin_color}</span>
+                            </div>
+                            <div className={styles.resultItem}>
+                                <span className={styles.resultLabel}>Est. Height</span>
+                                <span className={styles.resultValue}>{analysisResults.height}</span>
+                            </div>
+                            <div className={styles.resultItem}>
+                                <span className={styles.resultLabel}>Est. Weight</span>
+                                <span className={styles.resultValue}>{analysisResults.weight}</span>
+                            </div>
+                        </div>
+                        {analysisResults.summary && (
+                            <p className={styles.analysisSummary}>{analysisResults.summary}</p>
+                        )}
+                    </div>
+                )}
             </section>
 
             <div className={styles.settingsGrid}>
@@ -127,14 +168,16 @@ export default function MePage() {
             <button className={styles.logoutBtn}>Sign Out</button>
 
             {/* Full Photo Modal */}
-            {showFullPhoto && user?.full_body_image && (
-                <div className={styles.photoModal} onClick={() => setShowFullPhoto(false)}>
-                    <div className={styles.modalContent} onClick={e => e.stopPropagation()}>
-                        <button className={styles.closeModal} onClick={() => setShowFullPhoto(false)}>✕</button>
-                        <img src={user.full_body_image} alt="Full Body" className={styles.fullPhoto} />
+            {
+                showFullPhoto && user?.full_body_image && (
+                    <div className={styles.photoModal} onClick={() => setShowFullPhoto(false)}>
+                        <div className={styles.modalContent} onClick={e => e.stopPropagation()}>
+                            <button className={styles.closeModal} onClick={() => setShowFullPhoto(false)}>✕</button>
+                            <img src={user.full_body_image} alt="Full Body" className={styles.fullPhoto} />
+                        </div>
                     </div>
-                </div>
-            )}
-        </div>
+                )
+            }
+        </div >
     );
 }
