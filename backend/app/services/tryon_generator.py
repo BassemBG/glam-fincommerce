@@ -16,6 +16,7 @@ import requests
 
 import google.generativeai as genai
 from app.core.config import settings
+from app.services.storage import storage_service
 
 
 class TryOnGenerator:
@@ -154,13 +155,17 @@ class TryOnGenerator:
             # Paste with alpha compositing
             body_img.paste(clothing_img, (paste_x, paste_y), clothing_img)
         
-        # Save the composite image
+        # Save the composite image to storage (Azure Blob, S3, or local)
         output_filename = f"tryon_{uuid.uuid4().hex}.png"
-        output_path = os.path.join(self.upload_dir, output_filename)
         
-        body_img.save(output_path, "PNG")
+        # Convert image to bytes
+        img_buffer = io.BytesIO()
+        body_img.save(img_buffer, format="PNG")
+        img_bytes = img_buffer.getvalue()
         
-        return f"/uploads/{output_filename}"
+        # Upload via storage service
+        image_url = await storage_service.upload_file(img_bytes, output_filename, "image/png")
+        return image_url
     
     async def _load_image(self, image_path: str) -> Optional[Image.Image]:
         """Load an image from a URL or local path."""
@@ -173,8 +178,9 @@ class TryOnGenerator:
                 image_path = parsed.path  # Now it's just /uploads/filename.jpg
             
             if image_path.startswith(("http://", "https://")):
-                # Only fetch external URLs
+                # Fetch remote URLs (including Azure Blob URLs)
                 response = requests.get(image_path, timeout=10)
+                response.raise_for_status()
                 return Image.open(io.BytesIO(response.content))
             else:
                 # Handle local paths

@@ -14,7 +14,11 @@ class Settings(BaseSettings):
     # Gemini API Key
     GEMINI_API_KEY: str = ""
 
-    # AWS S3 (optional - for image storage)
+    # Azure Blob Storage (optional - for image storage)
+    AZURE_STORAGE_CONNECTION_STRING: str = ""
+    AZURE_STORAGE_CONTAINER: str = "images"
+
+    # AWS S3 (optional - for image storage, deprecated in favor of Azure)
     S3_BUCKET: str = "virtual-closet-assets"
     AWS_ACCESS_KEY_ID: str = ""
     AWS_SECRET_ACCESS_KEY: str = ""
