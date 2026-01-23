@@ -85,13 +85,20 @@ class TryOnGenerator:
         Use Azure OpenAI gpt-image-1.5 model to generate a virtual try-on image.
         Uses /images/edits endpoint with multipart/form-data for multiple input images.
         """
+        import time
+        total_start = time.time()
         
         if not settings.AZURE_OPENAI_ENDPOINT or not settings.AZURE_OPENAI_API_KEY:
             logging.info("Azure OpenAI not configured, skipping AI try-on")
             return None
         
         # Load body image
+        print(f"[TIMING] Starting body image download from: {body_image_url[:50]}...", flush=True)
+        body_start = time.time()
         body_img = await self._load_image(body_image_url)
+        body_time = time.time() - body_start
+        print(f"[TIMING] Body image download: {body_time:.2f}s", flush=True)
+        
         if not body_img:
             logging.error("Could not load body image for AI try-on")
             return None
@@ -104,7 +111,12 @@ class TryOnGenerator:
             if not item_url:
                 continue
             
+            print(f"[TIMING] Starting clothing {i+1} download from: {item_url[:50]}...", flush=True)
+            clothing_start = time.time()
             clothing_img = await self._load_image(item_url)
+            clothing_time = time.time() - clothing_start
+            print(f"[TIMING] Clothing {i+1} download: {clothing_time:.2f}s", flush=True)
+            
             if clothing_img:
                 clothing_images.append(clothing_img)
                 # Build description from item metadata
@@ -132,8 +144,6 @@ Requirements:
 
 Output a single photorealistic image of the person wearing all the provided clothing."""
 
-            logging.info(f"Calling Azure OpenAI /images/edits with {len(clothing_images) + 1} images...")
-            
             # Build the REST API URL for images/edits
             endpoint = settings.AZURE_OPENAI_ENDPOINT.rstrip('/')
             deployment = settings.AZURE_OPENAI_IMAGE_DEPLOYMENT
@@ -146,6 +156,8 @@ Output a single photorealistic image of the person wearing all the provided clot
             }
             
             # Prepare files for multipart/form-data
+            print(f"[TIMING] Starting image conversion to bytes...", flush=True)
+            convert_start = time.time()
             files = []
             
             # Add body image as first image (highest fidelity in gpt-image-1.5)
@@ -156,6 +168,9 @@ Output a single photorealistic image of the person wearing all the provided clot
             for idx, clothing_img in enumerate(clothing_images):
                 clothing_bytes = self._image_to_bytes(clothing_img)
                 files.append(("image[]", (f"clothing_{idx}.png", clothing_bytes, "image/png")))
+            
+            convert_time = time.time() - convert_start
+            print(f"[TIMING] Image conversion: {convert_time:.2f}s", flush=True)
             
             # Form data - choose size based on body image aspect ratio
             body_aspect = body_img.width / body_img.height
@@ -175,14 +190,17 @@ Output a single photorealistic image of the person wearing all the provided clot
             }
             
             # Make the API call with multipart/form-data
+            print(f"[TIMING] Starting Azure OpenAI API call with {len(files)} images...", flush=True)
+            api_start = time.time()
             response = requests.post(url, headers=headers, data=data, files=files, timeout=180)
+            api_time = time.time() - api_start
+            print(f"[TIMING] Azure OpenAI API call: {api_time:.2f}s", flush=True)
             
             if response.status_code != 200:
                 logging.error(f"Azure OpenAI API error: {response.status_code} - {response.text}")
                 raise Exception(f"API error: {response.status_code} - {response.text}")
             
             result = response.json()
-            logging.info(f"Azure OpenAI response received, status: {response.status_code}")
             
             # Get the generated image
             if result.get("data") and len(result["data"]) > 0:
@@ -190,25 +208,39 @@ Output a single photorealistic image of the person wearing all the provided clot
                 
                 # Handle both base64 and URL responses
                 if image_data.get("b64_json"):
+                    print(f"[TIMING] Decoding base64 response...", flush=True)
+                    decode_start = time.time()
                     generated_bytes = base64.b64decode(image_data["b64_json"])
+                    decode_time = time.time() - decode_start
+                    print(f"[TIMING] Base64 decode: {decode_time:.2f}s", flush=True)
                 elif image_data.get("url"):
                     # Download image from URL
+                    print(f"[TIMING] Downloading result from URL...", flush=True)
+                    download_start = time.time()
                     img_response = requests.get(image_data["url"], timeout=30)
                     img_response.raise_for_status()
                     generated_bytes = img_response.content
+                    download_time = time.time() - download_start
+                    print(f"[TIMING] Result download: {download_time:.2f}s", flush=True)
                 else:
                     logging.error("No image data in response")
                     return None
                 
                 # Save to storage
+                print(f"[TIMING] Starting upload to Azure Blob Storage...", flush=True)
+                upload_start = time.time()
                 output_filename = f"tryon_ai_{uuid.uuid4().hex}.png"
                 image_url = await storage_service.upload_file(
                     generated_bytes, 
                     output_filename, 
                     "image/png"
                 )
+                upload_time = time.time() - upload_start
+                print(f"[TIMING] Azure Blob upload: {upload_time:.2f}s", flush=True)
                 
-                logging.info(f"AI try-on generated: {image_url}")
+                total_time = time.time() - total_start
+                print(f"[TIMING] ===== TOTAL TRY-ON TIME: {total_time:.2f}s =====", flush=True)
+                print(f"AI try-on generated: {image_url}", flush=True)
                 return image_url
             
             logging.warning("No image data in Azure OpenAI response")
