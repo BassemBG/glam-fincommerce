@@ -22,3 +22,4 @@ requests
 aiofiles
 email-validator
 azure-storage-blob
+openai

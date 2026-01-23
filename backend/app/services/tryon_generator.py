@@ -2,19 +2,19 @@
 Virtual Try-On Image Generator Service
 
 This service generates composite images showing clothing items on the user's body.
-- Primary: Uses Gemini's image generation capabilities
-- Fallback: Uses Pillow for simple image compositing when API is rate-limited
+- Primary: Uses Azure OpenAI gpt-image model for AI-powered try-on
+- Fallback: Uses Pillow for simple image compositing when API is unavailable
 """
 
 import os
 import uuid
 import logging
+import base64
 from typing import List, Optional
 from PIL import Image
 import io
 import requests
 
-import google.generativeai as genai
 from app.core.config import settings
 from app.services.storage import storage_service
 
@@ -24,11 +24,26 @@ class TryOnGenerator:
         self.upload_dir = os.path.join(os.getcwd(), "uploads")
         os.makedirs(self.upload_dir, exist_ok=True)
         
-        if settings.GEMINI_API_KEY:
-            genai.configure(api_key=settings.GEMINI_API_KEY)
-            self.model = genai.GenerativeModel('gemini-2.0-flash')
-        else:
-            self.model = None
+        # Azure OpenAI client
+        self.openai_client = None
+        self._init_azure_openai()
+    
+    def _init_azure_openai(self):
+        """Initialize Azure OpenAI client for image generation."""
+        try:
+            from openai import AzureOpenAI
+            
+            if settings.AZURE_OPENAI_ENDPOINT and settings.AZURE_OPENAI_API_KEY:
+                self.openai_client = AzureOpenAI(
+                    azure_endpoint=settings.AZURE_OPENAI_ENDPOINT,
+                    api_key=settings.AZURE_OPENAI_API_KEY,
+                    api_version="2024-12-01-preview"
+                )
+                logging.info("Azure OpenAI client initialized for try-on")
+        except ImportError:
+            logging.warning("openai package not installed")
+        except Exception as e:
+            logging.warning(f"Azure OpenAI not configured: {e}")
     
     async def generate_tryon_image(
         self,
@@ -67,34 +82,171 @@ class TryOnGenerator:
         clothing_items: List[dict]
     ) -> Optional[str]:
         """
-        Use AI to generate a virtual try-on image.
-        
-        TODO: Integrate with nanobanana for AI-powered virtual try-on.
-        nanobanana provides advanced image generation and editing capabilities
-        that can create realistic try-on visualizations.
-        
-        Implementation steps:
-        1. Upload body image and clothing items to nanobanana
-        2. Use virtual try-on model to composite clothing
-        3. Download and save the resulting image
+        Use Azure OpenAI gpt-image-1.5 model to generate a virtual try-on image.
+        Uses /images/edits endpoint with multipart/form-data for multiple input images.
         """
         
-        if not self.model:
+        if not settings.AZURE_OPENAI_ENDPOINT or not settings.AZURE_OPENAI_API_KEY:
+            logging.info("Azure OpenAI not configured, skipping AI try-on")
             return None
         
-        # TODO: Implement nanobanana virtual try-on
-        # Example workflow:
-        # from nanobanana import VirtualTryOn
-        # 
-        # tryon = VirtualTryOn(api_key=settings.NANOBANANA_API_KEY)
-        # result = await tryon.generate(
-        #     body_image=body_image_url,
-        #     garments=[item["mask_url"] for item in clothing_items]
-        # )
-        # return result.image_url
+        # Load body image
+        body_img = await self._load_image(body_image_url)
+        if not body_img:
+            logging.error("Could not load body image for AI try-on")
+            return None
         
-        # For now, fall through to Pillow approach
-        return None
+        # Load clothing images
+        clothing_images = []
+        clothing_descriptions = []
+        for i, item in enumerate(clothing_items):
+            item_url = item.get("mask_url") or item.get("image_url")
+            if not item_url:
+                continue
+            
+            clothing_img = await self._load_image(item_url)
+            if clothing_img:
+                clothing_images.append(clothing_img)
+                # Build description from item metadata
+                category = item.get("category", "clothing item")
+                sub_category = item.get("sub_category", "")
+                body_region = item.get("body_region", "")
+                desc = f"{sub_category} {category} for {body_region}" if sub_category else f"{category} for {body_region}"
+                clothing_descriptions.append(desc)
+        
+        if not clothing_images:
+            logging.error("No clothing images loaded for AI try-on")
+            return None
+        
+        try:
+            # Build the prompt
+            clothing_list = ", ".join(clothing_descriptions)
+            prompt = f"""Virtual try-on: Dress the person in the first image wearing the clothing items from the other images: {clothing_list}.
+
+Requirements:
+- Keep the person's face, body shape, skin tone, hairstyle, and pose EXACTLY the same
+- Apply each clothing item to the correct body region naturally
+- Match colors, patterns, and style precisely from the reference images
+- Create realistic fabric folds, shadows, and natural fit
+- Professional fashion photography quality, studio lighting
+
+Output a single photorealistic image of the person wearing all the provided clothing."""
+
+            logging.info(f"Calling Azure OpenAI /images/edits with {len(clothing_images) + 1} images...")
+            
+            # Build the REST API URL for images/edits
+            endpoint = settings.AZURE_OPENAI_ENDPOINT.rstrip('/')
+            deployment = settings.AZURE_OPENAI_IMAGE_DEPLOYMENT
+            api_version = "2025-04-01-preview"
+            url = f"{endpoint}/openai/deployments/{deployment}/images/edits?api-version={api_version}"
+            
+            # Request headers (no Content-Type - requests will set it for multipart)
+            headers = {
+                "api-key": settings.AZURE_OPENAI_API_KEY
+            }
+            
+            # Prepare files for multipart/form-data
+            files = []
+            
+            # Add body image as first image (highest fidelity in gpt-image-1.5)
+            body_bytes = self._image_to_bytes(body_img)
+            files.append(("image[]", ("body.png", body_bytes, "image/png")))
+            
+            # Add clothing images
+            for idx, clothing_img in enumerate(clothing_images):
+                clothing_bytes = self._image_to_bytes(clothing_img)
+                files.append(("image[]", (f"clothing_{idx}.png", clothing_bytes, "image/png")))
+            
+            # Form data
+            data = {
+                "prompt": prompt,
+                "n": "1",
+                "size": "1024x1024"
+            }
+            
+            # Make the API call with multipart/form-data
+            response = requests.post(url, headers=headers, data=data, files=files, timeout=180)
+            
+            if response.status_code != 200:
+                logging.error(f"Azure OpenAI API error: {response.status_code} - {response.text}")
+                raise Exception(f"API error: {response.status_code} - {response.text}")
+            
+            result = response.json()
+            logging.info(f"Azure OpenAI response received, status: {response.status_code}")
+            
+            # Get the generated image
+            if result.get("data") and len(result["data"]) > 0:
+                image_data = result["data"][0]
+                
+                # Handle both base64 and URL responses
+                if image_data.get("b64_json"):
+                    generated_bytes = base64.b64decode(image_data["b64_json"])
+                elif image_data.get("url"):
+                    # Download image from URL
+                    img_response = requests.get(image_data["url"], timeout=30)
+                    img_response.raise_for_status()
+                    generated_bytes = img_response.content
+                else:
+                    logging.error("No image data in response")
+                    return None
+                
+                # Save to storage
+                output_filename = f"tryon_ai_{uuid.uuid4().hex}.png"
+                image_url = await storage_service.upload_file(
+                    generated_bytes, 
+                    output_filename, 
+                    "image/png"
+                )
+                
+                logging.info(f"AI try-on generated: {image_url}")
+                return image_url
+            
+            logging.warning("No image data in Azure OpenAI response")
+            return None
+            
+        except Exception as e:
+            logging.error(f"Azure OpenAI image generation failed: {e}")
+            raise
+    
+    def _image_to_bytes(self, img: Image.Image) -> bytes:
+        """Convert PIL Image to bytes for API upload."""
+        # Ensure image is in RGB mode (no alpha channel for edit API)
+        if img.mode == "RGBA":
+            background = Image.new("RGB", img.size, (255, 255, 255))
+            background.paste(img, mask=img.split()[3])
+            img = background
+        elif img.mode != "RGB":
+            img = img.convert("RGB")
+        
+        # Resize if too large (API has size limits)
+        max_size = 1024
+        if img.width > max_size or img.height > max_size:
+            img.thumbnail((max_size, max_size), Image.Resampling.LANCZOS)
+        
+        buffer = io.BytesIO()
+        img.save(buffer, format="PNG")
+        buffer.seek(0)
+        return buffer.read()
+    
+    def _image_to_base64(self, img: Image.Image) -> str:
+        """Convert PIL Image to base64 string."""
+        # Ensure image is in a format suitable for API
+        if img.mode == "RGBA":
+            # Convert RGBA to RGB with white background
+            background = Image.new("RGB", img.size, (255, 255, 255))
+            background.paste(img, mask=img.split()[3])
+            img = background
+        elif img.mode != "RGB":
+            img = img.convert("RGB")
+        
+        # Resize if too large (max 4MB for API)
+        max_size = 1024
+        if img.width > max_size or img.height > max_size:
+            img.thumbnail((max_size, max_size), Image.Resampling.LANCZOS)
+        
+        buffer = io.BytesIO()
+        img.save(buffer, format="PNG")
+        return base64.b64encode(buffer.getvalue()).decode("utf-8")
     
     async def _generate_with_pillow(
         self,
