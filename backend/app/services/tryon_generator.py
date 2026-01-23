@@ -157,11 +157,21 @@ Output a single photorealistic image of the person wearing all the provided clot
                 clothing_bytes = self._image_to_bytes(clothing_img)
                 files.append(("image[]", (f"clothing_{idx}.png", clothing_bytes, "image/png")))
             
-            # Form data
+            # Form data - choose size based on body image aspect ratio
+            body_aspect = body_img.width / body_img.height
+            if body_aspect < 0.8:  # Portrait (tall image)
+                output_size = "1024x1536"
+            elif body_aspect > 1.2:  # Landscape (wide image)
+                output_size = "1536x1024"
+            else:  # Square-ish
+                output_size = "1024x1024"
+            
+            logging.info(f"Body image {body_img.width}x{body_img.height}, using output size: {output_size}")
+            
             data = {
                 "prompt": prompt,
                 "n": "1",
-                "size": "1024x1024"
+                "size": output_size
             }
             
             # Make the API call with multipart/form-data
