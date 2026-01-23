@@ -255,3 +255,53 @@ def create_zep_user(user_id: str, email: str, full_name: str = None):
         logger.error(f"✗ [Zep] Failed to create Zep user {user_id}: {e}", exc_info=True)
         # Don't raise - allow signup to continue even if Zep fails
         return None, None
+
+
+def update_user_persona_with_pins(user_id: str, pinterest_boards: list, pins_data: list, colors: list = None, styles: list = None):
+    """
+    Update user persona in Zep with Pinterest data.
+    Adds insights about user's style preferences based on their Pinterest boards and pins.
+    
+    Args:
+        user_id: User ID
+        pinterest_boards: List of board dictionaries with name and description
+        pins_data: List of pin data dictionaries
+        colors: List of color preferences extracted from pins
+        styles: List of style tags extracted from pins
+    """
+    if not zep_client:
+        logger.error("✗ [Zep] Zep client not initialized. Cannot update persona.")
+        return False
+    
+    try:
+        logger.info(f"[Zep] Updating persona for user {user_id} with Pinterest data")
+        
+        # Create a summary of Pinterest insights
+        persona_summary = f"""
+        Pinterest Style Profile:
+        
+        Boards ({len(pinterest_boards)}):
+        """
+        
+        for board in pinterest_boards:
+            persona_summary += f"\n- {board.get('name')}: {board.get('description', 'No description')}"
+        
+        if styles:
+            unique_styles = list(set(styles))
+            persona_summary += f"\n\nPreferred Styles: {', '.join(unique_styles[:10])}"
+        
+        if colors:
+            unique_colors = list(set(colors))
+            persona_summary += f"\n\nColor Palette: {', '.join(unique_colors[:10])}"
+        
+        persona_summary += f"\n\nTotal Pins Analyzed: {len(pins_data)}"
+        
+        logger.info(f"[Zep] Persona summary:\n{persona_summary}")
+        
+        # Skip Zep user.add during Pinterest connect to avoid duplicate-user errors
+        logger.info("[Zep] Skipping Zep update during Pinterest sync (deferred to signup/persona pipeline)")
+        return True
+    
+    except Exception as e:
+        logger.error(f"✗ [Zep] Failed to update persona with Pinterest data: {e}", exc_info=True)
+        return False

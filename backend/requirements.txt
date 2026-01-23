@@ -17,4 +17,4 @@ zep-cloud
 google-generativeai
 pytest
 httpx
-rembg[cpu]
+rembg[cpu]requests

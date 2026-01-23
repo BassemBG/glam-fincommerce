@@ -17,6 +17,12 @@ class Settings(BaseSettings):
     # Zep API Key
     ZEP_API_KEY: str = ""
 
+    # Pinterest OAuth
+    PINTEREST_APP_ID: str = "1543846"
+    PINTEREST_APP_SECRET: str = "db774016ccd9aaa2805e688b39fd9055c581efcf"
+    PINTEREST_REDIRECT_URI: str = "http://localhost:3000/auth/pinterest-callback"
+    PINTEREST_FRONTEND_REDIRECT: str = "http://localhost:3000/onboarding"
+
     # AWS S3 (optional - for image storage)
     S3_BUCKET: str = "virtual-closet-assets"
     AWS_ACCESS_KEY_ID: str = ""

@@ -45,8 +45,11 @@ export default function OnboardingPage() {
     buying_priorities: [] as string[],
   });
 
+  const [pinterestLoading, setPinterestLoading] = useState(false);
+  const [pinterestConnected, setPinterestConnected] = useState(false);
+
   const handleNext = () => {
-    if (step < 6) {
+    if (step < 7) {
       setStep(step + 1);
       setError(null);
     }
@@ -54,6 +57,34 @@ export default function OnboardingPage() {
 
   const handleBack = () => {
     if (step > 1) setStep(step - 1);
+  };
+
+  const handlePinterestConnect = async () => {
+    setPinterestLoading(true);
+    setError(null);
+    try {
+      // Get user_id from token or from API
+      const response = await authFetch(`${API.base}/users/me`);
+      const userData = await response.json();
+      const userId = userData.id;
+
+      // Store user_id in sessionStorage for callback
+      if (typeof window !== "undefined") {
+        sessionStorage.setItem("pinterest_user_id", userId);
+      }
+
+      // Get OAuth URL from backend
+      const oauthResponse = await fetch(`${API.base}/auth/pinterest/login`);
+      const oauthData = await oauthResponse.json();
+
+      // Redirect to Pinterest OAuth
+      if (typeof window !== "undefined") {
+        window.location.href = oauthData.oauth_url;
+      }
+    } catch (err: any) {
+      setError(err.message || "Failed to connect to Pinterest");
+      setPinterestLoading(false);
+    }
   };
 
   const handleColorToggle = (value: string) => {
@@ -111,7 +142,7 @@ export default function OnboardingPage() {
   };
 
   const stepClass = `step-${step}`;
-  const progress = (step / 6) * 100;
+  const progress = (step / 7) * 100;
 
   // Wait for token to load
   if (!token) {
@@ -294,6 +325,64 @@ export default function OnboardingPage() {
         </div>
       )}
 
+      {/* Step 7: Pinterest Connect */}
+      {step === 7 && (
+        <div className={`${styles.card} ${styles[stepClass]}`}>
+          <div className={styles.step}>
+            <h2>📌 Connect Your Pinterest (Optional)</h2>
+            <p className={styles.subtitle}>
+              Let us learn your style from your Pinterest boards and pins
+            </p>
+
+            <div
+              style={{
+                padding: "24px",
+                backgroundColor: "#fafafa",
+                borderRadius: "12px",
+                marginTop: "24px",
+                textAlign: "center",
+              }}
+            >
+              <p style={{ marginBottom: "16px", color: "#555" }}>
+                We'll analyze your Pinterest boards to better understand your style preferences.
+              </p>
+              <button
+                onClick={handlePinterestConnect}
+                disabled={pinterestLoading || pinterestConnected}
+                style={{
+                  backgroundColor: "#E60023",
+                  color: "white",
+                  padding: "12px 32px",
+                  border: "none",
+                  borderRadius: "24px",
+                  fontSize: "16px",
+                  fontWeight: "600",
+                  cursor: pinterestLoading || pinterestConnected ? "not-allowed" : "pointer",
+                  opacity: pinterestLoading || pinterestConnected ? 0.6 : 1,
+                }}
+              >
+                {pinterestLoading
+                  ? "Connecting..."
+                  : pinterestConnected
+                  ? "✓ Connected"
+                  : "Connect Pinterest"}
+              </button>
+            </div>
+
+            <p
+              style={{
+                marginTop: "24px",
+                fontSize: "14px",
+                color: "#888",
+                textAlign: "center",
+              }}
+            >
+              Skip this step if you prefer to upload items manually
+            </p>
+          </div>
+        </div>
+      )}
+
       {error && <div className={styles.error}>{error}</div>}
 
       {/* Navigation */}
@@ -301,20 +390,20 @@ export default function OnboardingPage() {
         <button className={styles.secondaryBtn} onClick={handleBack} disabled={step === 1}>
           Back
         </button>
-        {step < 6 ? (
+        {step < 7 ? (
           <button className={styles.primaryBtn} onClick={handleNext}>
             Next
           </button>
         ) : (
           <button className={styles.primaryBtn} onClick={handleSubmit} disabled={loading}>
-            {loading ? "Saving..." : "Complete Setup"}
+            {loading ? "Saving..." : "Finish"}
           </button>
         )}
       </div>
 
       {/* Step indicator */}
       <div className={styles.stepIndicator}>
-        Step {step} of 6
+        Step {step} of 7
       </div>
     </div>
   );

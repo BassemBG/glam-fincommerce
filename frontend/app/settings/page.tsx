@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import styles from './page.module.css';
 import { API } from '../../lib/api';
 import { authFetch, clearToken } from '../../lib/auth';
@@ -11,7 +11,11 @@ export default function MePage() {
     const [user, setUser] = useState<any>(null);
     const [uploading, setUploading] = useState(false);
     const [showFullPhoto, setShowFullPhoto] = useState(false);
+    const [pinterestConnected, setPinterestConnected] = useState<boolean | null>(null);
+    const [pinterestLoading, setPinterestLoading] = useState(false);
+    const [pinterestMessage, setPinterestMessage] = useState<string | null>(null);
     const router = useRouter();
+    const searchParams = useSearchParams();
     const token = useAuthGuard();
 
     useEffect(() => {
@@ -22,6 +26,8 @@ export default function MePage() {
                 if (res.ok) {
                     const data = await res.json();
                     setUser(data);
+                    // Refresh connection status once user is known
+                    checkPinterestStatus();
                 } else {
                     console.error("Failed to fetch user. Status:", res.status, res.statusText);
                     const errorData = await res.json().catch(() => null);
@@ -33,6 +39,59 @@ export default function MePage() {
         };
         fetchUser();
     }, [token]);
+
+    useEffect(() => {
+        if (!token) return;
+        // Read query params for success/error from callback
+        const statusParam = searchParams.get("pinterest");
+        const messageParam = searchParams.get("message");
+        if (statusParam === "success") {
+            setPinterestConnected(true);
+            setPinterestMessage("Pinterest connected successfully.");
+        } else if (statusParam === "error") {
+            setPinterestConnected(false);
+            setPinterestMessage(messageParam || "Pinterest connection failed");
+        }
+    }, [token, searchParams]);
+
+    const checkPinterestStatus = async () => {
+        try {
+            const res = await authFetch(API.pinterest.status);
+            if (res.ok) {
+                const data = await res.json();
+                setPinterestConnected(Boolean(data.connected));
+            } else {
+                setPinterestConnected(false);
+            }
+        } catch (err) {
+            console.error("Failed to check Pinterest status", err);
+            setPinterestConnected(false);
+        }
+    };
+
+    const handlePinterestConnect = async () => {
+        if (pinterestLoading) return;
+        try {
+            setPinterestLoading(true);
+            setPinterestMessage(null);
+
+            const me = user ?? (await (await authFetch(API.users.me)).json());
+            const userId = me?.id;
+            if (!userId) throw new Error("Missing user id");
+
+            sessionStorage.setItem("pinterest_user_id", userId);
+
+            const oauthResponse = await fetch(API.pinterest.login);
+            if (!oauthResponse.ok) throw new Error("Failed to start Pinterest OAuth");
+            const { oauth_url } = await oauthResponse.json();
+
+            window.location.href = oauth_url;
+        } catch (err: any) {
+            console.error("Pinterest connect failed", err);
+            setPinterestMessage(err?.message || "Failed to connect Pinterest");
+            setPinterestLoading(false);
+        }
+    };
 
     const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
@@ -125,6 +184,21 @@ export default function MePage() {
             </section>
 
             <div className={styles.settingsGrid}>
+                <div className={styles.settingItem}>
+                    <div className={styles.settingInfo}>
+                        <h3>Pinterest</h3>
+                        <p>{pinterestConnected ? "Connected" : "Not connected"}</p>
+                        {pinterestMessage && <small style={{ color: pinterestConnected ? "#16a34a" : "#dc2626" }}>{pinterestMessage}</small>}
+                    </div>
+                    <button
+                        className={styles.actionBtn}
+                        onClick={handlePinterestConnect}
+                        disabled={pinterestLoading || pinterestConnected === true}
+                        style={{ opacity: pinterestLoading || pinterestConnected ? 0.7 : 1 }}
+                    >
+                        {pinterestConnected ? "✓ Connected" : pinterestLoading ? "Connecting..." : "Connect"}
+                    </button>
+                </div>
                 <div className={styles.settingItem}>
                     <div className={styles.settingInfo}>
                         <h3>Style Profile</h3>

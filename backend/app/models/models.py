@@ -62,3 +62,16 @@ class Outfit(SQLModel, table=True):
     created_by: str = Field(default="user", max_length=20)
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
+
+class PinterestToken(SQLModel, table=True):
+    __tablename__ = "pinterest_tokens"
+    
+    id: str = Field(default_factory=lambda: str(uuid4()), primary_key=True)
+    user_id: str = Field(foreign_key="users.id", index=True, unique=True)
+    access_token: str = Field(nullable=False)
+    refresh_token: Optional[str] = None
+    expires_at: Optional[datetime] = None
+    synced_at: Optional[datetime] = None
+    
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
