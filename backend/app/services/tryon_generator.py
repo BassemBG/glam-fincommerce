@@ -92,38 +92,46 @@ class TryOnGenerator:
             logging.info("Azure OpenAI not configured, skipping AI try-on")
             return None
         
-        # Load body image
-        print(f"[TIMING] Starting body image download from: {body_image_url[:50]}...", flush=True)
-        body_start = time.time()
-        body_img = await self._load_image(body_image_url)
-        body_time = time.time() - body_start
-        print(f"[TIMING] Body image download: {body_time:.2f}s", flush=True)
+        # Load ALL images in PARALLEL for faster downloads
+        import asyncio
         
+        # Prepare all URLs to download
+        all_urls = [body_image_url]
+        clothing_metadata = []
+        for item in clothing_items:
+            item_url = item.get("mask_url") or item.get("image_url")
+            if item_url:
+                all_urls.append(item_url)
+                clothing_metadata.append({
+                    "category": item.get("category", "clothing item"),
+                    "sub_category": item.get("sub_category", ""),
+                    "body_region": item.get("body_region", "")
+                })
+        
+        print(f"[TIMING] Starting PARALLEL download of {len(all_urls)} images...", flush=True)
+        download_start = time.time()
+        
+        # Download all images in parallel
+        all_images = await asyncio.gather(*[self._load_image(url) for url in all_urls])
+        
+        download_time = time.time() - download_start
+        print(f"[TIMING] PARALLEL download complete: {download_time:.2f}s", flush=True)
+        
+        # Extract body and clothing images
+        body_img = all_images[0]
         if not body_img:
             logging.error("Could not load body image for AI try-on")
             return None
         
-        # Load clothing images
         clothing_images = []
         clothing_descriptions = []
-        for i, item in enumerate(clothing_items):
-            item_url = item.get("mask_url") or item.get("image_url")
-            if not item_url:
-                continue
-            
-            print(f"[TIMING] Starting clothing {i+1} download from: {item_url[:50]}...", flush=True)
-            clothing_start = time.time()
-            clothing_img = await self._load_image(item_url)
-            clothing_time = time.time() - clothing_start
-            print(f"[TIMING] Clothing {i+1} download: {clothing_time:.2f}s", flush=True)
-            
-            if clothing_img:
-                clothing_images.append(clothing_img)
-                # Build description from item metadata
-                category = item.get("category", "clothing item")
-                sub_category = item.get("sub_category", "")
-                body_region = item.get("body_region", "")
-                desc = f"{sub_category} {category} for {body_region}" if sub_category else f"{category} for {body_region}"
+        for i, (img, meta) in enumerate(zip(all_images[1:], clothing_metadata)):
+            if img:
+                clothing_images.append(img)
+                sub_cat = meta["sub_category"]
+                cat = meta["category"]
+                region = meta["body_region"]
+                desc = f"{sub_cat} {cat} for {region}" if sub_cat else f"{cat} for {region}"
                 clothing_descriptions.append(desc)
         
         if not clothing_images:
@@ -162,26 +170,26 @@ Output a single photorealistic image of the person wearing all the provided clot
             
             # Add body image as first image (highest fidelity in gpt-image-1.5)
             body_bytes = self._image_to_bytes(body_img)
-            files.append(("image[]", ("body.png", body_bytes, "image/png")))
+            files.append(("image[]", ("body.jpg", body_bytes, "image/jpeg")))
             
             # Add clothing images
             for idx, clothing_img in enumerate(clothing_images):
                 clothing_bytes = self._image_to_bytes(clothing_img)
-                files.append(("image[]", (f"clothing_{idx}.png", clothing_bytes, "image/png")))
+                files.append(("image[]", (f"clothing_{idx}.jpg", clothing_bytes, "image/jpeg")))
             
             convert_time = time.time() - convert_start
             print(f"[TIMING] Image conversion: {convert_time:.2f}s", flush=True)
             
-            # Form data - choose size based on body image aspect ratio
+            # Form data - choose size based on body image aspect ratio (using smaller sizes for speed)
             body_aspect = body_img.width / body_img.height
             if body_aspect < 0.8:  # Portrait (tall image)
-                output_size = "1024x1536"
+                output_size = "1024x1536"  # Keep portrait quality
             elif body_aspect > 1.2:  # Landscape (wide image)
-                output_size = "1536x1024"
+                output_size = "1536x1024"  # Keep landscape quality
             else:  # Square-ish
                 output_size = "1024x1024"
             
-            logging.info(f"Body image {body_img.width}x{body_img.height}, using output size: {output_size}")
+            print(f"[TIMING] Body: {body_img.width}x{body_img.height}, output: {output_size}", flush=True)
             
             data = {
                 "prompt": prompt,
@@ -251,7 +259,7 @@ Output a single photorealistic image of the person wearing all the provided clot
             raise
     
     def _image_to_bytes(self, img: Image.Image) -> bytes:
-        """Convert PIL Image to bytes for API upload."""
+        """Convert PIL Image to compressed bytes for faster API upload."""
         # Ensure image is in RGB mode (no alpha channel for edit API)
         if img.mode == "RGBA":
             background = Image.new("RGB", img.size, (255, 255, 255))
@@ -260,13 +268,14 @@ Output a single photorealistic image of the person wearing all the provided clot
         elif img.mode != "RGB":
             img = img.convert("RGB")
         
-        # Resize if too large (API has size limits)
-        max_size = 1024
+        # Resize to smaller max size for faster upload (768px max)
+        max_size = 768
         if img.width > max_size or img.height > max_size:
             img.thumbnail((max_size, max_size), Image.Resampling.LANCZOS)
         
+        # Use JPEG with compression for smaller file size (faster upload)
         buffer = io.BytesIO()
-        img.save(buffer, format="PNG")
+        img.save(buffer, format="JPEG", quality=85, optimize=True)
         buffer.seek(0)
         return buffer.read()
     
