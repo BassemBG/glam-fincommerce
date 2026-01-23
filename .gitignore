@@ -16,6 +16,7 @@ __pycache__/
 # Local uploads directory (user images)
 uploads/
 # Backend environment variables
+*.env
 
 # Local Qdrant Storage
 backend/qdrant_storage/
