@@ -46,6 +46,9 @@ def get_user_outfits(db: Session = Depends(get_db)):
             "vibe": outfit.vibe,
             "score": outfit.score,
             "reasoning": outfit.reasoning,
+            "description": outfit.description,
+            "style_tags": outfit.style_tags,
+            "tryon_image_url": outfit.tryon_image_url,
             "created_by": outfit.created_by,
             "items": items
         })
@@ -85,6 +88,8 @@ def get_outfit_detail(outfit_id: str, db: Session = Depends(get_db)):
         "vibe": outfit.vibe,
         "score": outfit.score,
         "reasoning": outfit.reasoning,
+        "description": outfit.description,
+        "style_tags": outfit.style_tags,
         "created_by": outfit.created_by,
         "tryon_image_url": outfit.tryon_image_url,
         "items": items

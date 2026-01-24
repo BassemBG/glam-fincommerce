@@ -11,6 +11,7 @@ python-multipart
 python-dotenv
 boto3
 pydantic-settings
+fastembed
 google-generativeai
 pytest
 httpx
@@ -20,3 +21,8 @@ transformers
 torch
 pillow
 pydantic[email]
+requests
+aiofiles
+email-validator
+azure-storage-blob
+openai

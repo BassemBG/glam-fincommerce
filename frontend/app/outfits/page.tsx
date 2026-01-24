@@ -94,17 +94,77 @@ export default function OutfitsPage() {
                         <div className={styles.detailHeader}>
                             <span className={styles.vibeTag}>{selectedOutfit.vibe}</span>
                             <h1>{selectedOutfit.name || 'AI Curation'}</h1>
-                            <div className={styles.scoreRow}>
-                                <span className={styles.finalScore}>{selectedOutfit.score}</span>
-                                <p className="text-muted">AI Stylist Score</p>
+                            <div className={styles.metaRow}>
+                                <span className={styles.occasionTag}>{selectedOutfit.occasion}</span>
+                                <div className={styles.scoreRow}>
+                                    <span className={styles.finalScore}>{selectedOutfit.score}</span>
+                                    <span className="text-muted">AI Score</span>
+                                </div>
                             </div>
                         </div>
 
-                        <div className={styles.detailBody}>
+                        {/* Try-on Image */}
+                        {selectedOutfit.tryon_image_url && (
+                            <div className={styles.tryOnPreview}>
+                                <img
+                                    src={selectedOutfit.tryon_image_url.startsWith('http')
+                                        ? selectedOutfit.tryon_image_url
+                                        : `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}${selectedOutfit.tryon_image_url}`
+                                    }
+                                    alt="Try-on preview"
+                                />
+                            </div>
+                        )}
+
+                        {/* Pieces Gallery */}
+                        {selectedOutfit.items && selectedOutfit.items.length > 0 && (
                             <section className={styles.section}>
-                                <h3>Stylist Notes</h3>
-                                <p className={styles.reasoning}>{selectedOutfit.reasoning}</p>
+                                <h3>Pieces</h3>
+                                <div className={styles.piecesGrid}>
+                                    {selectedOutfit.items.map((item: any, idx: number) => (
+                                        <div key={idx} className={styles.pieceCard}>
+                                            <img
+                                                src={item.image_url || item.mask_url}
+                                                alt={item.sub_category || 'Piece'}
+                                            />
+                                            <span>{item.sub_category || item.body_region}</span>
+                                        </div>
+                                    ))}
+                                </div>
                             </section>
+                        )}
+
+                        <div className={styles.detailBody}>
+                            {/* AI Description */}
+                            {selectedOutfit.description && (
+                                <section className={styles.section}>
+                                    <h3>AI Description</h3>
+                                    <p className={styles.description}>{selectedOutfit.description}</p>
+                                </section>
+                            )}
+
+                            {/* Style Tags */}
+                            {selectedOutfit.style_tags && (
+                                <section className={styles.section}>
+                                    <h3>Style Tags</h3>
+                                    <div className={styles.tagsRow}>
+                                        {(typeof selectedOutfit.style_tags === 'string'
+                                            ? JSON.parse(selectedOutfit.style_tags)
+                                            : selectedOutfit.style_tags
+                                        ).map((tag: string, idx: number) => (
+                                            <span key={idx} className={styles.styleTag}>{tag}</span>
+                                        ))}
+                                    </div>
+                                </section>
+                            )}
+
+                            {/* Stylist Notes */}
+                            {selectedOutfit.reasoning && (
+                                <section className={styles.section}>
+                                    <h3>Stylist Notes</h3>
+                                    <p className={styles.reasoning}>{selectedOutfit.reasoning}</p>
+                                </section>
+                            )}
                         </div>
 
                         <div className={styles.actionRow}>
