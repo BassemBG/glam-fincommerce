@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import styles from './page.module.css';
 import { API } from '../../lib/api';
+import { authFetch } from '../../lib/auth';
 import { useAuthGuard } from '../../lib/useAuthGuard';
 
 export default function AdvisorPage() {
@@ -30,7 +31,7 @@ export default function AdvisorPage() {
         formData.append('file', file);
 
         try {
-            const res = await fetch(API.stylist.advisor, {
+            const res = await authFetch(API.stylist.advisor, {
                 method: 'POST',
                 body: formData
             });

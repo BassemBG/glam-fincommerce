@@ -11,7 +11,7 @@ from app.db.session import get_db
 from app.services.clothing_ingestion_service import clothing_ingestion_service
 from app.services.storage import storage_service
 from app.models.models import ClothingIngestionHistory, User
-from app.core.security import get_current_user
+from app.api.user import get_current_user
 import logging
 import uuid
 from typing import Optional
@@ -45,7 +45,7 @@ class IngestionResponse:
 async def ingest_clothing(
     file: UploadFile = File(...),
     price: Optional[float] = None,
-    # current_user: dict = Depends(get_current_user), # Bypass auth for demo
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """
@@ -61,8 +61,7 @@ async def ingest_clothing(
     """
     
     try:
-        # FORCE DEMO USER ID per user request ("im not usng sql")
-        user_id = "full_test_user"
+        user_id = current_user.id
         
         # Ensure this demo user exists in SQL to satisfy Foreign Key constraints
         # Otherwise ingestion history insert will fail
@@ -210,12 +209,12 @@ async def ingest_clothing(
 async def get_ingestion_history(
     skip: int = 0,
     limit: int = 20,
-    current_user: dict = Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """Get user's clothing ingestion history"""
     
-    user_id = current_user["sub"]
+    user_id = current_user.id
     
     # Validate user exists
     user = db.query(User).filter(User.id == user_id).first()
@@ -252,12 +251,12 @@ async def get_ingestion_history(
 @router.get("/ingestion/{ingestion_id}")
 async def get_ingestion_detail(
     ingestion_id: str,
-    current_user: dict = Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """Get detailed information about a specific ingestion"""
     
-    user_id = current_user["sub"]
+    user_id = current_user.id
     
     # Query ingestion record
     record = db.query(ClothingIngestionHistory).filter(
@@ -308,12 +307,12 @@ async def get_ingestion_detail(
 @router.delete("/ingestion/{ingestion_id}")
 async def delete_ingestion(
     ingestion_id: str,
-    current_user: dict = Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """Delete a clothing ingestion record"""
     
-    user_id = current_user["sub"]
+    user_id = current_user.id
     
     # Query and delete
     record = db.query(ClothingIngestionHistory).filter(
@@ -333,7 +332,7 @@ async def delete_ingestion(
 @router.post("/batch-ingest")
 async def batch_ingest(
     files: list[UploadFile] = File(...),
-    current_user: dict = Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
     background_tasks: BackgroundTasks = BackgroundTasks(),
     db: Session = Depends(get_db)
 ):
@@ -342,7 +341,7 @@ async def batch_ingest(
     Processes them asynchronously in the background
     """
     
-    user_id = current_user["sub"]
+    user_id = current_user.id
     
     # Validate user
     user = db.query(User).filter(User.id == user_id).first()

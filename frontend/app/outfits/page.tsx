@@ -45,7 +45,7 @@ export default function OutfitsPage() {
         if (!confirm("Are you sure you want to delete this outfit?")) return;
 
         try {
-            const res = await fetch(`${API.outfits.list}/${outfitId}`, {
+            const res = await authFetch(`${API.outfits.list}/${outfitId}`, {
                 method: 'DELETE'
             });
 

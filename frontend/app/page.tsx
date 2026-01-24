@@ -55,7 +55,7 @@ export default function Home() {
         if (userRes.ok) {
           const userData = await userRes.json();
           setUserPhoto(userData.full_body_image);
-          
+
           // Redirect to onboarding ONLY if:
           // 1. localStorage flag is set (brand-new account) AND
           // 2. User hasn't actually completed onboarding on server
@@ -64,7 +64,7 @@ export default function Home() {
             router.push('/onboarding');
             return;
           }
-          
+
           // If onboarding is already completed, clear the localStorage flag
           if (userData.onboarding_completed && needs === '1') {
             if (typeof window !== 'undefined') {
@@ -122,7 +122,7 @@ export default function Home() {
 
     try {
       // Save outfit to backend
-      const response = await fetch(`${API_URL}/api/v1/stylist/outfits/save`, {
+      const response = await authFetch(API.outfits.save, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(outfitData)
@@ -206,22 +206,6 @@ export default function Home() {
               onClick={() => router.push('/upload')}
             >
               Add Your First Piece
-            </button>
-            <button
-              style={{
-                backgroundColor: "#E60023",
-                color: "white",
-                padding: "12px 24px",
-                border: "none",
-                borderRadius: "8px",
-                fontSize: "14px",
-                fontWeight: "600",
-                cursor: "pointer",
-                whiteSpace: "nowrap",
-              }}
-              onClick={handlePinterestConnect}
-            >
-              📌 Connect Pinterest
             </button>
           </div>
           <p className={styles.emptyHint}>

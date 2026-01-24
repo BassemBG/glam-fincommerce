@@ -116,7 +116,7 @@ export default function MePage() {
                 setUser((prev: any) => ({ ...prev, full_body_image: photoData.image_url }));
 
                 // Then trigger the background analysis
-                const analysisRes = await fetch(API.users.analyzeProfile, {
+                const analysisRes = await authFetch(API.users.analyzeProfile, {
                     method: 'POST',
                     body: formData
                 });

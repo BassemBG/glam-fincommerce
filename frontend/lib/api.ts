@@ -25,6 +25,7 @@ export const API = {
   },
   outfits: {
     list: `${API_URL}/api/v1/outfits`,
+    save: `${API_URL}/api/v1/stylist/outfits/save`,
   },
   stylist: {
     chat: `${API_URL}/api/v1/stylist/chat`,

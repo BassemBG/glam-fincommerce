@@ -7,12 +7,17 @@ from app.services.shopping_advisor import shopping_advisor
 from app.services.clip_qdrant_service import clip_qdrant_service
 import json
 
+from app.api.user import get_current_user
+
 router = APIRouter()
 
 @router.get("/")
-async def get_user_outfits(db: Session = Depends(get_db)):
+async def get_user_outfits(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
     """Get all outfits for the current user from Qdrant."""
-    user_id = "full_test_user"
+    user_id = current_user.id
     
     # Lead with Qdrant for visual outfits
     qdrant_resp = await clip_qdrant_service.get_user_outfits(user_id=user_id, limit=50)
@@ -22,9 +27,7 @@ async def get_user_outfits(db: Session = Depends(get_db)):
         return qdrant_outfits
         
     # Fallback to DB if Qdrant is empty (legacy or non-visual outfits)
-    user = db.query(User).filter(User.id == user_id).first()
-    if not user:
-        user = db.query(User).first()
+    user = current_user
     
     if not user:
         return []
@@ -59,7 +62,11 @@ async def get_user_outfits(db: Session = Depends(get_db)):
     return result
 
 @router.get("/{outfit_id}")
-async def get_outfit_detail(outfit_id: str, db: Session = Depends(get_db)):
+async def get_outfit_detail(
+    outfit_id: str, 
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
     """Get a single outfit with full item details."""
     # 1. Try Qdrant retrieval first as primary source
     qdrant_outfit = await clip_qdrant_service.get_outfit_by_id(outfit_id)
@@ -72,7 +79,7 @@ async def get_outfit_detail(outfit_id: str, db: Session = Depends(get_db)):
         return qdrant_outfit
         
     # 2. Fallback to DB for legacy/non-visual outfits
-    outfit = db.query(Outfit).filter(Outfit.id == outfit_id).first()
+    outfit = db.query(Outfit).filter(Outfit.id == outfit_id, Outfit.user_id == current_user.id).first()
     if not outfit:
         raise HTTPException(status_code=404, detail="Outfit not found")
     
@@ -101,10 +108,11 @@ async def get_outfit_detail(outfit_id: str, db: Session = Depends(get_db)):
 @router.post("/compare")
 async def compare_new_item(
     file: UploadFile = File(...),
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """Compare a new item against the closet using AI."""
-    user = db.query(User).first()
+    user = current_user
     if not user:
         raise HTTPException(status_code=400, detail="No user found.")
     
@@ -116,9 +124,13 @@ async def compare_new_item(
     return result
 
 @router.delete("/{outfit_id}")
-async def delete_outfit(outfit_id: str, db: Session = Depends(get_db)):
+async def delete_outfit(
+    outfit_id: str, 
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
     """Delete an outfit from both DB and Qdrant."""
-    outfit = db.query(Outfit).filter(Outfit.id == outfit_id).first()
+    outfit = db.query(Outfit).filter(Outfit.id == outfit_id, Outfit.user_id == current_user.id).first()
     if not outfit:
         # Fallback check: if it only exists in Qdrant, we might want to delete it there too
         # but usually SQL is the source of truth for deletion

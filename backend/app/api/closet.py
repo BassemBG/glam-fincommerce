@@ -6,21 +6,23 @@ from app.services.storage import storage_service
 from app.models.models import ClothingItem, User
 import uuid
 import logging
+from app.api.user import get_current_user
 
 router = APIRouter()
 
 @router.post("/upload")
 async def upload_clothing(
     file: UploadFile = File(...),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
 ):
     """Upload and analyze a clothing item."""
     content = await file.read()
     
     # Get user first
-    user = db.query(User).first()
+    user = current_user
     if not user:
-        raise HTTPException(status_code=400, detail="No user found. Please visit /settings first.")
+        raise HTTPException(status_code=400, detail="User session not found.")
     
     file_id = str(uuid.uuid4())
     
@@ -70,14 +72,14 @@ async def upload_clothing(
     }
 
 @router.get("/items")
-async def get_closet_items(db: Session = Depends(get_db)):
+async def get_closet_items(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
     """Get all clothing items for the current user from Qdrant."""
     from app.services.clip_qdrant_service import clip_qdrant_service
     
-    # For demo purposes, we are forcing the Qdrant user ID to ensure items are visible
-    # regardless of the SQL user state. 
-    # In a real app, this would be: user_id = str(user.id)
-    target_user_id = "full_test_user"
+    target_user_id = current_user.id
         
     # Fetch from Qdrant
     qdrant_result = await clip_qdrant_service.get_user_items(target_user_id, limit=100)

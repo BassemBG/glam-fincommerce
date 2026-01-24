@@ -10,6 +10,8 @@ from app.models.models import ClothingItem, User, Outfit
 import uuid
 import json
 
+from app.api.user import get_current_user
+
 router = APIRouter()
 
 class ChatMessage(BaseModel):
@@ -19,15 +21,11 @@ class ChatMessage(BaseModel):
 @router.post("/chat")
 async def chat_with_stylist(
     chat_in: ChatMessage,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
 ):
-    # Use hardcoded user for consistency
-    user_id = "full_test_user"
-    
-    # Try to find user in DB, fallback to generic if not found (for photo etc)
-    db_user = db.query(User).filter(User.id == user_id).first()
-    if not db_user:
-        db_user = db.query(User).first()
+    user_id = current_user.id
+    db_user = current_user
     
     # Get items from Qdrant instead of just SQL DB
     qdrant_resp = await clip_qdrant_service.get_user_items(user_id=user_id, limit=200)
@@ -56,13 +54,11 @@ import logging
 @router.post("/outfits/save")
 async def save_outfit(
     outfit_data: dict,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
 ):
-    # Use hardcoded user
-    user_id = "full_test_user"
-    db_user = db.query(User).filter(User.id == user_id).first()
-    if not db_user:
-        db_user = db.query(User).first()
+    user_id = current_user.id
+    db_user = current_user
     
     user_id_to_save = user_id
     
@@ -182,16 +178,10 @@ async def save_outfit(
 @router.post("/advisor/compare")
 async def advisor_compare(
     file: UploadFile = File(...),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
 ):
-    """
-    Compare a potential purchase image with existing closet items.
-    Checks for:
-    1. Visual similarity (CLIP)
-    2. Category & Color matches
-    """
-    # Force demo user ID for consistency
-    user_id = "full_test_user"
+    user_id = current_user.id
     
     content = await file.read()
     

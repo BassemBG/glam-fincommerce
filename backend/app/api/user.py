@@ -66,7 +66,8 @@ async def upload_body_photo(
 @router.post("/analyze-profile")
 async def analyze_user_profile(
     file: UploadFile = File(...),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
 ):
     """
     Uploads a full-body photo, analyzes physical characteristics via Groq,
@@ -101,11 +102,11 @@ async def analyze_user_profile(
             
         analysis = json.loads(clean_text)
         
-        # 2. Save result to a local JSON for 'stocking' as requested
-        file_id = str(uuid.uuid4())
+        # 2. Save result to a local JSON for 'stocking'
+        user_id = current_user.id
         save_dir = "profile_data"
         os.makedirs(save_dir, exist_ok=True)
-        json_path = os.path.join(save_dir, f"user_{file_id}.json")
+        json_path = os.path.join(save_dir, f"user_{user_id}.json")
         
         with open(json_path, "w") as f:
             json.dump(analysis, f, indent=2)
