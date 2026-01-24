@@ -14,6 +14,7 @@ from typing import List, Optional
 from PIL import Image
 import io
 import requests
+from typing import Dict, Any
 
 from app.core.config import settings
 from app.services.storage import storage_service
@@ -49,24 +50,24 @@ class TryOnGenerator:
         self,
         body_image_url: str,
         clothing_items: List[dict]
-    ) -> Optional[str]:
+    ) -> Optional[Dict[str, Any]]:
         """
         Generate a try-on image with clothing items on the body.
         
-        Args:
-            body_image_url: URL/path to the user's full body image
-            clothing_items: List of dicts with 'image_url' and 'body_region' keys
-        
         Returns:
-            URL to the generated image, or None if generation fails
+            Dict with 'url' and 'bytes' (original image data), or None if generation fails
         """
         
         # Try AI approach first
         try:
+            print(f"[DEBUG] TryOnGenerator: Attempting AI generation...")
             result = await self._generate_with_ai(body_image_url, clothing_items)
             if result:
+                print(f"[DEBUG] TryOnGenerator: AI generation SUCCESS")
                 return result
+            print(f"[DEBUG] TryOnGenerator: AI generation failed (returned None)")
         except Exception as e:
+            print(f"[DEBUG] TryOnGenerator: AI generation ERROR: {str(e)}")
             logging.warning(f"AI try-on failed: {e}")
         
         # Fallback to Pillow compositing
@@ -76,14 +77,18 @@ class TryOnGenerator:
             logging.error(f"Pillow try-on also failed: {e}")
             return None
     
+        except Exception as e:
+            logging.error(f"Azure OpenAI image generation failed: {e}")
+            raise
+
     async def _generate_with_ai(
         self,
         body_image_url: str,
         clothing_items: List[dict]
-    ) -> Optional[str]:
+    ) -> Optional[Dict[str, Any]]:
         """
         Use Azure OpenAI gpt-image-1.5 model to generate a virtual try-on image.
-        Uses /images/edits endpoint with multipart/form-data for multiple input images.
+        Returns Dict with 'url' and 'bytes'.
         """
         import time
         total_start = time.time()
@@ -99,6 +104,7 @@ class TryOnGenerator:
         all_urls = [body_image_url]
         clothing_metadata = []
         for item in clothing_items:
+            # item.get("image_url") might be a data URI! _load_image now handles it.
             item_url = item.get("mask_url") or item.get("image_url")
             if item_url:
                 all_urls.append(item_url)
@@ -108,20 +114,18 @@ class TryOnGenerator:
                     "body_region": item.get("body_region", "")
                 })
         
-        print(f"[TIMING] Starting PARALLEL download of {len(all_urls)} images...", flush=True)
-        download_start = time.time()
+        logging.info(f"Downloading {len(all_urls)} images for AI try-on...")
         
         # Download all images in parallel
         all_images = await asyncio.gather(*[self._load_image(url) for url in all_urls])
         
-        download_time = time.time() - download_start
-        print(f"[TIMING] PARALLEL download complete: {download_time:.2f}s", flush=True)
-        
         # Extract body and clothing images
         body_img = all_images[0]
         if not body_img:
-            logging.error("Could not load body image for AI try-on")
+            logging.error("❌ Could not load body image for AI try-on")
             return None
+        
+        logging.info(f"✅ Body image loaded: {body_img.size}")
         
         clothing_images = []
         clothing_descriptions = []
@@ -133,9 +137,12 @@ class TryOnGenerator:
                 region = meta["body_region"]
                 desc = f"{sub_cat} {cat} for {region}" if sub_cat else f"{cat} for {region}"
                 clothing_descriptions.append(desc)
+                logging.info(f"✅ Clothing image {i} loaded: {img.size}")
+            else:
+                logging.warning(f"⚠️ Clothing image {i} failed to load from: {all_urls[i+1][:50]}...")
         
         if not clothing_images:
-            logging.error("No clothing images loaded for AI try-on")
+            logging.error("❌ No clothing images successfully loaded for AI try-on")
             return None
         
         try:
@@ -158,124 +165,94 @@ Output a single photorealistic image of the person wearing all the provided clot
             api_version = "2025-04-01-preview"
             url = f"{endpoint}/openai/deployments/{deployment}/images/edits?api-version={api_version}"
             
-            # Request headers (no Content-Type - requests will set it for multipart)
+            print(f"[DEBUG] Azure OpenAI URL: {url}")
+            print(f"[DEBUG] Deployment: {deployment}")
+            print(f"[DEBUG] Prompt: {prompt[:100]}...")
+            
+            # Request headers
             headers = {
                 "api-key": settings.AZURE_OPENAI_API_KEY
             }
             
             # Prepare files for multipart/form-data
-            print(f"[TIMING] Starting image conversion to bytes...", flush=True)
-            convert_start = time.time()
             files = []
             
-            # Add body image as first image (highest fidelity in gpt-image-1.5)
-            body_bytes = self._image_to_bytes(body_img)
-            files.append(("image[]", ("body.jpg", body_bytes, "image/jpeg")))
+            # Add body image as first image
+            body_bytes_input = self._image_to_bytes(body_img)
+            files.append(("image[]", ("body.jpg", body_bytes_input, "image/jpeg")))
             
             # Add clothing images
             for idx, clothing_img in enumerate(clothing_images):
-                clothing_bytes = self._image_to_bytes(clothing_img)
-                files.append(("image[]", (f"clothing_{idx}.jpg", clothing_bytes, "image/jpeg")))
+                clothing_bytes_input = self._image_to_bytes(clothing_img)
+                files.append(("image[]", (f"clothing_{idx}.jpg", clothing_bytes_input, "image/jpeg")))
             
-            convert_time = time.time() - convert_start
-            print(f"[TIMING] Image conversion: {convert_time:.2f}s", flush=True)
-            
-            # Form data - choose size based on body image aspect ratio (using smaller sizes for speed)
+            # Request size
             body_aspect = body_img.width / body_img.height
-            if body_aspect < 0.8:  # Portrait (tall image)
-                output_size = "1024x1536"  # Keep portrait quality
-            elif body_aspect > 1.2:  # Landscape (wide image)
-                output_size = "1536x1024"  # Keep landscape quality
-            else:  # Square-ish
-                output_size = "1024x1024"
+            output_size = "1024x1536" if body_aspect < 0.8 else "1536x1024" if body_aspect > 1.2 else "1024x1024"
             
-            print(f"[TIMING] Body: {body_img.width}x{body_img.height}, output: {output_size}", flush=True)
+            data = {"prompt": prompt, "n": "1", "size": output_size}
             
-            data = {
-                "prompt": prompt,
-                "n": "1",
-                "size": output_size
-            }
-            
-            # Make the API call with multipart/form-data
-            print(f"[TIMING] Starting Azure OpenAI API call with {len(files)} images...", flush=True)
-            api_start = time.time()
+            # Make the API call
+            logging.info(f"🚀 Sending request to Azure OpenAI ({deployment})...")
+            print(f"[DEBUG] POST {url}")
             response = requests.post(url, headers=headers, data=data, files=files, timeout=180)
-            api_time = time.time() - api_start
-            print(f"[TIMING] Azure OpenAI API call: {api_time:.2f}s", flush=True)
             
+            print(f"[DEBUG] Azure Response Status: {response.status_code}")
             if response.status_code != 200:
-                logging.error(f"Azure OpenAI API error: {response.status_code} - {response.text}")
-                raise Exception(f"API error: {response.status_code} - {response.text}")
+                print(f"[DEBUG] Azure Error Body: {response.text}")
+                logging.error(f"❌ Azure OpenAI API error: {response.status_code}")
+                logging.error(f"Response body: {response.text}")
+                return None
             
+            print(f"[DEBUG] Azure Response SUCCESS")
+            logging.info("✅ Azure OpenAI API responded with 200")
             result = response.json()
-            
-            # Get the generated image
             if result.get("data") and len(result["data"]) > 0:
                 image_data = result["data"][0]
                 
-                # Handle both base64 and URL responses
                 if image_data.get("b64_json"):
-                    print(f"[TIMING] Decoding base64 response...", flush=True)
-                    decode_start = time.time()
                     generated_bytes = base64.b64decode(image_data["b64_json"])
-                    decode_time = time.time() - decode_start
-                    print(f"[TIMING] Base64 decode: {decode_time:.2f}s", flush=True)
                 elif image_data.get("url"):
-                    # Download image from URL
-                    print(f"[TIMING] Downloading result from URL...", flush=True)
-                    download_start = time.time()
                     img_response = requests.get(image_data["url"], timeout=30)
                     img_response.raise_for_status()
                     generated_bytes = img_response.content
-                    download_time = time.time() - download_start
-                    print(f"[TIMING] Result download: {download_time:.2f}s", flush=True)
                 else:
-                    logging.error("No image data in response")
                     return None
                 
                 # Save to storage
-                print(f"[TIMING] Starting upload to Azure Blob Storage...", flush=True)
-                upload_start = time.time()
                 output_filename = f"tryon_ai_{uuid.uuid4().hex}.png"
-                image_url = await storage_service.upload_file(
-                    generated_bytes, 
-                    output_filename, 
-                    "image/png"
-                )
-                upload_time = time.time() - upload_start
-                print(f"[TIMING] Azure Blob upload: {upload_time:.2f}s", flush=True)
+                image_url = await storage_service.upload_file(generated_bytes, output_filename, "image/png")
                 
-                total_time = time.time() - total_start
-                print(f"[TIMING] ===== TOTAL TRY-ON TIME: {total_time:.2f}s =====", flush=True)
-                print(f"AI try-on generated: {image_url}", flush=True)
-                return image_url
+                return {
+                    "url": image_url,
+                    "bytes": generated_bytes
+                }
             
-            logging.warning("No image data in Azure OpenAI response")
             return None
             
         except Exception as e:
             logging.error(f"Azure OpenAI image generation failed: {e}")
-            raise
+            return None
     
     def _image_to_bytes(self, img: Image.Image) -> bytes:
         """Convert PIL Image to compressed bytes for faster API upload."""
-        # Ensure image is in RGB mode (no alpha channel for edit API)
         if img.mode == "RGBA":
+            # If we want to keep transparency for PNG, we should convert to RGBA
+            # But the edit API often prefers RGB. Most try-on flows need RGB.
             background = Image.new("RGB", img.size, (255, 255, 255))
             background.paste(img, mask=img.split()[3])
             img = background
         elif img.mode != "RGB":
             img = img.convert("RGB")
         
-        # Resize to smaller max size for faster upload (768px max)
-        max_size = 768
+        # Resize to standard size (DALL-E edits often like 1024x1024 or similar)
+        max_size = 1024
         if img.width > max_size or img.height > max_size:
             img.thumbnail((max_size, max_size), Image.Resampling.LANCZOS)
         
-        # Use JPEG with compression for smaller file size (faster upload)
+        # Standardize on PNG for image edits
         buffer = io.BytesIO()
-        img.save(buffer, format="JPEG", quality=85, optimize=True)
+        img.save(buffer, format="PNG")
         buffer.seek(0)
         return buffer.read()
     
@@ -303,16 +280,17 @@ Output a single photorealistic image of the person wearing all the provided clot
         self,
         body_image_url: str,
         clothing_items: List[dict]
-    ) -> Optional[str]:
+    ) -> Optional[Dict[str, Any]]:
         """
         Simple image compositing using Pillow.
-        Overlays clothing masks onto the body image based on body regions.
+        Returns Dict with 'url' and 'bytes'.
         """
+        logging.info("🎨 Falling back to Pillow compositing for try-on...")
         
         # Load the body image
         body_img = await self._load_image(body_image_url)
         if not body_img:
-            logging.error("Could not load body image")
+            logging.error("❌ Could not load body image for Pillow fallback")
             return None
         
         # Convert to RGBA for transparency support
@@ -358,47 +336,84 @@ Output a single photorealistic image of the person wearing all the provided clot
             # Paste with alpha compositing
             body_img.paste(clothing_img, (paste_x, paste_y), clothing_img)
         
-        # Save the composite image to storage (Azure Blob, S3, or local)
+        # Save the composite image to storage
         output_filename = f"tryon_{uuid.uuid4().hex}.png"
         
         # Convert image to bytes
         img_buffer = io.BytesIO()
-        body_img.save(img_buffer, format="PNG")
+        body_img.convert("RGB").save(img_buffer, format="JPEG", quality=90)
         img_bytes = img_buffer.getvalue()
         
         # Upload via storage service
-        image_url = await storage_service.upload_file(img_bytes, output_filename, "image/png")
-        return image_url
+        image_url = await storage_service.upload_file(img_bytes, output_filename, "image/jpeg")
+        logging.info(f"✅ Pillow composite generated: {image_url}")
+        
+        return {
+            "url": image_url,
+            "bytes": img_bytes
+        }
     
     async def _load_image(self, image_path: str) -> Optional[Image.Image]:
-        """Load an image from a URL or local path."""
+        """Load an image from a URL, local path, or base64 data."""
+        if not image_path:
+            return None
+            
+        print(f"[DEBUG] Loading image: {image_path[:70]}...")
         try:
-            # Convert localhost URLs to local file paths to avoid self-request deadlock
+            # 1. Handle base64 data URIs (e.g., data:image/jpeg;base64,...)
+            if image_path.startswith("data:image"):
+                print(f"[DEBUG] Detected base64 data URI")
+                import base64
+                try:
+                    header, encoded = image_path.split(",", 1)
+                    image_data = base64.b64decode(encoded)
+                    img = Image.open(io.BytesIO(image_data))
+                    print(f"[DEBUG] Decoded base64 successfully, size: {img.size}")
+                    return img
+                except Exception as e:
+                    print(f"[DEBUG] Base64 decode failed: {str(e)}")
+                    logging.error(f"Failed to decode base64 data URI: {e}")
+                    return None
+            
+            # 2. Handle raw base64 strings (if they don't look like URLs or paths)
+            if not image_path.startswith(("http", "/")) and len(image_path) > 100:
+                import base64
+                try:
+                    image_data = base64.b64decode(image_path)
+                    return Image.open(io.BytesIO(image_data))
+                except Exception:
+                    # Not base64, fall through
+                    pass
+
+            # 3. Convert localhost URLs to local file paths to avoid self-request deadlock
             if "localhost" in image_path or "127.0.0.1" in image_path:
-                # Extract the path from the URL (e.g., /uploads/filename.jpg)
                 from urllib.parse import urlparse
                 parsed = urlparse(image_path)
-                image_path = parsed.path  # Now it's just /uploads/filename.jpg
+                image_path = parsed.path  # e.g., /uploads/filename.jpg
             
+            # 4. Handle remote URLs
             if image_path.startswith(("http://", "https://")):
-                # Fetch remote URLs (including Azure Blob URLs)
                 response = requests.get(image_path, timeout=10)
                 response.raise_for_status()
                 return Image.open(io.BytesIO(response.content))
+            
+            # 5. Handle local paths
             else:
-                # Handle local paths
-                if image_path.startswith("/uploads/"):
-                    local_path = os.path.join(self.upload_dir, image_path.replace("/uploads/", ""))
-                else:
+                # Try relative to upload_dir
+                rel_path = image_path.replace("/uploads/", "").lstrip("/")
+                local_path = os.path.join(self.upload_dir, rel_path)
+                
+                if not os.path.exists(local_path):
+                    # Try absolute or relative to CWD
                     local_path = image_path
                 
                 if os.path.exists(local_path):
                     return Image.open(local_path)
                 else:
-                    logging.error(f"Image file not found: {local_path}")
+                    logging.debug(f"Image info: Not a file, not a URL: {image_path[:50]}...")
                     
         except Exception as e:
-            logging.error(f"Failed to load image {image_path}: {e}")
+            logging.error(f"Failed to load image {image_path[:100]}...: {e}")
         
         return None
 

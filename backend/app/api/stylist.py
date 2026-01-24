@@ -87,6 +87,7 @@ async def save_outfit(
             id=item["id"],
             sub_category=item["clothing"].get("sub_category"),
             body_region=item["clothing"].get("body_region"),
+            image_url=item.get("image_url", ""),
             metadata_json=item["clothing"]
         ) for item in qdrant_items
     ]
@@ -95,31 +96,35 @@ async def save_outfit(
     description = meta.get("description", "")
     style_tags = json.dumps(meta.get("style_tags", []))
     
-    # 3. Generate try-on image if user has a body photo
-    tryon_image_url = None
-    tryon_image_bytes = None
-    
+    print(f"[DEBUG] Attempting try-on for user {user_id_to_save}")
+    print(f"[DEBUG] Body image: {db_user.full_body_image if db_user else 'None'}")
+    print(f"[DEBUG] Number of items for try-on: {len(qdrant_items)}")
+
     if db_user and db_user.full_body_image and qdrant_items:
         clothing_items_for_tryon = [
             {
                 "image_url": item["image_url"],
-                "body_region": item["clothing"].get("body_region")
+                "body_region": item["clothing"].get("body_region"),
+                "category": item["clothing"].get("category", "clothing"),
+                "sub_category": item["clothing"].get("sub_category", "")
             }
             for item in qdrant_items
         ]
         try:
-            tryon_image_url = await tryon_generator.generate_tryon_image(
+            print(f"[DEBUG] Calling tryon_generator.generate_tryon_image...")
+            tryon_result = await tryon_generator.generate_tryon_image(
                 body_image_url=db_user.full_body_image,
                 clothing_items=clothing_items_for_tryon
             )
-            logging.info(f"Generated try-on image: {tryon_image_url}")
-            
-            # Convert to bytes for Qdrant storage
-            if tryon_image_url and tryon_image_url.startswith("data:image"):
-                import base64
-                header, encoded = tryon_image_url.split(",", 1)
-                tryon_image_bytes = base64.b64decode(encoded)
+            if tryon_result:
+                tryon_image_url = tryon_result.get("url")
+                tryon_image_bytes = tryon_result.get("bytes")
+                print(f"[DEBUG] Try-on generation SUCCESS: {tryon_image_url}")
+                logging.info(f"Generated try-on image: {tryon_image_url}")
+            else:
+                print(f"[DEBUG] Try-on generation returned None")
         except Exception as e:
+            print(f"[DEBUG] Try-on generation ERROR: {str(e)}")
             logging.error(f"Try-on generation failed: {e}")
     
     # 4. Create initial DB record (Optional but good for fallback/relational tracking)
