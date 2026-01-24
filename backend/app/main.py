@@ -1,9 +1,14 @@
 import os
-from fastapi import FastAPI
+import logging
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from app.api import auth, closet, outfits, stylist, user, clothing_ingestion
+from fastapi.responses import JSONResponse
+from fastapi.exceptions import RequestValidationError
 from app.core.config import settings
+
+logger = logging.getLogger(__name__)
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
@@ -17,6 +22,18 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Custom exception handler for validation errors
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    logger.error(f"Validation error on {request.url.path}: {exc.errors()}")
+    return JSONResponse(
+        status_code=422,
+        content={
+            "detail": exc.errors(),
+            "body": exc.body if hasattr(exc, 'body') else None
+        },
+    )
 
 # Create uploads directory and serve static files
 uploads_dir = os.path.join(os.path.dirname(__file__), "..", "uploads")

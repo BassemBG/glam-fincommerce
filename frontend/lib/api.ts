@@ -4,10 +4,16 @@ export const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000
 
 // API Endpoints
 export const API = {
+  base: `${API_URL}/api/v1`,
+  auth: {
+    login: `${API_URL}/api/v1/auth/login`,
+    signup: `${API_URL}/api/v1/auth/signup`,
+  },
   users: {
     me: `${API_URL}/api/v1/users/me`,
     bodyPhoto: `${API_URL}/api/v1/users/body-photo`,
     analyzeProfile: `${API_URL}/api/v1/users/analyze-profile`,
+    onboarding: `${API_URL}/api/v1/users/onboarding`,
   },
   clothing: {
     ingest: `${API_URL}/api/v1/clothing/ingest`,
@@ -23,5 +29,9 @@ export const API = {
   stylist: {
     chat: `${API_URL}/api/v1/stylist/chat`,
     advisor: `${API_URL}/api/v1/stylist/advisor/compare`
+  },
+  pinterest: {
+    login: `${API_URL}/api/v1/auth/pinterest/login`,
+    status: `${API_URL}/api/v1/auth/pinterest/status`,
   },
 };

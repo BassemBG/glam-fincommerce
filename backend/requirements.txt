@@ -7,12 +7,16 @@ psycopg2-binary
 pgvector
 python-jose[cryptography]
 passlib[bcrypt]
+bcrypt>=4.0.0
 python-multipart
 python-dotenv
 boto3
 pydantic-settings
 fastembed
+email-validator
+zep-cloud
 google-generativeai
+groq
 pytest
 httpx
 rembg[cpu]

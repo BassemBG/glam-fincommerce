@@ -4,8 +4,11 @@ import { useState, useEffect } from 'react';
 import styles from './FloatingStylist.module.css';
 import TryOnVisualizer from './TryOnVisualizer';
 import { API } from '../lib/api';
+import { authFetch } from '../lib/auth';
+import { useAuthGuard } from '../lib/useAuthGuard';
 
 const FloatingStylist = () => {
+    const token = useAuthGuard();
     const [isOpen, setIsOpen] = useState(false);
     const [messages, setMessages] = useState<any[]>([
         { role: 'assistant', text: "Hello! I'm your AI Stylist. How can I help you dress today?" }
@@ -17,11 +20,13 @@ const FloatingStylist = () => {
     const [hasItems, setHasItems] = useState(false);
 
     useEffect(() => {
+        if (!token) return; // Don't fetch if no token
+        
         const fetchData = async () => {
             try {
                 const [userRes, itemsRes] = await Promise.all([
-                    fetch(API.users.me),
-                    fetch(API.closet.items)
+                    authFetch(API.users.me),
+                    authFetch(API.closet.items)
                 ]);
 
                 if (userRes.ok) {
@@ -38,7 +43,7 @@ const FloatingStylist = () => {
             }
         };
         fetchData();
-    }, []);
+    }, [token]);
 
     // Don't render if closet is empty
     if (!hasItems) return null;

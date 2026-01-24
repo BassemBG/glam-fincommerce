@@ -13,6 +13,22 @@ class User(SQLModel, table=True):
     full_name: Optional[str] = None
     full_body_image: Optional[str] = None
     style_profile: Dict = Field(default={}, sa_column=Column(JSON))
+    
+    # Zep Cloud integration
+    zep_thread_id: Optional[str] = None  # Thread ID for storing onboarding data in Zep
+    
+    # Onboarding profile fields
+    age: Optional[int] = None
+    education: Optional[str] = None  # Where they study
+    daily_style: Optional[str] = None  # e.g., "modern chic", "sport", "classic"
+    color_preferences: List[str] = Field(default=[], sa_column=Column(JSON))  # ["black/white/grey", "bright colors", ...]
+    fit_preference: Optional[str] = None  # "tight", "regular", "loose", "depends"
+    price_comfort: Optional[str] = None  # "low", "medium", "high", "depends"
+    buying_priorities: List[str] = Field(default=[], sa_column=Column(JSON))  # ["comfort", "style", "price", ...]
+    clothing_description: Optional[str] = None  # Description of their clothes
+    styled_combinations: Optional[str] = None  # Description of past styled combinations
+    onboarding_completed: bool = Field(default=False)
+    
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
 
@@ -104,4 +120,16 @@ class ClothingIngestionHistory(SQLModel, table=True):
     status: str = Field(max_length=50, default="completed")  # pending, processing, completed, failed
     error_message: Optional[str] = Field(default=None, sa_column=Column(Text))
     ingested_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
+class PinterestToken(SQLModel, table=True):
+    __tablename__ = "pinterest_tokens"
+    
+    id: str = Field(default_factory=lambda: str(uuid4()), primary_key=True)
+    user_id: str = Field(foreign_key="users.id", index=True, unique=True)
+    access_token: str = Field(nullable=False)
+    refresh_token: Optional[str] = None
+    expires_at: Optional[datetime] = None
+    synced_at: Optional[datetime] = None
+    
+    created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)

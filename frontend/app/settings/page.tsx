@@ -1,28 +1,98 @@
 "use client";
 
 import { useState, useEffect } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import styles from './page.module.css';
 import { API } from '../../lib/api';
+import { authFetch, clearToken } from '../../lib/auth';
+import { useAuthGuard } from '../../lib/useAuthGuard';
 
 export default function MePage() {
     const [user, setUser] = useState<any>(null);
     const [uploading, setUploading] = useState(false);
     const [showFullPhoto, setShowFullPhoto] = useState(false);
+    const [pinterestConnected, setPinterestConnected] = useState<boolean | null>(null);
+    const [pinterestLoading, setPinterestLoading] = useState(false);
+    const [pinterestMessage, setPinterestMessage] = useState<string | null>(null);
+    const [showPinterestInfo, setShowPinterestInfo] = useState(false);
+    const router = useRouter();
+    const searchParams = useSearchParams();
+    const token = useAuthGuard();
 
     useEffect(() => {
+        if (!token) return;
         const fetchUser = async () => {
             try {
-                const res = await fetch(API.users.me);
+                const res = await authFetch(API.users.me);
                 if (res.ok) {
                     const data = await res.json();
                     setUser(data);
+                    // Refresh connection status once user is known
+                    checkPinterestStatus();
+                } else {
+                    console.error("Failed to fetch user. Status:", res.status, res.statusText);
+                    const errorData = await res.json().catch(() => null);
+                    console.error("Error response:", errorData);
                 }
             } catch (err) {
                 console.error("Failed to fetch user:", err);
             }
         };
         fetchUser();
-    }, []);
+    }, [token]);
+
+    useEffect(() => {
+        if (!token) return;
+        // Read query params for success/error from callback
+        const statusParam = searchParams.get("pinterest");
+        const messageParam = searchParams.get("message");
+        if (statusParam === "success") {
+            setPinterestConnected(true);
+            setPinterestMessage("Pinterest connected successfully.");
+        } else if (statusParam === "error") {
+            setPinterestConnected(false);
+            setPinterestMessage(messageParam || "Pinterest connection failed");
+        }
+    }, [token, searchParams]);
+
+    const checkPinterestStatus = async () => {
+        try {
+            const res = await authFetch(API.pinterest.status);
+            if (res.ok) {
+                const data = await res.json();
+                setPinterestConnected(Boolean(data.connected));
+            } else {
+                setPinterestConnected(false);
+            }
+        } catch (err) {
+            console.error("Failed to check Pinterest status", err);
+            setPinterestConnected(false);
+        }
+    };
+
+    const handlePinterestConnect = async () => {
+        if (pinterestLoading) return;
+        try {
+            setPinterestLoading(true);
+            setPinterestMessage(null);
+
+            const me = user ?? (await (await authFetch(API.users.me)).json());
+            const userId = me?.id;
+            if (!userId) throw new Error("Missing user id");
+
+            sessionStorage.setItem("pinterest_user_id", userId);
+
+            const oauthResponse = await fetch(API.pinterest.login);
+            if (!oauthResponse.ok) throw new Error("Failed to start Pinterest OAuth");
+            const { oauth_url } = await oauthResponse.json();
+
+            window.location.href = oauth_url;
+        } catch (err: any) {
+            console.error("Pinterest connect failed", err);
+            setPinterestMessage(err?.message || "Failed to connect Pinterest");
+            setPinterestLoading(false);
+        }
+    };
 
     const [analysisResults, setAnalysisResults] = useState<any>(null);
 
@@ -35,8 +105,8 @@ export default function MePage() {
         formData.append('file', file);
 
         try {
-            // First upload the photo for visualization
-            const photoRes = await fetch(API.users.bodyPhoto, {
+            // TODO: cehck this if error happens: was fetch()
+            const photoRes = await authFetch(API.users.bodyPhoto, {
                 method: 'POST',
                 body: formData
             });
@@ -158,6 +228,42 @@ export default function MePage() {
             <div className={styles.settingsGrid}>
                 <div className={styles.settingItem}>
                     <div className={styles.settingInfo}>
+                        <div className={styles.settingHeader}>
+                            <svg className={styles.pinterestLogo} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <circle cx="12" cy="12" r="11" fill="#E60023" />
+                                <path d="M8 6V18C8 18.5523 8.44772 19 9 19C9.55228 19 10 18.5523 10 18V15C10.7626 15.6196 11.7929 16 13 16C15.7614 16 18 13.7614 18 11C18 8.23858 15.7614 6 13 6C11.7929 6 10.7626 6.38035 10 7V6C10 5.44772 9.55228 5 9 5C8.44772 5 8 5.44772 8 6ZM13 8C14.6569 8 16 9.34315 16 11C16 12.6569 14.6569 14 13 14C11.3431 14 10 12.6569 10 11C10 9.34315 11.3431 8 13 8Z" fill="white" />
+                            </svg>
+                            <div className={styles.headerWithInfo}>
+                                <h3>Pinterest</h3>
+                                <div className={styles.infoIconWrapper} onMouseEnter={() => setShowPinterestInfo(true)} onMouseLeave={() => setShowPinterestInfo(false)}>
+                                    <svg className={styles.infoIcon} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                        <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" />
+                                        <path d="M12 16V12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                                        <circle cx="12" cy="9" r="0.5" fill="currentColor" />
+                                    </svg>
+                                    {showPinterestInfo && (
+                                        <div className={styles.infoTooltip}>
+                                            Connect Pinterest to discover outfit inspiration, save style ideas, and get personalized recommendations based on your boards.
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+                        <p className={styles.statusBadge} style={{ color: pinterestConnected ? "#16a34a" : "#94a3b8" }}>
+                            {pinterestConnected ? "✓ Connected" : "Not connected"}
+                        </p>
+                        {pinterestMessage && <small style={{ color: pinterestConnected ? "#16a34a" : "#dc2626", marginTop: "4px", display: "block" }}>{pinterestMessage}</small>}
+                    </div>
+                    <button
+                        className={`${styles.actionBtn} ${pinterestConnected ? styles.connected : ""}`}
+                        onClick={handlePinterestConnect}
+                        disabled={pinterestLoading || pinterestConnected === true}
+                    >
+                        {pinterestConnected ? "✓ Connected" : pinterestLoading ? "Connecting..." : "Connect"}
+                    </button>
+                </div>
+                <div className={styles.settingItem}>
+                    <div className={styles.settingInfo}>
                         <h3>Style Profile</h3>
                         <p>Minimalist, Chic, Streetwear</p>
                     </div>
@@ -165,7 +271,15 @@ export default function MePage() {
                 </div>
             </div>
 
-            <button className={styles.logoutBtn}>Sign Out</button>
+            <button
+                className={styles.logoutBtn}
+                onClick={() => {
+                    clearToken();
+                    router.replace('/auth/login');
+                }}
+            >
+                Sign Out
+            </button>
 
             {/* Full Photo Modal */}
             {

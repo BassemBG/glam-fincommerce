@@ -1,6 +1,14 @@
 from fastembed import TextEmbedding
+from app.core.config import settings
 import logging
 from typing import List
+
+genai = None
+if settings.GEMINI_API_KEY:
+    try:
+        from google import genai as genai
+    except Exception:
+        genai = None
 
 class EmbeddingService:
     def __init__(self):

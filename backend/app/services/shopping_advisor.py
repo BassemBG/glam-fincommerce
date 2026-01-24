@@ -5,6 +5,7 @@ from typing import List, Dict, Any, Optional
 from app.models.models import ClothingItem
 from app.services.vision_analyzer import vision_analyzer
 
+
 class ShoppingAdvisor:
     def __init__(self):
         self.groq_service = groq_vision_service

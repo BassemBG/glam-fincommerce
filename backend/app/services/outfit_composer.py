@@ -4,6 +4,13 @@ import logging
 from typing import List, Dict, Any
 from app.models.models import ClothingItem
 
+genai = None
+if settings.GEMINI_API_KEY:
+    try:
+        from google import genai as genai
+    except Exception:
+        genai = None
+
 class OutfitComposer:
     def __init__(self):
         self.groq_service = groq_vision_service

@@ -1,6 +1,7 @@
 from app.services.groq_vision_service import groq_vision_service
 import json
 import logging
+import json
 import random
 from typing import Dict, Any
 
@@ -93,7 +94,7 @@ class VisionAnalyzer:
             result = await self.groq_service.analyze_clothing(image_data)
             return result
         except Exception as e:
-            logging.warning(f"AI analysis failed ({e}), using demo response")
+            logging.debug(f"AI analysis failed ({e}), using demo response")
             return self._get_demo_response()
 
     async def remove_background(self, image_data: bytes) -> bytes:
