@@ -15,3 +15,5 @@ google-generativeai
 pytest
 httpx
 rembg[cpu]
+qdrant-client
+sentence-transformers

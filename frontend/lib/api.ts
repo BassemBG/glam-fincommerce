@@ -22,4 +22,9 @@ export const API = {
     ingest: `${API_URL}/api/v1/brands/ingest`,
     list: `${API_URL}/api/v1/brands`,
   },
+  profileBrands: {
+    upsert: `${API_URL}/api/v1/brands/profile/ingest`,
+    list: `${API_URL}/api/v1/brands/profile/list`,
+    getByName: (name: string) => `${API_URL}/api/v1/brands/profile/${name}`,
+  },
 };

@@ -53,7 +53,23 @@ CREATE TABLE body_profiles (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
+-- Profile Brands Table (User-curated brand profiles)
+CREATE TABLE profile_brands (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    brand_name VARCHAR(255) NOT NULL UNIQUE,
+    brand_website VARCHAR(500),
+    instagram_link VARCHAR(500),
+    brand_logo_url TEXT,
+    description TEXT,
+    description_embedding vector(384),  -- For semantic search
+    metadata JSONB DEFAULT '{}',
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
 -- Indices for performance
 CREATE INDEX idx_clothing_items_user_id ON clothing_items(user_id);
 CREATE INDEX idx_outfits_user_id ON outfits(user_id);
 CREATE INDEX idx_clothing_items_embedding ON clothing_items USING ivfflat (embedding vector_cosine_ops) WITH (lists = 100);
+CREATE INDEX idx_profile_brands_name ON profile_brands(brand_name);
+CREATE INDEX idx_profile_brands_embedding ON profile_brands USING ivfflat (description_embedding vector_cosine_ops) WITH (lists = 100);

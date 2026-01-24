@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
+import { API } from "@/lib/api";
 import styles from "./page.module.css";
 
 type ProfileForm = {
@@ -8,8 +9,6 @@ type ProfileForm = {
   description: string;
   websiteUrl: string;
   instagramUrl: string;
-  logoFile: File | null;
-  logoPreview: string | null;
 };
 
 export default function BrandProfilePage() {
@@ -18,27 +17,9 @@ export default function BrandProfilePage() {
     description: "",
     websiteUrl: "",
     instagramUrl: "",
-    logoFile: null,
-    logoPreview: null,
   });
   const [saving, setSaving] = useState(false);
   const [status, setStatus] = useState<{ type: "success" | "error"; message: string } | null>(null);
-
-  useEffect(() => {
-    return () => {
-      if (form.logoPreview) URL.revokeObjectURL(form.logoPreview);
-    };
-  }, [form.logoPreview]);
-
-  const handleLogoChange = (file: File | null) => {
-    if (form.logoPreview) URL.revokeObjectURL(form.logoPreview);
-    if (!file) {
-      setForm((prev) => ({ ...prev, logoFile: null, logoPreview: null }));
-      return;
-    }
-    const preview = URL.createObjectURL(file);
-    setForm((prev) => ({ ...prev, logoFile: file, logoPreview: preview }));
-  };
 
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
@@ -46,19 +27,45 @@ export default function BrandProfilePage() {
     setStatus(null);
 
     try {
-      // Local-only save. Wire to backend profile endpoint when available.
-      await new Promise((resolve) => setTimeout(resolve, 400));
-      setStatus({ type: "success", message: "Profile saved locally. Connect to backend when ready." });
+      if (!form.brandName.trim()) {
+        throw new Error("Brand name is required.");
+      }
+
+      // Call backend to upsert profile brand
+      const response = await fetch(API.profileBrands.upsert, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          brand_name: form.brandName.trim(),
+          description: form.description.trim() || null,
+          brand_website: form.websiteUrl.trim() || null,
+          instagram_link: form.instagramUrl.trim() || null,
+          brand_logo_url: null,
+        }),
+        credentials: "include",
+      });
+
+      if (!response.ok) {
+        const error = await response.text();
+        throw new Error(error || "Failed to save profile");
+      }
+
+      setStatus({ type: "success", message: "Brand profile saved successfully!" });
+      // Clear form after success
+      setTimeout(() => {
+        setForm({
+          brandName: "",
+          description: "",
+          websiteUrl: "",
+          instagramUrl: "",
+        });
+      }, 1500);
     } catch (err: any) {
-      setStatus({ type: "error", message: err?.message || "Unable to save right now." });
+      setStatus({ type: "error", message: err?.message || "Unable to save profile." });
     } finally {
       setSaving(false);
     }
   };
-
-  const initials = useMemo(() => {
-    return (form.brandName || "Brand").slice(0, 2).toUpperCase();
-  }, [form.brandName]);
 
   return (
     <div className={styles.page}>
@@ -71,21 +78,6 @@ export default function BrandProfilePage() {
         <div>
           <h2 className={styles.sectionTitle}>Profile</h2>
           <p className={styles.hint}>Instagram-style bio that stays on-brand.</p>
-        </div>
-
-        <div className={styles.logoUpload}>
-          <div className={styles.logoPreview}>
-            {form.logoPreview ? <img src={form.logoPreview} alt="Brand logo preview" /> : initials}
-          </div>
-          <label className={styles.uploadButton}>
-            <input
-              type="file"
-              accept="image/*"
-              style={{ display: "none" }}
-              onChange={(e) => handleLogoChange(e.target.files?.[0] || null)}
-            />
-            Upload logo
-          </label>
         </div>
 
         <div className={styles.grid}>
