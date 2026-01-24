@@ -19,3 +19,4 @@ qdrant-client==1.12.1
 transformers
 torch
 pillow
+pydantic[email]
