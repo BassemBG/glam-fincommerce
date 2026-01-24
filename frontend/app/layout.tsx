@@ -1,8 +1,7 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Playfair_Display, Lora } from 'next/font/google';
 import "./globals.css";
-import BottomNav from "@/components/BottomNav";
-import FloatingStylist from "@/components/FloatingStylist";
+import LayoutShell from "@/components/LayoutShell";
 
 const playfair = Playfair_Display({
   subsets: ['latin'],
@@ -19,7 +18,13 @@ const lora = Lora({
 export const metadata: Metadata = {
   title: "AI Virtual Closet",
   description: "Your digital stylist and closet manager",
-  viewport: "width=device-width, initial-scale=1, maximum-scale=1, user-scalable=0",
+};
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
 };
 
 export default function RootLayout({
@@ -30,11 +35,7 @@ export default function RootLayout({
   return (
     <html lang="en" className={`${playfair.variable} ${lora.variable}`}>
       <body>
-        <main className="container animate-fade-in">
-          {children}
-        </main>
-        <FloatingStylist />
-        <BottomNav />
+        <LayoutShell>{children}</LayoutShell>
       </body>
     </html>
   );

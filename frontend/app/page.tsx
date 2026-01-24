@@ -1,10 +1,14 @@
 "use client";
 
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import styles from './page.module.css';
 import TryOnVisualizer from '../components/TryOnVisualizer';
 import { API } from '../lib/api';
+import { authFetch } from '../lib/auth';
+import { useAuthGuard } from '../lib/useAuthGuard';
 
 interface ClothingItem {
   id: string;
@@ -35,20 +39,38 @@ export default function Home() {
   const [userPhoto, setUserPhoto] = useState<string | null>(null);
   const [items, setItems] = useState<ClothingItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const token = useAuthGuard();
 
   const timerRef = useRef<any>(null);
 
   useEffect(() => {
+    if (!token) return;
     const fetchData = async () => {
       try {
         const [userRes, itemsRes] = await Promise.all([
-          fetch(API.users.me),
-          fetch(API.closet.items)
+          authFetch(API.users.me),
+          authFetch(API.closet.items)
         ]);
 
         if (userRes.ok) {
           const userData = await userRes.json();
           setUserPhoto(userData.full_body_image);
+
+          // Redirect to onboarding ONLY if:
+          // 1. localStorage flag is set (brand-new account) AND
+          // 2. User hasn't actually completed onboarding on server
+          const needs = typeof window !== 'undefined' ? localStorage.getItem('needsOnboarding') : null;
+          if (needs === '1' && !userData.onboarding_completed) {
+            router.push('/onboarding');
+            return;
+          }
+
+          // If onboarding is already completed, clear the localStorage flag
+          if (userData.onboarding_completed && needs === '1') {
+            if (typeof window !== 'undefined') {
+              localStorage.removeItem('needsOnboarding');
+            }
+          }
         }
 
         if (itemsRes.ok) {
@@ -62,7 +84,7 @@ export default function Home() {
       }
     };
     fetchData();
-  }, []);
+  }, [token]);
 
   const handleTouchStart = (id: string) => {
     if (isSelectionMode) return;
@@ -86,8 +108,33 @@ export default function Home() {
     }
   };
 
-  const handleCreateOutfit = () => {
+  const handleCreateOutfit = async () => {
     setIsAnimating(true);
+
+    // Build outfit data from selected items
+    const selectedItems = items.filter(item => selectedForOutfit.includes(item.id));
+    const outfitData = {
+      name: `Outfit ${new Date().toLocaleDateString()}`,
+      items: selectedForOutfit,
+      occasion: "casual",
+      vibe: selectedItems[0]?.metadata_json?.vibe || "chic"
+    };
+
+    try {
+      // Save outfit to backend
+      const response = await authFetch(API.outfits.save, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(outfitData)
+      });
+
+      if (!response.ok) {
+        console.error('Failed to save outfit');
+      }
+    } catch (err) {
+      console.error('Error saving outfit:', err);
+    }
+
     setTimeout(() => {
       setShowSparks(true);
       setTimeout(() => {
@@ -107,6 +154,41 @@ export default function Home() {
     }, 2000);
   };
 
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  const handleDelete = async (e: React.MouseEvent, id: string) => {
+    e.stopPropagation();
+    if (!confirm('Are you sure you want to remove this item?')) return;
+
+    setIsDeleting(true);
+    try {
+      const res = await fetch(API.closet.delete(id), { method: 'DELETE' });
+      if (res.ok) {
+        setItems(prev => prev.filter(item => item.id !== id));
+        setSelectedItem(null);
+      } else {
+        alert('Failed to delete item');
+      }
+    } catch (err) {
+      console.error(err);
+      alert('Error deleting item');
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  const handlePinterestConnect = async () => {
+    try {
+      const oauthResponse = await fetch(`${API.base}/auth/pinterest/login`);
+      const oauthData = await oauthResponse.json();
+      if (typeof window !== "undefined") {
+        window.location.href = oauthData.oauth_url;
+      }
+    } catch (err: any) {
+      console.error("Failed to connect to Pinterest", err);
+    }
+  };
+
   // Empty state when no items
   if (!loading && items.length === 0) {
     return (
@@ -118,12 +200,14 @@ export default function Home() {
             Start building your digital wardrobe. Add your first piece and let
             our AI stylist help you discover new outfit possibilities.
           </p>
-          <button
-            className={styles.addFirstBtn}
-            onClick={() => router.push('/upload')}
-          >
-            Add Your First Piece
-          </button>
+          <div style={{ display: "flex", gap: "12px", justifyContent: "center", flexWrap: "wrap", marginTop: "24px" }}>
+            <button
+              className={styles.addFirstBtn}
+              onClick={() => router.push('/upload')}
+            >
+              Add Your First Piece
+            </button>
+          </div>
           <p className={styles.emptyHint}>
             Pro tip: Start with your favorite pieces—the ones you reach for first.
           </p>
@@ -274,7 +358,27 @@ export default function Home() {
 
             <div className={styles.detailBody}>
               <section className={styles.section}>
-                <h3>AI Perspective</h3>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                  <h3>AI Perspective</h3>
+                  <button
+                    onClick={(e) => handleDelete(e, selectedItem.id)}
+                    disabled={isDeleting}
+                    style={{
+                      background: 'none',
+                      border: '1px solid #ff4444',
+                      borderRadius: '4px',
+                      padding: '4px 8px',
+                      color: '#ff4444',
+                      cursor: 'pointer',
+                      fontSize: '0.8rem',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '4px'
+                    }}
+                  >
+                    {isDeleting ? 'Deleting...' : '🗑️ Delete Item'}
+                  </button>
+                </div>
                 <p className={styles.description}>
                   {selectedItem.metadata_json?.description || 'A versatile piece that can be styled in many ways.'}
                 </p>

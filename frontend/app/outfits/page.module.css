@@ -1,5 +1,7 @@
 .container {
-    padding-top: 10px;
+    padding: 20px;
+    min-height: 100vh;
+    padding-bottom: calc(120px + var(--safe-area-inset-bottom, 0px));
 }
 
 .header {
@@ -10,37 +12,67 @@
     display: flex;
     flex-direction: column;
     gap: 24px;
+    padding-bottom: 40px;
 }
 
 .outfitCard {
     background: #ffffff;
-    border-radius: 20px;
-    padding: 24px;
+    border-radius: 24px;
+    padding: 20px;
     border: 1px solid #f1f5f9;
-    box-shadow: var(--shadow-sm);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
     display: flex;
     flex-direction: column;
-    gap: 20px;
+    gap: 16px;
+    margin-bottom: 24px;
 }
 
 .outfitHeader {
     display: flex;
     justify-content: space-between;
-    align-items: flex-start;
+    align-items: center;
 }
 
 .outfitInfo h2 {
-    font-size: 1.4rem;
-    margin-bottom: 4px;
+    font-size: 1.25rem;
+    margin-bottom: 2px;
     font-family: var(--font-serif);
+    color: #1e293b;
+}
+
+.headerActions {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.deleteBtn {
+    background: #fee2e2;
+    color: #ef4444;
+    border: none;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-size: 0.8rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    z-index: 10;
+}
+
+.deleteBtn:hover {
+    background: #fecaca;
+    transform: scale(1.1);
 }
 
 .vibeTag {
-    font-size: 0.75rem;
+    font-size: 0.7rem;
     color: #94a3b8;
     font-weight: 500;
     text-transform: uppercase;
-    letter-spacing: 0.1em;
+    letter-spacing: 0.08em;
 }
 
 .scoreBadge {
@@ -48,20 +80,20 @@
     flex-direction: column;
     align-items: center;
     background: #f0fdf4;
-    padding: 8px 12px;
-    border-radius: 12px;
+    padding: 6px 10px;
+    border-radius: 10px;
     border: 1px solid #dcfce7;
 }
 
 .scoreValue {
-    font-size: 1.25rem;
+    font-size: 1.1rem;
     font-weight: 500;
     color: var(--primary);
     font-family: var(--font-serif);
 }
 
 .scoreLabel {
-    font-size: 0.55rem;
+    font-size: 0.5rem;
     font-weight: 600;
     color: #166534;
     text-transform: uppercase;
@@ -69,24 +101,31 @@
 }
 
 .previewGrid {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 12px;
+    width: 100%;
+    border-radius: 16px;
+    overflow: hidden;
+    background: #f8fafc;
+    border: 1px solid #f1f5f9;
 }
 
 .gridPlaceholder {
-    aspect-ratio: 1/1;
-    background: #f8fafc;
-    border-radius: 12px;
+    aspect-ratio: 3/4;
     display: flex;
     justify-content: center;
     align-items: center;
     text-align: center;
-    padding: 8px;
-    font-size: 0.65rem;
+    padding: 16px;
+    font-size: 0.8rem;
     color: #94a3b8;
     font-weight: 500;
-    line-height: 1.2;
+}
+
+.cardPreviewImage {
+    width: 100%;
+    aspect-ratio: 3/4;
+    object-fit: contain;
+    background: #f1f5f9;
+    padding: 4px;
 }
 
 .viewBtn {
@@ -146,24 +185,35 @@
     left: 0;
     right: 0;
     bottom: 0;
-    background: rgba(15, 23, 42, 0.4);
+    background: rgba(15, 23, 42, 0.5);
     backdrop-filter: blur(4px);
     z-index: 2000;
     display: flex;
     align-items: flex-end;
-    animation: fadeIn 0.3s ease-out;
+    animation: fadeIn 0.2s ease-out;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+    }
+
+    to {
+        opacity: 1;
+    }
 }
 
 .detailCard {
     width: 100%;
     background: #ffffff;
-    border-radius: 32px 32px 0 0;
-    max-height: 92vh;
+    border-radius: 24px 24px 0 0;
+    max-height: 80vh;
     overflow-y: auto;
     position: relative;
-    padding: 40px 24px 24px;
-    box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.1);
-    animation: slideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+    padding: 24px 20px;
+    padding-bottom: calc(24px + var(--safe-area-inset-bottom, 0px));
+    box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.15);
+    animation: slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 @keyframes slideUp {
@@ -301,4 +351,88 @@
     font-weight: 500;
     cursor: pointer;
     box-shadow: 0 8px 20px rgba(34, 197, 94, 0.2);
+}
+
+/* New styles for enhanced outfit details */
+.metaRow {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 16px;
+    margin-top: 12px;
+}
+
+.occasionTag {
+    background: #f1f5f9;
+    padding: 6px 12px;
+    border-radius: 20px;
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: #64748b;
+    text-transform: capitalize;
+}
+
+.tryOnPreview {
+    margin: 24px 0;
+    border-radius: 20px;
+    overflow: hidden;
+    background: #f8fafc;
+    max-height: 500px;
+}
+
+.tryOnPreview img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+}
+
+.piecesGrid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
+    gap: 12px;
+}
+
+.pieceCard {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+}
+
+.pieceCard img {
+    width: 100%;
+    aspect-ratio: 1/1;
+    object-fit: cover;
+    border-radius: 12px;
+    background: #f8fafc;
+    border: 1px solid #f1f5f9;
+}
+
+.pieceCard span {
+    font-size: 0.7rem;
+    color: #64748b;
+    text-align: center;
+    text-transform: capitalize;
+}
+
+.description {
+    font-size: 1.05rem;
+    line-height: 1.7;
+    color: #1e293b;
+}
+
+.tagsRow {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.styleTag {
+    background: #f0fdf4;
+    color: var(--primary);
+    padding: 6px 12px;
+    border-radius: 20px;
+    font-size: 0.75rem;
+    font-weight: 500;
+    border: 1px solid #dcfce7;
 }

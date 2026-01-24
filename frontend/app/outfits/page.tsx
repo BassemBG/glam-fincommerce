@@ -4,19 +4,23 @@ import { useState, useEffect } from 'react';
 import styles from './page.module.css';
 import TryOnVisualizer from '../../components/TryOnVisualizer';
 import { API } from '../../lib/api';
+import { authFetch } from '../../lib/auth';
+import { useAuthGuard } from '../../lib/useAuthGuard';
 
 export default function OutfitsPage() {
     const [selectedOutfit, setSelectedOutfit] = useState<any>(null);
     const [outfits, setOutfits] = useState<any[]>([]);
     const [userPhoto, setUserPhoto] = useState<string | null>(null);
     const [showTryOn, setShowTryOn] = useState(false);
+    const token = useAuthGuard();
 
     useEffect(() => {
+        if (!token) return;
         const fetchData = async () => {
             try {
                 const [outfitsRes, userRes] = await Promise.all([
-                    fetch(API.outfits.list),
-                    fetch(API.users.me)
+                    authFetch(API.outfits.list),
+                    authFetch(API.users.me)
                 ]);
 
                 if (outfitsRes.ok) setOutfits(await outfitsRes.json());
@@ -29,11 +33,32 @@ export default function OutfitsPage() {
             }
         };
         fetchData();
-    }, []);
+    }, [token]);
 
     const handleTryOn = (outfit: any) => {
         setSelectedOutfit(outfit);
         setShowTryOn(true);
+    };
+
+    const handleDeleteOutfit = async (e: React.MouseEvent, outfitId: string) => {
+        e.stopPropagation();
+        if (!confirm("Are you sure you want to delete this outfit?")) return;
+
+        try {
+            const res = await authFetch(`${API.outfits.list}/${outfitId}`, {
+                method: 'DELETE'
+            });
+
+            if (res.ok) {
+                setOutfits(outfits.filter(o => o.id !== outfitId));
+                if (selectedOutfit?.id === outfitId) setSelectedOutfit(null);
+            } else {
+                alert("Failed to delete outfit");
+            }
+        } catch (err) {
+            console.error("Delete error:", err);
+            alert("An error occurred while deleting");
+        }
     };
 
     return (
@@ -51,16 +76,35 @@ export default function OutfitsPage() {
                                 <h2>{outfit.name || 'AI Curation'}</h2>
                                 <span className={styles.vibeTag}>{outfit.vibe} • {outfit.occasion}</span>
                             </div>
-                            <div className={styles.scoreBadge}>
-                                <span className={styles.scoreValue}>{outfit.score}</span>
-                                <span className={styles.scoreLabel}>AI Match</span>
+                            <div className={styles.headerActions}>
+                                <div className={styles.scoreBadge}>
+                                    <span className={styles.scoreValue}>{outfit.score}</span>
+                                    <span className={styles.scoreLabel}>AI Match</span>
+                                </div>
+                                <button
+                                    className={styles.deleteBtn}
+                                    onClick={(e) => handleDeleteOutfit(e, outfit.id)}
+                                    aria-label="Delete Outfit"
+                                >
+                                    ✕
+                                </button>
                             </div>
                         </div>
                         <div className={styles.previewGrid}>
-                            {/* In a real app, we'd fetch item images here. For now, we'll show count */}
-                            <div className={styles.gridPlaceholder}>
-                                <span>{outfit.items.length} Pieces</span>
-                            </div>
+                            {outfit.tryon_image_url ? (
+                                <img
+                                    src={outfit.tryon_image_url.startsWith('http')
+                                        ? outfit.tryon_image_url
+                                        : `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}${outfit.tryon_image_url}`
+                                    }
+                                    className={styles.cardPreviewImage}
+                                    alt="Outfit Preview"
+                                />
+                            ) : (
+                                <div className={styles.gridPlaceholder}>
+                                    <span>{outfit.items.length} Pieces</span>
+                                </div>
+                            )}
                         </div>
                         <div className={styles.actionRow}>
                             <button
@@ -69,14 +113,6 @@ export default function OutfitsPage() {
                             >
                                 Details
                             </button>
-                            {userPhoto && (
-                                <button
-                                    className={styles.tryOnBtn}
-                                    onClick={() => handleTryOn(outfit)}
-                                >
-                                    Try On
-                                </button>
-                            )}
                         </div>
                     </div>
                 )) : (
@@ -94,28 +130,83 @@ export default function OutfitsPage() {
                         <div className={styles.detailHeader}>
                             <span className={styles.vibeTag}>{selectedOutfit.vibe}</span>
                             <h1>{selectedOutfit.name || 'AI Curation'}</h1>
-                            <div className={styles.scoreRow}>
-                                <span className={styles.finalScore}>{selectedOutfit.score}</span>
-                                <p className="text-muted">AI Stylist Score</p>
+                            <div className={styles.metaRow}>
+                                <span className={styles.occasionTag}>{selectedOutfit.occasion}</span>
+                                <div className={styles.scoreRow}>
+                                    <span className={styles.finalScore}>{selectedOutfit.score}</span>
+                                    <span className="text-muted">AI Score</span>
+                                </div>
                             </div>
                         </div>
 
-                        <div className={styles.detailBody}>
+                        {/* Try-on Image */}
+                        {selectedOutfit.tryon_image_url && (
+                            <div className={styles.tryOnPreview}>
+                                <img
+                                    src={selectedOutfit.tryon_image_url.startsWith('http')
+                                        ? selectedOutfit.tryon_image_url
+                                        : `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}${selectedOutfit.tryon_image_url}`
+                                    }
+                                    alt="Try-on preview"
+                                />
+                            </div>
+                        )}
+
+                        {/* Pieces Gallery */}
+                        {selectedOutfit.items && selectedOutfit.items.length > 0 && (
                             <section className={styles.section}>
-                                <h3>Stylist Notes</h3>
-                                <p className={styles.reasoning}>{selectedOutfit.reasoning}</p>
+                                <h3>Pieces</h3>
+                                <div className={styles.piecesGrid}>
+                                    {selectedOutfit.items.map((item: any, idx: number) => (
+                                        <div key={idx} className={styles.pieceCard}>
+                                            <img
+                                                src={item.image_url || item.mask_url}
+                                                alt={item.sub_category || 'Piece'}
+                                            />
+                                            <span>{item.sub_category || item.body_region}</span>
+                                        </div>
+                                    ))}
+                                </div>
                             </section>
+                        )}
+
+                        <div className={styles.detailBody}>
+                            {/* AI Description */}
+                            {selectedOutfit.description && (
+                                <section className={styles.section}>
+                                    <h3>AI Description</h3>
+                                    <p className={styles.description}>{selectedOutfit.description}</p>
+                                </section>
+                            )}
+
+                            {/* Style Tags */}
+                            {selectedOutfit.style_tags && (
+                                <section className={styles.section}>
+                                    <h3>Style Tags</h3>
+                                    <div className={styles.tagsRow}>
+                                        {(typeof selectedOutfit.style_tags === 'string'
+                                            ? JSON.parse(selectedOutfit.style_tags)
+                                            : selectedOutfit.style_tags
+                                        ).map((tag: string, idx: number) => (
+                                            <span key={idx} className={styles.styleTag}>{tag}</span>
+                                        ))}
+                                    </div>
+                                </section>
+                            )}
+
+                            {/* Stylist Notes */}
+                            {selectedOutfit.reasoning && (
+                                <section className={styles.section}>
+                                    <h3>Stylist Notes</h3>
+                                    <p className={styles.reasoning}>{selectedOutfit.reasoning}</p>
+                                </section>
+                            )}
                         </div>
 
                         <div className={styles.actionRow}>
                             <button className={styles.primaryBtn} onClick={() => setSelectedOutfit(null)}>
                                 Close
                             </button>
-                            {userPhoto && (
-                                <button className={styles.tryOnBtnLarge} onClick={() => setShowTryOn(true)}>
-                                    Virtual Try-On
-                                </button>
-                            )}
                         </div>
                     </div>
                 </div>

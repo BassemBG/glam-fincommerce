@@ -4,6 +4,8 @@ import { useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import styles from './page.module.css';
 import { API } from '../../lib/api';
+import { authFetch } from '../../lib/auth';
+import { useAuthGuard } from '../../lib/useAuthGuard';
 
 export default function UploadPage() {
     const router = useRouter();
@@ -12,6 +14,7 @@ export default function UploadPage() {
     const [status, setStatus] = useState<'idle' | 'uploading' | 'analyzing' | 'done' | 'error'>('idle');
     const [analysis, setAnalysis] = useState<any>(null);
     const [errorMsg, setErrorMsg] = useState<string>('');
+    const token = useAuthGuard();
 
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files && e.target.files[0]) {
@@ -36,7 +39,8 @@ export default function UploadPage() {
             setStatus('analyzing');
 
             // Call the real backend API
-            const response = await fetch(API.closet.upload, {
+            //TODO: check this if problem occurs: was just fetch()
+            const response = await authFetch(API.clothing.ingest, {
                 method: 'POST',
                 body: formData
             });
@@ -48,17 +52,22 @@ export default function UploadPage() {
 
             const data = await response.json();
 
-            // Extract analysis from response
+            console.log("Ingestion response:", data);
+            console.log("Duplicate status:", data.qdrant_result?.status);
+
+            // Extract analysis from new response structure
             setAnalysis({
-                category: data.analysis?.category || 'Clothing',
-                sub_category: data.analysis?.sub_category || 'Item',
-                body_region: data.analysis?.body_region || 'top',
-                vibe: data.analysis?.vibe || 'Casual',
-                colors: data.analysis?.colors || [],
-                description: data.analysis?.description || 'A versatile piece for your wardrobe.',
-                styling_tips: data.analysis?.styling_tips || 'Style it your way!',
+                category: data.clothing?.category || 'Clothing',
+                sub_category: data.clothing?.sub_category || 'Item',
+                body_region: data.clothing?.body_region || 'top',
+                vibe: data.clothing?.vibe || 'Casual',
+                colors: data.clothing?.colors || [],
+                description: data.clothing?.description || 'A versatile piece for your wardrobe.',
+                styling_tips: data.clothing?.styling_tips || 'Style it your way!',
                 image_url: data.image_url,
-                mask_url: data.mask_url
+                mask_url: data.image_url, // No mask in new pipeline yet
+                brand: data.brand?.detected_brand,
+                price: data.price
             });
             setStatus('done');
 
@@ -134,8 +143,13 @@ export default function UploadPage() {
                             <div className={styles.tags}>
                                 <span className={styles.tag}>{analysis.body_region.replace('_', ' ')}</span>
                                 <span className={styles.tag}>{analysis.vibe}</span>
+                                {analysis.brand && <span className={styles.tag} style={{ background: '#000', color: '#fff' }}>{analysis.brand}</span>}
                             </div>
+
                             <h3>{analysis.sub_category}</h3>
+                            {analysis.price && (
+                                <p className={styles.priceTag}>${analysis.price} (Estimated)</p>
+                            )}
                             <p>{analysis.description}</p>
                             {analysis.styling_tips && (
                                 <p className={styles.stylingTip}>💡 {analysis.styling_tips}</p>

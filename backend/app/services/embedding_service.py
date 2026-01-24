@@ -1,29 +1,37 @@
-import google.generativeai as genai
+from fastembed import TextEmbedding
 from app.core.config import settings
 import logging
 from typing import List
 
+genai = None
+if settings.GEMINI_API_KEY:
+    try:
+        from google import genai as genai
+    except Exception:
+        genai = None
+
 class EmbeddingService:
     def __init__(self):
-        if settings.GEMINI_API_KEY:
-            genai.configure(api_key=settings.GEMINI_API_KEY)
-        else:
-            logging.warning("GEMINI_API_KEY not found. Embedding features will be disabled.")
+        try:
+            # We use bge-small-en-v1.5 by default (384 dimensions)
+            self.model = TextEmbedding()
+        except Exception as e:
+            logging.error(f"Failed to initialize FastEmbed: {e}")
+            self.model = None
 
     async def get_text_embedding(self, text: str) -> List[float]:
-        """Generates a text embedding using Gemini."""
-        if not settings.GEMINI_API_KEY:
-            return [0.0] * 768 # Default size for many models
+        """Generates a text embedding using FastEmbed."""
+        if not self.model:
+            return [0.0] * 384
 
         try:
-            result = genai.embed_content(
-                model="models/embedding-001",
-                content=text,
-                task_type="clustering"
-            )
-            return result['embedding']
+            # fastembed returns a generator of embeddings
+            embeddings = list(self.model.embed([text]))
+            if embeddings:
+                return embeddings[0].tolist()
+            return [0.0] * 384
         except Exception as e:
             logging.error(f"Embedding generation error: {e}")
-            return [0.0] * 768
+            return [0.0] * 384
 
 embedding_service = EmbeddingService()

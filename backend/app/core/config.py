@@ -11,14 +11,44 @@ class Settings(BaseSettings):
     # Database - SQLite by default (no installation needed)
     DATABASE_URL: str = "sqlite:///./virtual_closet.db"
     
+    # Groq API Key (Main AI service)
+    GROQ_API_KEY: str = ""
+    
+    # Tavily API Key (Price lookup)
+    TAVILY_API_KEY: str = ""
     # Gemini API Key
     GEMINI_API_KEY: str = ""
+    
+    # Zep API Key
+    ZEP_API_KEY: str = ""
 
-    # AWS S3 (optional - for image storage)
+    # Pinterest OAuth
+    PINTEREST_APP_ID: str = "1543846"
+    PINTEREST_APP_SECRET: str = "db774016ccd9aaa2805e688b39fd9055c581efcf"
+    PINTEREST_REDIRECT_URI: str = "http://localhost:3000/auth/pinterest-callback"
+    PINTEREST_FRONTEND_REDIRECT: str = "http://localhost:3000/onboarding"
+
+    # Azure Blob Storage (optional - for image storage)
+    AZURE_STORAGE_CONNECTION_STRING: str = ""
+    AZURE_STORAGE_CONTAINER: str = "images"
+
+    # Azure OpenAI (for AI-powered try-on)
+    AZURE_OPENAI_ENDPOINT: str = ""
+    AZURE_OPENAI_API_KEY: str = ""
+    AZURE_OPENAI_IMAGE_DEPLOYMENT: str = "gpt-image-1.5"
+
+    # AWS S3 (optional - for image storage, deprecated in favor of Azure)
     S3_BUCKET: str = "virtual-closet-assets"
     AWS_ACCESS_KEY_ID: str = ""
     AWS_SECRET_ACCESS_KEY: str = ""
     AWS_REGION: str = "us-east-1"
+    
+    # Qdrant Vector Database (Cloud)
+    QDRANT_URL: str = "https://86d64e8e-85e3-4573-8605-c55a200e11dc.europe-west3-0.gcp.cloud.qdrant.io"
+
+    QDRANT_API_KEY: str = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhY2Nlc3MiOiJtIn0.r8hipkRAT0JK8W7ZQfsAvCplnQEd8sJla62Beigmaoc"  # Required for Qdrant Cloud
+    QDRANT_COLLECTION_NAME: str = "clothing_embeddings"
+    QDRANT_COLLECTION_NAME_CLIP: str = "clothing_clip_embeddings"
 
     model_config = SettingsConfigDict(env_file=".env", case_sensitive=True, extra="ignore")
 

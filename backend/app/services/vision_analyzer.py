@@ -1,7 +1,7 @@
-import google.generativeai as genai
-from app.core.config import settings
+from app.services.groq_vision_service import groq_vision_service
 import json
 import logging
+import json
 import random
 from typing import Dict, Any
 
@@ -77,13 +77,7 @@ DEMO_RESPONSES = [
 
 class VisionAnalyzer:
     def __init__(self):
-        if settings.GEMINI_API_KEY:
-            genai.configure(api_key=settings.GEMINI_API_KEY)
-            self.model = genai.GenerativeModel('gemini-2.0-flash')
-        else:
-            logging.warning("GEMINI_API_KEY not found. Using demo mode.")
-            self.model = None
-        
+        self.groq_service = groq_vision_service
         self._rembg_session = None
 
     def _get_demo_response(self) -> Dict[str, Any]:
@@ -91,46 +85,16 @@ class VisionAnalyzer:
         return random.choice(DEMO_RESPONSES).copy()
 
     async def analyze_clothing(self, image_data: bytes) -> Dict[str, Any]:
-        """Analyzes a clothing item image using Gemini, falls back to demo data."""
-        if not self.model:
-            logging.info("Using demo response (no API key)")
+        """Analyzes a clothing item image using Groq, falls back to demo data."""
+        if not self.groq_service.client:
+            logging.info("Using demo response (no Groq API key)")
             return self._get_demo_response()
 
-        prompt = """
-        Analyze this clothing item image. Return ONLY valid JSON with these fields:
-        {
-          "category": "clothing|shoes|accessory",
-          "sub_category": "e.g., T-shirt, Jeans, Midi Dress, Sneakers",
-          "body_region": "head|top|bottom|feet|full_body|outerwear|accessory",
-          "colors": ["list of primary colors"],
-          "material": "denim, silk, wool, cotton, etc.",
-          "vibe": "minimalist|boho|chic|streetwear|classic|casual",
-          "season": "Spring|Summer|Autumn|Winter|All Seasons",
-          "description": "Brief natural language description of the item",
-          "styling_tips": "One sentence on how to style this piece"
-        }
-        Return ONLY the JSON object, no markdown or extra text.
-        """
-
         try:
-            response = self.model.generate_content([
-                prompt, 
-                {"mime_type": "image/jpeg", "data": image_data}
-            ])
-            
-            text = response.text.strip()
-            if text.startswith("```"):
-                text = text.split("```")[1]
-                if text.startswith("json"):
-                    text = text[4:]
-                text = text.strip()
-            
-            result = json.loads(text)
-            logging.info(f"Analysis complete: {result.get('sub_category', 'Unknown')}")
+            result = await self.groq_service.analyze_clothing(image_data)
             return result
-            
         except Exception as e:
-            logging.warning(f"AI analysis failed ({e}), using demo response")
+            logging.debug(f"AI analysis failed ({e}), using demo response")
             return self._get_demo_response()
 
     async def remove_background(self, image_data: bytes) -> bytes:

@@ -4,7 +4,9 @@ Run this once: python init_db.py
 """
 from app.db.session import engine
 from app.models.models import SQLModel, User
-from sqlmodel import Session
+from app.core.security import get_password_hash
+from app.services.zep_service import create_zep_user
+from sqlmodel import Session, select
 
 def init_database():
     # Create all tables
@@ -13,18 +15,26 @@ def init_database():
     
     # Create a demo user if none exists
     with Session(engine) as session:
-        existing_user = session.query(User).first()
+        existing_user = session.exec(select(User)).first()
         if not existing_user:
-            # Simple hash for demo purposes (in production use proper bcrypt)
+            # Use proper bcrypt hashing for demo user
             demo_user = User(
                 email="demo@example.com",
-                hashed_password="$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/X4.RBnSdwUDljC4e.",  # demo123
+                hashed_password=get_password_hash("demo123"),
                 full_name="Demo User",
                 full_body_image=None
             )
             session.add(demo_user)
             session.commit()
+            session.refresh(demo_user)
             print("Demo user created! (email: demo@example.com, password: demo123)")
+            
+            # Create user in Zep Cloud
+            create_zep_user(
+                user_id=demo_user.id,
+                email=demo_user.email,
+                full_name=demo_user.full_name
+            )
         else:
             print("User already exists, skipping demo user creation.")
     
