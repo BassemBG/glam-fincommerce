@@ -7,6 +7,7 @@ from typing import Dict, Any, Optional
 import uuid
 from app.services.groq_vision_service import groq_vision_service
 from app.services.clip_qdrant_service import clip_qdrant_service
+from app.services.storage import storage_service
 
 logger = logging.getLogger(__name__)
 
@@ -453,6 +454,19 @@ class ClothingIngestionService:
             # Step 5 & 6: CLIP Embeddings & Qdrant Storage
             logger.info("Steps 5 & 6: Generating CLIP embeddings and storing in Qdrant...")
             
+            # --- NEW: Upload to Azure Blob Storage first ---
+            file_extension = "jpg" # Default
+            if clothing_analysis.get("category") == "shoes":
+                file_extension = "png" # Example logic
+            
+            blob_filename = f"clothing/{user_id}/{uuid.uuid4().hex}.{file_extension}"
+            azure_url = await storage_service.upload_file(
+                image_data, 
+                blob_filename, 
+                f"image/{file_extension.replace('jpg', 'jpeg')}"
+            )
+            logger.info(f"✅ Uploaded to Azure: {azure_url}")
+
             # Store in CLIP collection (this handles embeddings AND image storage)
             point_id = str(uuid.uuid4())
             success = await self.clip_service.store_clothing_with_image(
@@ -461,12 +475,14 @@ class ClothingIngestionService:
                 clothing_analysis=clothing_analysis,
                 brand_info=brand_info,
                 user_id=user_id,
-                price=final_price
+                price=final_price,
+                image_url=azure_url  # Pass the new Azure URL
             )
             
             qdrant_result = {
                 "status": "stored" if success else "failed",
-                "point_id": point_id if success else None
+                "point_id": point_id if success else None,
+                "image_url": azure_url
             }
             
             storage_status = "success" if success else "failed"

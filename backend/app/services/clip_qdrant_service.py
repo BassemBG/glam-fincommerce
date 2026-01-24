@@ -231,7 +231,8 @@ class CLIPQdrantService:
         clothing_analysis: Dict[str, Any],
         brand_info: Dict[str, Any],
         user_id: str,
-        price: Optional[float] = None
+        price: Optional[float] = None,
+        image_url: Optional[str] = None
     ) -> bool:
         """
         Store clothing item with CLIP embedding and image
@@ -243,6 +244,7 @@ class CLIPQdrantService:
             brand_info: Brand detection results
             user_id: User identifier
             price: Item price
+            image_url: Optional persistent URL (e.g. Azure Blob)
             
         Returns:
             True if successful
@@ -256,7 +258,7 @@ class CLIPQdrantService:
             logger.info("Generating CLIP embedding from image...")
             embeddings = self.generate_image_embedding(image_data)
             
-            # Encode image as base64 for storage
+            # Encode image as base64 for storage (as fallback/backup)
             image_base64 = base64.b64encode(image_data).decode('utf-8')
             
             # Create metadata payload with image
@@ -267,7 +269,8 @@ class CLIPQdrantService:
                 "brand_confidence": brand_info.get("brand_confidence", 0),
                 "price": price,
                 "price_range": brand_info.get("price_range"),
-                "image_base64": image_base64,  # Store the image!
+                "image_url": image_url,  # Store the persistent URL!
+                "image_base64": image_base64,  # Keep base64 as backup
                 "image_size_kb": len(image_data) / 1024,
                 "embedding_type": "clip-vit-base-patch32",
                 "ingested_at": __import__('datetime').datetime.now().isoformat()
@@ -510,12 +513,18 @@ class CLIPQdrantService:
                 # Default empty if payload is missing
                 payload = point.payload or {}
                 
+                # Prioritize persistent URL, fallback to data URI
+                image_url = payload.get("image_url")
+                if not image_url and payload.get("image_base64"):
+                    image_url = f"data:image/jpeg;base64,{payload.get('image_base64')}"
+                
                 item = {
                     "id": str(point.id),
                     "clothing": payload.get("clothing", {}),
                     "brand": payload.get("brand"),
                     "price": payload.get("price"),
                     "image_base64": payload.get("image_base64"),
+                    "image_url": image_url,
                     "ingested_at": payload.get("ingested_at")
                 }
                 items.append(item)
@@ -648,6 +657,11 @@ class CLIPQdrantService:
             items = []
             for point in points:
                 payload = point.payload or {}
+                # Prioritize persistent URL, fallback to data URI
+                image_url = payload.get("image_url")
+                if not image_url and payload.get("image_base64"):
+                    image_url = f"data:image/jpeg;base64,{payload.get('image_base64')}"
+                
                 items.append({
                     "id": str(point.id),
                     "clothing": payload.get("clothing", {}),
@@ -656,7 +670,7 @@ class CLIPQdrantService:
                     "image_base64": payload.get("image_base64"),
                     "category": payload.get("clothing", {}).get("category"),
                     "body_region": payload.get("clothing", {}).get("body_region"),
-                    "image_url": f"data:image/jpeg;base64,{payload.get('image_base64', '')}" if payload.get("image_base64") else ""
+                    "image_url": image_url
                 })
             return items
         except Exception as e:
@@ -712,6 +726,57 @@ class CLIPQdrantService:
         except Exception as e:
             logger.error(f"Failed to get user outfits: {e}")
             return {"items": [], "next_page": None}
+
+    async def get_outfit_by_id(self, outfit_id: str) -> Optional[Dict[str, Any]]:
+        """
+        Retrieve a single outfit from Qdrant by its original DB ID
+        """
+        if not self.client:
+            return None
+            
+        try:
+            import uuid
+            # Deterministically calculate the Qdrant Point ID used in store_outfit_with_image
+            qdrant_id = str(uuid.uuid5(uuid.NAMESPACE_DNS, f"outfit-{outfit_id}"))
+            
+            points = self.client.retrieve(
+                collection_name=self.outfits_collection_name,
+                ids=[qdrant_id],
+                with_payload=True,
+                with_vectors=False
+            )
+            
+            if not points:
+                # If deterministic hash fails (maybe it was a uuid4 fallback), search by payload
+                results = self.client.search(
+                    collection_name=self.outfits_collection_name,
+                    query_vector=[0.0] * 512, # Dummy vector for filter-only search
+                    query_filter=Filter(must=[FieldCondition(key="outfit_id", match=MatchValue(value=outfit_id))]),
+                    limit=1
+                )
+                if not results:
+                    return None
+                payload = results[0].payload
+                point_id = results[0].id
+            else:
+                payload = points[0].payload
+                point_id = points[0].id
+                
+            return {
+                "id": str(point_id),
+                "outfit_id": payload.get("outfit_id"),
+                "name": payload.get("name"),
+                "description": payload.get("description"),
+                "items": payload.get("items", []),
+                "reasoning": payload.get("reasoning"),
+                "score": payload.get("score"),
+                "image_base64": payload.get("image_base64"),
+                "image_url": f"data:image/jpeg;base64,{payload.get('image_base64', '')}" if payload.get("image_base64") else "",
+                "stored_at": payload.get("stored_at")
+            }
+        except Exception as e:
+            logger.error(f"Failed to retrieve outfit by ID: {e}")
+            return None
 
 # Global instance
 clip_qdrant_service = CLIPQdrantService()
