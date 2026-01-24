@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Playfair_Display, Lora } from 'next/font/google';
 import "./globals.css";
 import LayoutShell from "@/components/LayoutShell";
@@ -18,7 +18,13 @@ const lora = Lora({
 export const metadata: Metadata = {
   title: "AI Virtual Closet",
   description: "Your digital stylist and closet manager",
-  viewport: "width=device-width, initial-scale=1, maximum-scale=1, user-scalable=0",
+};
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
 };
 
 export default function RootLayout({

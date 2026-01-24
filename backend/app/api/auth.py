@@ -22,6 +22,8 @@ router = APIRouter()
 
 @router.post("/signup", response_model=Token)
 def signup(user_in: UserCreate, db: Session = Depends(get_db)):
+    print(f"\n*** SIGNUP ENDPOINT CALLED *** email={user_in.email}")
+    logger.info(f"[SIGNUP] ****ENTRY**** email={user_in.email}, full_name={user_in.full_name}")
     logger.info(f"Signup request: email={user_in.email}, full_name={user_in.full_name}")
     
     user = db.query(User).filter(User.email == user_in.email).first()
@@ -128,39 +130,66 @@ def pinterest_callback(
     - state: CSRF token
     - user_id: Current user's ID (passed from frontend)
     """
+    print("=" * 80)
+    print(f"PINTEREST CALLBACK ENTERED - code={code[:20]}... user_id={user_id}")
+    print("=" * 80)
+    logger.info(f"🔥 PINTEREST CALLBACK STARTED - user_id={user_id}")
+    
+    print("DEBUG: About to enter try block")
+    
     try:
+        print("DEBUG: Inside try block")
         logger.info(f"Pinterest callback received with code and state")
+        print("DEBUG: After first logger.info")
         
         # If user_id not provided, try to extract from JWT token
         if not user_id:
+            print("DEBUG: No user_id provided")
             logger.error("user_id not provided in callback. Frontend must pass user_id.")
             raise HTTPException(
                 status_code=400,
                 detail="Missing user_id. Please ensure you're logged in."
             )
         
+        print(f"DEBUG: user_id OK: {user_id}")
+        
         # Verify user exists
         user = db.query(User).filter(User.id == user_id).first()
+        print(f"DEBUG: User query result: {user is not None}")
+        
         if not user:
             raise HTTPException(status_code=404, detail="User not found")
         
+        print("DEBUG: About to exchange code for token")
         # Exchange code for access token
         token_data = PinterestOAuthService.exchange_code_for_token(code)
+        print(f"DEBUG: Token exchange complete, got access_token: {bool(token_data.get('access_token'))}")
         
         # Save token to database
+        print("DEBUG: About to save token to database")
         from app.models.models import PinterestToken
         PinterestOAuthService.save_token_to_db(user_id, token_data, db)
+        print("DEBUG: Token saved to database")
         
         logger.info(f"✓ Pinterest token saved for user {user_id}")
         
         # Now sync the Pinterest data
+        print(f"DEBUG: [Pinterest] Starting data sync for user {user_id}")
+        logger.info(f"[Pinterest] Starting data sync for user {user_id}")
+        logger.info(f"[Pinterest] Access token present: {bool(token_data.get('access_token'))}")
+        
         persona_service = PinterestPersonaService(db)
+        print(f"DEBUG: [Pinterest] PinterestPersonaService created")
+        logger.info(f"[Pinterest] PinterestPersonaService created")
+        
         sync_result = persona_service.sync_user_pinterest_data(
             user_id=user_id,
             access_token=token_data.get("access_token")
         )
+        print(f"DEBUG: Sync result: {sync_result}")
         
         logger.info(f"✓ Pinterest data synced for user {user_id}")
+        logger.info(f"[Pinterest] Sync result: {sync_result}")
         
         # Return success response (don't redirect - let frontend handle it)
         return {

@@ -1,13 +1,15 @@
-.shell {
+ .shell {
   min-height: 100vh;
-  background: radial-gradient(circle at 20% 20%, rgba(34, 197, 94, 0.08), transparent 40%),
-    radial-gradient(circle at 80% 0%, rgba(234, 179, 8, 0.08), transparent 32%),
-    #0f172a;
+  background:
+    radial-gradient(1200px 400px at 10% -10%, rgba(34, 197, 94, 0.08), transparent 60%),
+    radial-gradient(800px 300px at 90% -10%, rgba(234, 179, 8, 0.08), transparent 60%),
+    #ffffff;
   display: flex;
   align-items: center;
   justify-content: center;
   padding: 32px 20px 60px;
-  color: #e2e8f0;
+  color: #0b1224;
+  position: relative;
 }
 
 .hero {
@@ -18,19 +20,34 @@
   letter-spacing: 0.08em;
   font-size: 0.95rem;
   text-transform: uppercase;
-  color: #cbd5e1;
+  color: #166534;
   opacity: 0.9;
 }
 
 .card {
   width: 100%;
-  max-width: 460px;
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 24px;
-  padding: 30px;
-  backdrop-filter: blur(12px);
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.35);
+  max-width: 480px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 20px;
+  padding: 32px;
+  box-shadow: 0 18px 45px rgba(15, 23, 42, 0.08);
+  position: relative;
+  overflow: hidden;
+}
+
+.card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, rgba(34, 197, 94, 0.12), transparent 50%);
+  pointer-events: none;
+  opacity: 0.7;
+}
+
+.card > * {
+  position: relative;
+  z-index: 1;
 }
 
 .headerRow {
@@ -42,21 +59,21 @@
 
 .eyebrow {
   text-transform: uppercase;
-  letter-spacing: 0.2em;
+  letter-spacing: 0.18em;
   font-size: 0.72rem;
-  color: #a5b4fc;
+  color: #22c55e;
   margin-bottom: 6px;
 }
 
 .card h1 {
   margin: 0;
-  color: #f8fafc;
+  color: #0f172a;
   font-size: 2rem;
   letter-spacing: -0.02em;
 }
 
 .muted {
-  color: #cbd5e1;
+  color: #64748b;
   font-size: 0.95rem;
   margin-top: 6px;
 }
@@ -64,7 +81,7 @@
 .form {
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 16px;
   margin-top: 20px;
 }
 
@@ -72,39 +89,44 @@
   display: flex;
   flex-direction: column;
   gap: 6px;
-  color: #cbd5e1;
+  color: #0f172a;
+  font-weight: 600;
   font-size: 0.95rem;
 }
 
 .form input {
   border-radius: 14px;
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  background: rgba(15, 23, 42, 0.6);
-  color: #e2e8f0;
-  padding: 14px 14px;
+  border: 1.5px solid #e2e8f0;
+  background: #ffffff;
+  color: #0f172a;
+  padding: 12px 14px;
   font-size: 1rem;
   outline: none;
   transition: all 0.2s ease;
 }
 
 .form input:focus {
-  border-color: rgba(34, 197, 94, 0.7);
+  border-color: #22c55e;
   box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.15);
 }
 
 .primaryBtn {
   margin-top: 8px;
   width: 100%;
-  padding: 16px;
-  background: linear-gradient(120deg, #22c55e, #eab308);
-  color: #0b1224;
+  padding: 14px;
+  background: #22c55e;
+  color: #ffffff;
   border: none;
-  border-radius: 16px;
+  border-radius: 14px;
   font-weight: 700;
   font-size: 1rem;
   cursor: pointer;
-  transition: transform 0.1s ease, box-shadow 0.2s ease;
-  box-shadow: 0 15px 35px rgba(34, 197, 94, 0.25);
+  transition: transform 0.1s ease, box-shadow 0.2s ease, background 0.2s ease;
+  box-shadow: 0 12px 28px rgba(34, 197, 94, 0.25);
+}
+
+.primaryBtn:hover:not(:disabled) {
+  background: #16a34a;
 }
 
 .primaryBtn:disabled {
@@ -119,13 +141,13 @@
 .footerText {
   margin-top: 18px;
   text-align: center;
-  color: #cbd5e1;
+  color: #64748b;
 }
 
 .linkBtn {
   background: none;
   border: none;
-  color: #38bdf8;
+  color: #22c55e;
   font-weight: 700;
   cursor: pointer;
   padding: 0 4px;
@@ -137,19 +159,19 @@
   border-radius: 12px;
   margin-top: 12px;
   font-size: 0.95rem;
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 1px solid #e2e8f0;
 }
 
 .toastError {
-  background: rgba(239, 68, 68, 0.12);
-  color: #fecdd3;
-  border-color: rgba(239, 68, 68, 0.3);
+  background: #fef2f2;
+  color: #b91c1c;
+  border-color: #fecaca;
 }
 
 .toastSuccess {
-  background: rgba(34, 197, 94, 0.12);
-  color: #bbf7d0;
-  border-color: rgba(34, 197, 94, 0.4);
+  background: #f0fdf4;
+  color: #166534;
+  border-color: #dcfce7;
 }
 
 @media (max-width: 520px) {

@@ -1,9 +1,15 @@
-import google.generativeai as genai
 from app.core.config import settings
-import json
 import logging
+import json
 import random
 from typing import Dict, Any
+
+genai = None
+if settings.GEMINI_API_KEY:
+    try:
+        from google import genai as genai  # new google.genai package
+    except Exception:
+        genai = None
 
 # Static demo responses for when AI is unavailable
 DEMO_RESPONSES = [
@@ -77,11 +83,13 @@ DEMO_RESPONSES = [
 
 class VisionAnalyzer:
     def __init__(self):
-        if settings.GEMINI_API_KEY:
-            genai.configure(api_key=settings.GEMINI_API_KEY)
-            self.model = genai.GenerativeModel('gemini-2.0-flash')
+        if settings.GEMINI_API_KEY and genai:
+            try:
+                genai.configure(api_key=settings.GEMINI_API_KEY)
+                self.model = genai.GenerativeModel('gemini-2.0-flash')
+            except Exception:
+                self.model = None
         else:
-            logging.warning("GEMINI_API_KEY not found. Using demo mode.")
             self.model = None
         
         self._rembg_session = None
@@ -93,7 +101,6 @@ class VisionAnalyzer:
     async def analyze_clothing(self, image_data: bytes) -> Dict[str, Any]:
         """Analyzes a clothing item image using Gemini, falls back to demo data."""
         if not self.model:
-            logging.info("Using demo response (no API key)")
             return self._get_demo_response()
 
         prompt = """
@@ -130,7 +137,7 @@ class VisionAnalyzer:
             return result
             
         except Exception as e:
-            logging.warning(f"AI analysis failed ({e}), using demo response")
+            logging.debug(f"AI analysis failed ({e}), using demo response")
             return self._get_demo_response()
 
     async def remove_background(self, image_data: bytes) -> bytes:

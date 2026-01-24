@@ -38,6 +38,10 @@ export default function SignupPage() {
 
       const data = await res.json();
       saveToken(data.access_token);
+      // Mark that this brand-new account should go through onboarding once
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('needsOnboarding', '1');
+      }
       router.replace("/onboarding");
     } catch (err: any) {
       setError(err.message || "Unexpected error");

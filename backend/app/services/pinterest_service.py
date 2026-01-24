@@ -15,24 +15,32 @@ PINTEREST_OAUTH_URL = "https://www.pinterest.com/oauth"
 
 # Import optional services - they might fail if not configured
 try:
-    from app.services.zep_service import update_user_persona_with_pins
+    from app.services.zep_service import update_user_persona_with_outfit_summaries
 except ImportError as e:
     logger.warning(f"Could not import update_user_persona_with_pins: {e}")
-    def update_user_persona_with_pins(*args, **kwargs):
+    def update_user_persona_with_outfit_summaries(*args, **kwargs):
         logger.info("ZEP service not available, skipping persona update")
         return False
 
 try:
-    from app.services.vision_analyzer import analyze_image
+    from app.services.outfit_filter import filter_pinterest_pins, summarize_outfit
 except ImportError as e:
-    logger.warning(f"Could not import analyze_image: {e}")
+    logger.warning(f"Could not import outfit_filter: {e}")
+    def filter_pinterest_pins(pins, descriptions=None):
+        logger.info("[Filter] Outfit filter not available, using all pins")
+        return {"accepted": pins, "rejected": [], "failed": [], "stats": {"total": len(pins), "accepted": len(pins)}}
+    def summarize_outfit(*args, **kwargs):
+        return None
+
+try:
+    from app.services.vision_analyzer import analyze_image
+except ImportError:
     def analyze_image(*args, **kwargs):
         return None
 
 try:
     from app.services.embedding_service import get_embedding
-except ImportError as e:
-    logger.warning(f"Could not import get_embedding: {e}")
+except ImportError:
     def get_embedding(*args, **kwargs):
         return None
 
@@ -179,13 +187,19 @@ class PinterestAPIService:
                 headers=self.headers,
                 params={
                     "limit": limit,
-                    "fields": "id,created_at,description,image,media,link"
+                    "fields": "id,created_at,description,image[original,1200x,400x,236x],media,link"
                 },
                 timeout=10
             )
             response.raise_for_status()
             data = response.json()
-            return data.get("items", [])
+            items = data.get("items", [])
+            
+            # Log first pin structure for debugging
+            if items:
+                logger.info(f"[API Response] First pin structure: {items[0]}")
+            
+            return items
         except requests.exceptions.RequestException as e:
             logger.error(f"Error fetching pins from board {board_id}: {e}")
             raise
@@ -205,16 +219,57 @@ class PinterestPersonaService:
         3. Extract style features from pins
         4. Update user persona in ZEP
         """
+        logger.info(f"[Pinterest Sync] ****STARTING_SYNC**** for user {user_id}")
+        logger.info(f"[Pinterest Sync] Access token length: {len(access_token) if access_token else 0}")
+        
+        # Fetch user email and thread from database for Zep integration
+        from app.models.models import User
+        user = self.db.query(User).filter(User.id == user_id).first()
+        user_email = user.email if user else None
+        logger.info(f"[Pinterest Sync] ****USER_EMAIL**** {user_email}")
+        
+        # Reuse existing thread if present; create only if missing
+        from app.services.zep_service import create_zep_thread
+        thread_id = getattr(user, "zep_thread_id", None)
+        if thread_id:
+            logger.info(f"[Pinterest Sync] ****THREAD_ID_REUSE**** {thread_id}")
+        else:
+            thread_id = create_zep_thread(str(user_id))
+            logger.info(f"[Pinterest Sync] ****THREAD_ID_CREATED**** {thread_id}")
+            if thread_id:
+                user.zep_thread_id = thread_id
+                self.db.add(user)
+                self.db.commit()
+                self.db.refresh(user)
+                logger.info(f"[Pinterest Sync] ****THREAD_ID_SAVED**** {thread_id}")
+
+        if not thread_id:
+            logger.error(f"[Pinterest Sync] ****ERROR**** Failed to obtain thread for user {user_id}")
+            return {
+                "success": False,
+                "error": "Failed to obtain Zep thread",
+                "user_id": user_id
+            }
+        
         try:
+            logger.info(f"[Pinterest Sync] Creating PinterestAPIService")
             api_service = PinterestAPIService(access_token)
             
             # Get user info
+            logger.info(f"[Pinterest Sync] Calling get_user_account()")
             user_account = api_service.get_user_account()
-            logger.info(f"Fetched user account: {user_account.get('username')}")
+            logger.info(f"[Pinterest Sync] ****FETCHED_USER**** {user_account.get('username')}")
+            logger.info(f"[Pinterest Sync] User account data: {user_account}")
             
             # Get all boards
             boards = api_service.get_boards()
-            logger.info(f"Fetched {len(boards)} boards for user {user_id}")
+            logger.info(f"[Pinterest Sync] ****BOARDS_FOUND**** {len(boards)} boards for user {user_id}")
+            if boards:
+                for b in boards:
+                    logger.info(
+                        "Board => id=%s | name=%s | desc=%s",
+                        b.get("id"), b.get("name"), (b.get("description") or "").strip()
+                    )
             
             all_pins_data = []
             style_insights = {
@@ -231,11 +286,11 @@ class PinterestPersonaService:
                 board_name = board.get("name")
                 board_desc = board.get("description", "")
                 
-                logger.info(f"Processing board: {board_name}")
+                logger.info(f"[Pinterest Sync] ****PROCESSING_BOARD**** {board_name}")
                 
                 # Get pins from this board
                 pins = api_service.get_board_pins(board_id, limit=20)
-                logger.info(f"Found {len(pins)} pins in board {board_name}")
+                logger.info(f"[Pinterest Sync] ****PINS_IN_BOARD**** {len(pins)} pins in board {board_name}")
                 
                 board_data = {
                     "id": board_id,
@@ -248,8 +303,23 @@ class PinterestPersonaService:
                 # Extract features from each pin
                 for pin in pins:
                     pin_data = self._extract_pin_features(pin)
+                    # Add board name to pin data for graph storage
+                    pin_data["board_name"] = board_name
                     all_pins_data.append(pin_data)
                     board_data["pins"].append(pin_data)
+
+                    # Verbose logging of retrieved pin data for debugging
+                    logger.info(
+                        "Pin => board=%s | id=%s | created_at=%s | img=%s | desc=%s | link=%s | styles=%s | colors=%s",
+                        board_name,
+                        pin_data.get("id"),
+                        pin_data.get("created_at"),
+                        pin_data.get("image_url"),
+                        (pin_data.get("description") or "").strip(),
+                        pin_data.get("link"),
+                        pin_data.get("style_tags"),
+                        pin_data.get("colors"),
+                    )
                     
                     # Collect style insights
                     if pin_data.get("description"):
@@ -264,13 +334,57 @@ class PinterestPersonaService:
                     "description": board_desc
                 })
             
-            # Update user persona in ZEP with collected insights
-            update_user_persona_with_pins(
+            # EXPLICIT DECISION: Skip pins without images before filtering
+            # Pins without images cannot be analyzed by vision model and are not useful for outfit styling
+            pins_with_images = [pin for pin in all_pins_data if pin.get("image_url")]
+            pins_without_images = [pin for pin in all_pins_data if not pin.get("image_url")]
+            
+            logger.info(f"[Pinterest Sync] ****PIN_STATS**** Total: {len(all_pins_data)} | With images: {len(pins_with_images)} | Skipped (no image): {len(pins_without_images)}")
+            
+            if pins_without_images:
+                logger.warning(f"[Pinterest Sync] Skipping {len(pins_without_images)} pins without images: {[p.get('id') for p in pins_without_images]}")
+            
+            # FILTERING STEP: Filter pins with images to keep only outfit/fashion-related content
+            logger.info(f"[Pinterest Sync] ****FILTERING_PINS**** Starting outfit filtering for {len(pins_with_images)} pins with images")
+            
+            filter_result = filter_pinterest_pins(pins_with_images)
+            filtered_pins = filter_result["accepted"]
+            filter_stats = filter_result["stats"]
+            
+            logger.info(f"[Pinterest Sync] ****FILTER_RESULTS**** {filter_stats}")
+            
+            # Summarize outfits from accepted pins (image-only analysis)
+            outfit_summaries = []
+            for pin in filtered_pins:
+                img = pin.get("image_url")
+                summary_data = summarize_outfit(img) if img else None
+                if summary_data:
+                    outfit_summaries.append({
+                        "image_url": img,
+                        "summary_data": summary_data,
+                        "timestamp": pin.get("created_at") or pin.get("timestamp"),
+                    })
+            logger.info(f"[Pinterest Sync] ****OUTFIT_SUMMARIES**** Prepared {len(outfit_summaries)} outfit summaries for storage")
+            
+            # Deduplicate aggregated style insights to avoid noise
+            unique_colors = list(set(style_insights["colors"]))
+            unique_styles = list(set(style_insights["styles"]))
+            
+            logger.info(f"[Pinterest Sync] ****STYLE_INSIGHTS**** Colors: {len(unique_colors)} | Styles: {len(unique_styles)}")
+            
+            # ZEP GRAPH MODEL UPDATE:
+            # - Store outfit summaries as messages to the user's thread
+            # - Zep will automatically ingest into user graph
+            # - No Pin nodes or SAVED_PIN relationships are created
+            logger.info(f"[Pinterest Sync] ****CALLING_PERSONA_UPDATE**** with thread_id={thread_id}")
+            update_user_persona_with_outfit_summaries(
                 user_id=user_id,
+                summaries=outfit_summaries,
                 pinterest_boards=style_insights["boards"],
-                pins_data=all_pins_data,
-                colors=style_insights["colors"],
-                styles=style_insights["styles"]
+                colors=unique_colors,
+                styles=unique_styles,
+                user_email=user_email,
+                thread_id=thread_id,
             )
             
             # Update sync timestamp
@@ -283,7 +397,11 @@ class PinterestPersonaService:
                 self.db.add(pinterest_token)
                 self.db.commit()
             
-            logger.info(f"Successfully synced Pinterest data for user {user_id}")
+            logger.info(f"[Pinterest Sync] ****SYNC_COMPLETE**** Successfully synced Pinterest data for user {user_id}")
+            logger.info(
+                "Pinterest sync summary: boards=%s pins=%s user=%s",
+                len(boards), len(all_pins_data), user_account.get("username")
+            )
             
             return {
                 "success": True,
@@ -293,11 +411,19 @@ class PinterestPersonaService:
             }
         
         except Exception as e:
-            logger.error(f"Error syncing Pinterest data: {e}")
+            logger.error(f"[Pinterest Sync] ****EXCEPTION**** Error syncing Pinterest data: {e}", exc_info=True)
+            logger.error(f"[Pinterest Sync] Exception type: {type(e).__name__}")
+            logger.error(f"[Pinterest Sync] Exception args: {e.args}")
             raise
     
     def _extract_pin_features(self, pin: Dict) -> Dict:
         """Extract style features from a single pin"""
+        
+        # Log raw pin structure for debugging
+        logger.debug(f"[PIN] Processing pin {pin.get('id')}")
+        logger.debug(f"[PIN] Pin keys: {list(pin.keys())}")
+        logger.debug(f"[PIN] Full pin data: {pin}")
+        
         pin_data = {
             "id": pin.get("id"),
             "description": pin.get("description", ""),
@@ -308,10 +434,35 @@ class PinterestPersonaService:
             "image_url": None
         }
         
-        # Extract image URL
+        # Extract image URL - try multiple possible structures
         image_data = pin.get("image", {})
+        logger.debug(f"[PIN] image field type: {type(image_data)}")
+        
         if isinstance(image_data, dict):
-            pin_data["image_url"] = image_data.get("1200x", {}).get("url")
+            # Try different size keys in order of preference
+            for size_key in ["1200x", "original", "orig", "600x", "400x", "236x"]:
+                if size_key in image_data and isinstance(image_data[size_key], dict):
+                    pin_data["image_url"] = image_data[size_key].get("url")
+                    if pin_data["image_url"]:
+                        logger.info(f"[PIN] Found image URL for pin {pin.get('id')} using size {size_key}")
+                        break
+        
+        # Also check for media field as fallback
+        if not pin_data["image_url"] and pin.get("media"):
+            media_data = pin.get("media", {})
+            logger.debug(f"[PIN] Trying media field for pin {pin.get('id')}")
+            if isinstance(media_data, dict) and media_data.get("images"):
+                images = media_data["images"]
+                if isinstance(images, dict):
+                    for size_key in ["1200x", "orig", "600x"]:
+                        if size_key in images and isinstance(images[size_key], dict):
+                            pin_data["image_url"] = images[size_key].get("url")
+                            if pin_data["image_url"]:
+                                logger.info(f"[PIN] Found image URL from media.images.{size_key}")
+                                break
+        
+        if not pin_data["image_url"]:
+            logger.warning(f"[PIN] No image URL found for pin {pin.get('id')}")
         
         # Parse description for style tags
         if pin_data["description"]:

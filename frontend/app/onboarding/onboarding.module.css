@@ -1,6 +1,9 @@
 .shell {
   min-height: 100vh;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background:
+    radial-gradient(1200px 400px at 10% -10%, rgba(34, 197, 94, 0.08), transparent 60%),
+    radial-gradient(800px 300px at 90% -10%, rgba(234, 179, 8, 0.08), transparent 60%),
+    #ffffff;
   display: flex;
   flex-direction: column;
   padding: 20px;
@@ -26,7 +29,7 @@
 
 .header {
   text-align: center;
-  color: white;
+  color: #0f172a;
   margin-top: 60px;
   margin-bottom: 40px;
   animation: fadeIn 0.6s ease-out;
@@ -47,14 +50,15 @@
 }
 
 .card {
-  background: white;
-  border-radius: 24px;
-  padding: 48px 32px;
-  max-width: 600px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 20px;
+  padding: 36px 28px;
+  max-width: 640px;
   margin: 0 auto;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  box-shadow: var(--shadow);
   animation: slideUp 0.5s cubic-bezier(0.16, 1, 0.3, 1);
-  min-height: 450px;
+  min-height: 420px;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
@@ -83,7 +87,7 @@
 .step h2 {
   font-size: 1.8rem;
   margin-bottom: 8px;
-  color: #1e293b;
+  color: #0f172a;
 }
 
 .subtitle {
@@ -108,19 +112,20 @@
 .formGroup textarea {
   width: 100%;
   padding: 14px;
-  border: 2px solid #e2e8f0;
+  border: 1.5px solid #e2e8f0;
   border-radius: 12px;
   font-size: 1rem;
   font-family: inherit;
   transition: all 0.2s ease;
-  color: #1e293b;
+  color: #0f172a;
+  background: #ffffff;
 }
 
 .formGroup input:focus,
 .formGroup textarea:focus {
   outline: none;
-  border-color: #667eea;
-  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+  border-color: #22c55e;
+  box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.12);
 }
 
 /* Grid Options (for daily style, buying priorities) */
@@ -132,26 +137,26 @@
 
 .option {
   padding: 16px;
-  background: #f1f5f9;
+  background: #f8fafc;
   border: 2px solid transparent;
   border-radius: 12px;
   cursor: pointer;
   font-weight: 500;
   transition: all 0.2s ease;
-  color: #64748b;
+  color: #0f172a;
   font-size: 0.95rem;
 }
 
 .option:hover {
-  background: #e2e8f0;
-  border-color: #667eea;
+  background: #f1f5f9;
+  border-color: #22c55e;
 }
 
 .option.selected {
-  background: linear-gradient(135deg, #667eea, #764ba2);
-  color: white;
-  border-color: #667eea;
-  box-shadow: 0 8px 20px rgba(102, 126, 234, 0.3);
+  background: linear-gradient(135deg, #22c55e, #16a34a);
+  color: #ffffff;
+  border-color: #22c55e;
+  box-shadow: 0 8px 20px rgba(34, 197, 94, 0.25);
 }
 
 /* Checkbox Group */
@@ -178,7 +183,7 @@
 .checkboxLabel input {
   width: 20px;
   height: 20px;
-  accent-color: #667eea;
+  accent-color: #22c55e;
   cursor: pointer;
 }
 
@@ -201,18 +206,18 @@
   gap: 12px;
   cursor: pointer;
   padding: 14px;
-  border: 2px solid #e2e8f0;
+  border: 1.5px solid #e2e8f0;
   border-radius: 10px;
   transition: all 0.2s ease;
 }
 
 .radioLabel:hover {
-  border-color: #667eea;
+  border-color: #22c55e;
   background: #f8fafc;
 }
 
 .radioLabel input {
-  accent-color: #667eea;
+  accent-color: #22c55e;
   cursor: pointer;
 }
 
@@ -249,14 +254,14 @@
 }
 
 .primaryBtn {
-  background: linear-gradient(135deg, #667eea, #764ba2);
-  color: white;
-  box-shadow: 0 10px 25px rgba(102, 126, 234, 0.3);
+  background: #22c55e;
+  color: #ffffff;
+  box-shadow: 0 10px 25px rgba(34, 197, 94, 0.25);
 }
 
 .primaryBtn:hover:not(:disabled) {
   transform: translateY(-2px);
-  box-shadow: 0 15px 35px rgba(102, 126, 234, 0.4);
+  box-shadow: 0 15px 35px rgba(34, 197, 94, 0.3);
 }
 
 .primaryBtn:disabled {
@@ -265,14 +270,14 @@
 }
 
 .secondaryBtn {
-  background: rgba(255, 255, 255, 0.2);
-  color: white;
-  border: 2px solid rgba(255, 255, 255, 0.3);
+  background: #ffffff;
+  color: #0f172a;
+  border: 1.5px solid #e2e8f0;
 }
 
 .secondaryBtn:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.3);
-  border-color: rgba(255, 255, 255, 0.5);
+  background: #f8fafc;
+  border-color: #cbd5e1;
 }
 
 .secondaryBtn:disabled {
@@ -283,20 +288,20 @@
 /* Step indicator */
 .stepIndicator {
   text-align: center;
-  color: rgba(255, 255, 255, 0.8);
+  color: #64748b;
   font-weight: 500;
   margin-bottom: 20px;
 }
 
 /* Error */
 .error {
-  background: rgba(239, 68, 68, 0.15);
-  color: #dc2626;
+  background: #fef2f2;
+  color: #b91c1c;
   padding: 16px;
   border-radius: 12px;
   margin: 20px auto;
   max-width: 600px;
-  border: 1px solid rgba(239, 68, 68, 0.3);
+  border: 1px solid #fecaca;
   font-weight: 500;
 }
 

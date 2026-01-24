@@ -1,4 +1,3 @@
-import google.generativeai as genai
 from app.core.config import settings
 import json
 import logging
@@ -6,11 +5,21 @@ from typing import List, Dict, Any, Optional
 from app.services.outfit_composer import outfit_composer
 from app.models.models import ClothingItem, Outfit
 
+genai = None
+if settings.GEMINI_API_KEY:
+    try:
+        from google import genai as genai
+    except Exception:
+        genai = None
+
 class StylistChatAgent:
     def __init__(self):
-        if settings.GEMINI_API_KEY:
-            genai.configure(api_key=settings.GEMINI_API_KEY)
-            self.model = genai.GenerativeModel('gemini-1.5-flash')
+        if settings.GEMINI_API_KEY and genai:
+            try:
+                genai.configure(api_key=settings.GEMINI_API_KEY)
+                self.model = genai.GenerativeModel('gemini-1.5-flash')
+            except Exception:
+                self.model = None
         else:
             self.model = None
 

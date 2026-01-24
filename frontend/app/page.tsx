@@ -54,10 +54,20 @@ export default function Home() {
           const userData = await userRes.json();
           setUserPhoto(userData.full_body_image);
           
-          // Check if user has completed onboarding
-          if (!userData.onboarding_completed) {
+          // Redirect to onboarding ONLY if:
+          // 1. localStorage flag is set (brand-new account) AND
+          // 2. User hasn't actually completed onboarding on server
+          const needs = typeof window !== 'undefined' ? localStorage.getItem('needsOnboarding') : null;
+          if (needs === '1' && !userData.onboarding_completed) {
             router.push('/onboarding');
             return;
+          }
+          
+          // If onboarding is already completed, clear the localStorage flag
+          if (userData.onboarding_completed && needs === '1') {
+            if (typeof window !== 'undefined') {
+              localStorage.removeItem('needsOnboarding');
+            }
           }
         }
 
@@ -117,6 +127,18 @@ export default function Home() {
     }, 2000);
   };
 
+  const handlePinterestConnect = async () => {
+    try {
+      const oauthResponse = await fetch(`${API.base}/auth/pinterest/login`);
+      const oauthData = await oauthResponse.json();
+      if (typeof window !== "undefined") {
+        window.location.href = oauthData.oauth_url;
+      }
+    } catch (err: any) {
+      console.error("Failed to connect to Pinterest", err);
+    }
+  };
+
   // Empty state when no items
   if (!loading && items.length === 0) {
     return (
@@ -128,12 +150,30 @@ export default function Home() {
             Start building your digital wardrobe. Add your first piece and let
             our AI stylist help you discover new outfit possibilities.
           </p>
-          <button
-            className={styles.addFirstBtn}
-            onClick={() => router.push('/upload')}
-          >
-            Add Your First Piece
-          </button>
+          <div style={{ display: "flex", gap: "12px", justifyContent: "center", flexWrap: "wrap", marginTop: "24px" }}>
+            <button
+              className={styles.addFirstBtn}
+              onClick={() => router.push('/upload')}
+            >
+              Add Your First Piece
+            </button>
+            <button
+              style={{
+                backgroundColor: "#E60023",
+                color: "white",
+                padding: "12px 24px",
+                border: "none",
+                borderRadius: "8px",
+                fontSize: "14px",
+                fontWeight: "600",
+                cursor: "pointer",
+                whiteSpace: "nowrap",
+              }}
+              onClick={handlePinterestConnect}
+            >
+              📌 Connect Pinterest
+            </button>
+          </div>
           <p className={styles.emptyHint}>
             Pro tip: Start with your favorite pieces—the ones you reach for first.
           </p>

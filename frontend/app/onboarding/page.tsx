@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import styles from "./onboarding.module.css";
 import { API } from "@/lib/api";
@@ -29,6 +29,7 @@ const BUYING_PRIORITIES = [
 export default function OnboardingPage() {
   const router = useRouter();
   const token = useAuthGuard();
+  const [checkedCompletion, setCheckedCompletion] = useState(false);
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -49,7 +50,7 @@ export default function OnboardingPage() {
   const [pinterestConnected, setPinterestConnected] = useState(false);
 
   const handleNext = () => {
-    if (step < 7) {
+    if (step < 6) {
       setStep(step + 1);
       setError(null);
     }
@@ -133,6 +134,10 @@ export default function OnboardingPage() {
         throw new Error("Failed to save profile");
       }
 
+      // Onboarding completed; clear one-shot flag
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('needsOnboarding');
+      }
       router.push("/");
     } catch (err: any) {
       setError(err.message || "Something went wrong");
@@ -142,10 +147,45 @@ export default function OnboardingPage() {
   };
 
   const stepClass = `step-${step}`;
-  const progress = (step / 7) * 100;
+  const progress = (step / 6) * 100;
 
-  // Wait for token to load
-  if (!token) {
+  // Check early: if NO localStorage flag, redirect immediately
+  useEffect(() => {
+    if (!token) return;
+    
+    // First, check if user is even supposed to be on this page
+    const flag = typeof window !== 'undefined' ? localStorage.getItem('needsOnboarding') : null;
+    if (flag !== '1') {
+      // No flag = direct access or returning after onboarding. Redirect to home.
+      router.replace("/");
+      return;
+    }
+    
+    // If we have the flag, verify onboarding status on server
+    const verify = async () => {
+      try {
+        const res = await authFetch(API.users.me);
+        if (res.ok) {
+          const user = await res.json();
+          
+          // If already completed, redirect to home
+          if (user.onboarding_completed) {
+            router.replace("/");
+            return;
+          }
+        }
+      } catch (err) {
+        console.error("Failed to check onboarding status", err);
+      } finally {
+        setCheckedCompletion(true);
+      }
+    };
+
+    verify();
+  }, [token, router]);
+
+  // Wait for token to load AND verification to complete
+  if (!token || !checkedCompletion) {
     return null;
   }
 
@@ -325,64 +365,6 @@ export default function OnboardingPage() {
         </div>
       )}
 
-      {/* Step 7: Pinterest Connect */}
-      {step === 7 && (
-        <div className={`${styles.card} ${styles[stepClass]}`}>
-          <div className={styles.step}>
-            <h2>📌 Connect Your Pinterest (Optional)</h2>
-            <p className={styles.subtitle}>
-              Let us learn your style from your Pinterest boards and pins
-            </p>
-
-            <div
-              style={{
-                padding: "24px",
-                backgroundColor: "#fafafa",
-                borderRadius: "12px",
-                marginTop: "24px",
-                textAlign: "center",
-              }}
-            >
-              <p style={{ marginBottom: "16px", color: "#555" }}>
-                We'll analyze your Pinterest boards to better understand your style preferences.
-              </p>
-              <button
-                onClick={handlePinterestConnect}
-                disabled={pinterestLoading || pinterestConnected}
-                style={{
-                  backgroundColor: "#E60023",
-                  color: "white",
-                  padding: "12px 32px",
-                  border: "none",
-                  borderRadius: "24px",
-                  fontSize: "16px",
-                  fontWeight: "600",
-                  cursor: pinterestLoading || pinterestConnected ? "not-allowed" : "pointer",
-                  opacity: pinterestLoading || pinterestConnected ? 0.6 : 1,
-                }}
-              >
-                {pinterestLoading
-                  ? "Connecting..."
-                  : pinterestConnected
-                  ? "✓ Connected"
-                  : "Connect Pinterest"}
-              </button>
-            </div>
-
-            <p
-              style={{
-                marginTop: "24px",
-                fontSize: "14px",
-                color: "#888",
-                textAlign: "center",
-              }}
-            >
-              Skip this step if you prefer to upload items manually
-            </p>
-          </div>
-        </div>
-      )}
-
       {error && <div className={styles.error}>{error}</div>}
 
       {/* Navigation */}
@@ -390,7 +372,7 @@ export default function OnboardingPage() {
         <button className={styles.secondaryBtn} onClick={handleBack} disabled={step === 1}>
           Back
         </button>
-        {step < 7 ? (
+        {step < 6 ? (
           <button className={styles.primaryBtn} onClick={handleNext}>
             Next
           </button>
@@ -403,7 +385,7 @@ export default function OnboardingPage() {
 
       {/* Step indicator */}
       <div className={styles.stepIndicator}>
-        Step {step} of 7
+        Step {step} of 6
       </div>
     </div>
   );

@@ -20,6 +20,9 @@ def get_current_user(
     db: Session = Depends(get_db)
 ) -> User:
     """Extract user ID from JWT token and return user object."""
+    print(f"\n*** GET_CURRENT_USER CALLED *** authorization={authorization[:20] if authorization else None}...")
+    logger.info(f"[AUTH] ****GET_CURRENT_USER**** called, auth header present: {bool(authorization)}")
+    
     if not authorization or not authorization.startswith("Bearer "):
         raise HTTPException(status_code=401, detail="Missing or invalid authorization header")
     
@@ -67,6 +70,9 @@ def complete_onboarding(
 ):
     """Complete user onboarding profile and save to Zep thread."""
     user = current_user
+    print(f"\n*** ONBOARDING ENDPOINT CALLED *** user_id={user.id}")
+    logger.info(f"[ONBOARDING] ****ENTRY**** for user {user.id}")
+    logger.info(f"[ONBOARDING] ****COMPLETE_ONBOARDING_START**** for user {user.id}")
     
     # Update user with onboarding data
     user.age = onboarding_data.age
@@ -84,38 +90,52 @@ def complete_onboarding(
     db.commit()
     db.refresh(user)
     
-    logger.info(f"User {user.id} completed onboarding")
+    logger.info(f"[ONBOARDING] ****ONBOARDING_SAVED_TO_DB**** for user {user.id}")
+    
+    # Prepare onboarding dict for debugging
+    onboarding_dict = {
+        "age": user.age,
+        "education": user.education,
+        "daily_style": user.daily_style,
+        "color_preferences": user.color_preferences,
+        "fit_preference": user.fit_preference,
+        "price_comfort": user.price_comfort,
+        "buying_priorities": user.buying_priorities,
+        "clothing_description": user.clothing_description,
+        "styled_combinations": user.styled_combinations,
+    }
+    logger.info(f"[ONBOARDING] ****PAYLOAD**** {onboarding_dict}")
     
     # Add onboarding data to Zep thread (create thread if missing)
     try:
         thread_id = user.zep_thread_id
+        logger.info(f"[ONBOARDING] ****EXISTING_THREAD**** {thread_id}")
+        
         if not thread_id:
-            logger.warning(f"User {user.id} has no Zep thread_id; creating one now")
+            logger.warning(f"[ONBOARDING] ****NO_THREAD**** User {user.id} has no Zep thread_id; creating one now")
             thread_id = create_zep_thread(user.id)
+            logger.info(f"[ONBOARDING] ****CREATED_THREAD**** {thread_id}")
+            
             if thread_id:
                 user.zep_thread_id = thread_id
                 db.add(user)
                 db.commit()
                 db.refresh(user)
+                logger.info(f"[ONBOARDING] ****THREAD_SAVED_TO_DB**** {thread_id}")
+        
         if thread_id:
-            onboarding_dict = {
-                "age": user.age,
-                "education": user.education,
-                "daily_style": user.daily_style,
-                "color_preferences": user.color_preferences,
-                "fit_preference": user.fit_preference,
-                "price_comfort": user.price_comfort,
-                "buying_priorities": user.buying_priorities,
-                "clothing_description": user.clothing_description,
-                "styled_combinations": user.styled_combinations,
-            }
-            add_onboarding_to_thread(user.id, thread_id, onboarding_dict)
-            add_onboarding_to_graph(user.id, onboarding_dict)
+            logger.info(f"[ONBOARDING] ****CALLING_ADD_ONBOARDING**** user={user.id}, thread={thread_id}")
+            result = add_onboarding_to_graph(user.id, onboarding_dict, user_email=user.email, thread_id=thread_id)
+            if result:
+                logger.info(f"[ONBOARDING] ****SUCCESS**** Added onboarding data to Zep graph for user {user.id}")
+            else:
+                logger.error(f"[ONBOARDING] ****FAILED**** Failed to add onboarding data to Zep graph for user {user.id}")
         else:
-            logger.error(f"User {user.id}: failed to obtain Zep thread_id; onboarding not pushed to Zep")
-    except Exception:
-        logger.exception(f"Failed to push onboarding data to Zep for user {user.id}")
+            logger.error(f"[ONBOARDING] ****ERROR**** User {user.id}: failed to obtain Zep thread_id; onboarding not pushed to Zep")
+    except Exception as e:
+        logger.exception(f"[ONBOARDING] ****EXCEPTION**** Failed to push onboarding data to Zep for user {user.id}: {e}")
     
+    logger.info(f"[ONBOARDING] ****COMPLETE_ONBOARDING_END**** for user {user.id}")
     return user
 
 @router.get("/me")
