@@ -606,6 +606,7 @@ class CLIPQdrantService:
                 "reasoning": outfit_data.get("reasoning"),
                 "score": outfit_data.get("score"),
                 "style_tags": outfit_data.get("style_tags", []),
+                "item_images": outfit_data.get("item_images", []),
                 "image_url": image_url,  # Store the persistent URL
                 "image_base64": image_base64,
                 "image_size_kb": len(image_data) / 1024,
@@ -723,6 +724,7 @@ class CLIPQdrantService:
                     "reasoning": payload.get("reasoning"),
                     "score": payload.get("score"),
                     "style_tags": payload.get("style_tags", []),
+                    "item_images": payload.get("item_images", []),
                     "image_base64": payload.get("image_base64"),
                     "image_url": image_url,
                     "tryon_image_url": image_url,  # Alias for frontend compatibility
@@ -786,6 +788,7 @@ class CLIPQdrantService:
                 "reasoning": payload.get("reasoning"),
                 "score": payload.get("score"),
                 "style_tags": payload.get("style_tags", []),
+                "item_images": payload.get("item_images", []),
                 "image_base64": payload.get("image_base64"),
                 "image_url": image_url,
                 "tryon_image_url": image_url  # Alias for frontend compatibility

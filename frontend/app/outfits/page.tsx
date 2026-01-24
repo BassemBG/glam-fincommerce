@@ -57,10 +57,20 @@ export default function OutfitsPage() {
                             </div>
                         </div>
                         <div className={styles.previewGrid}>
-                            {/* In a real app, we'd fetch item images here. For now, we'll show count */}
-                            <div className={styles.gridPlaceholder}>
-                                <span>{outfit.items.length} Pieces</span>
-                            </div>
+                            {outfit.tryon_image_url ? (
+                                <img
+                                    src={outfit.tryon_image_url.startsWith('http')
+                                        ? outfit.tryon_image_url
+                                        : `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}${outfit.tryon_image_url}`
+                                    }
+                                    className={styles.cardPreviewImage}
+                                    alt="Outfit Preview"
+                                />
+                            ) : (
+                                <div className={styles.gridPlaceholder}>
+                                    <span>{outfit.items.length} Pieces</span>
+                                </div>
+                            )}
                         </div>
                         <div className={styles.actionRow}>
                             <button
@@ -69,14 +79,6 @@ export default function OutfitsPage() {
                             >
                                 Details
                             </button>
-                            {userPhoto && (
-                                <button
-                                    className={styles.tryOnBtn}
-                                    onClick={() => handleTryOn(outfit)}
-                                >
-                                    Try On
-                                </button>
-                            )}
                         </div>
                     </div>
                 )) : (
@@ -171,11 +173,6 @@ export default function OutfitsPage() {
                             <button className={styles.primaryBtn} onClick={() => setSelectedOutfit(null)}>
                                 Close
                             </button>
-                            {userPhoto && (
-                                <button className={styles.tryOnBtnLarge} onClick={() => setShowTryOn(true)}>
-                                    Virtual Try-On
-                                </button>
-                            )}
                         </div>
                     </div>
                 </div>

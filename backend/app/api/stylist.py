@@ -155,7 +155,8 @@ async def save_outfit(
             "items": item_ids,
             "reasoning": db_outfit.reasoning,
             "score": db_outfit.score,
-            "style_tags": meta.get("style_tags", [])
+            "style_tags": meta.get("style_tags", []),
+            "item_images": [item.get("image_url") for item in qdrant_items if item.get("image_url")]
         }
         await clip_qdrant_service.store_outfit_with_image(
             outfit_id=str(db_outfit.id),
