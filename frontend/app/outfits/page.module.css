@@ -436,3 +436,60 @@
     font-weight: 500;
     border: 1px solid #dcfce7;
 }
+
+/* Skeleton Loading */
+.skeleton {
+    background: #f1f5f9;
+    background: linear-gradient(90deg,
+            #f1f5f9 25%,
+            #f8fafc 50%,
+            #f1f5f9 75%);
+    background-size: 200% 100%;
+    animation: shimmer 1.5s infinite;
+    border-radius: 8px;
+}
+
+@keyframes shimmer {
+    0% {
+        background-position: 200% 0;
+    }
+
+    100% {
+        background-position: -200% 0;
+    }
+}
+
+.skeletonCard {
+    background: #ffffff;
+    border-radius: 24px;
+    padding: 20px;
+    border: 1px solid #f1f5f9;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    margin-bottom: 24px;
+}
+
+.skeletonTitle {
+    height: 24px;
+    width: 60%;
+    border-radius: 6px;
+}
+
+.skeletonBadge {
+    height: 16px;
+    width: 30%;
+    border-radius: 4px;
+}
+
+.skeletonImage {
+    width: 100%;
+    aspect-ratio: 3/4;
+    border-radius: 16px;
+}
+
+.skeletonBtn {
+    height: 44px;
+    width: 100%;
+    border-radius: 12px;
+}

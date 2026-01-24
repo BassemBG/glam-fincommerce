@@ -11,12 +11,14 @@ export default function OutfitsPage() {
     const [selectedOutfit, setSelectedOutfit] = useState<any>(null);
     const [outfits, setOutfits] = useState<any[]>([]);
     const [userPhoto, setUserPhoto] = useState<string | null>(null);
+    const [loading, setLoading] = useState(true);
     const [showTryOn, setShowTryOn] = useState(false);
     const token = useAuthGuard();
 
     useEffect(() => {
         if (!token) return;
         const fetchData = async () => {
+            setLoading(true);
             try {
                 const [outfitsRes, userRes] = await Promise.all([
                     authFetch(API.outfits.list),
@@ -30,6 +32,8 @@ export default function OutfitsPage() {
                 }
             } catch (err) {
                 console.error("Failed to fetch data:", err);
+            } finally {
+                setLoading(false);
             }
         };
         fetchData();
@@ -69,53 +73,73 @@ export default function OutfitsPage() {
             </header>
 
             <div className={styles.outfitList}>
-                {outfits.length > 0 ? outfits.map((outfit) => (
-                    <div key={outfit.id} className={styles.outfitCard}>
-                        <div className={styles.outfitHeader}>
-                            <div className={styles.outfitInfo}>
-                                <h2>{outfit.name || 'AI Curation'}</h2>
-                                <span className={styles.vibeTag}>{outfit.vibe} • {outfit.occasion}</span>
-                            </div>
-                            <div className={styles.headerActions}>
-                                <div className={styles.scoreBadge}>
-                                    <span className={styles.scoreValue}>{outfit.score}</span>
-                                    <span className={styles.scoreLabel}>AI Match</span>
+                {loading ? (
+                    // Skeleton Loading State
+                    [1, 2, 3].map((n) => (
+                        <div key={n} className={styles.skeletonCard}>
+                            <div className={styles.outfitHeader}>
+                                <div className={styles.outfitInfo} style={{ width: '100%' }}>
+                                    <div className={`${styles.skeleton} ${styles.skeletonTitle}`}></div>
+                                    <div className={`${styles.skeleton} ${styles.skeletonBadge}`} style={{ marginTop: '8px' }}></div>
                                 </div>
+                            </div>
+                            <div className={styles.previewGrid}>
+                                <div className={`${styles.skeleton} ${styles.skeletonImage}`}></div>
+                            </div>
+                            <div className={styles.actionRow}>
+                                <div className={`${styles.skeleton} ${styles.skeletonBtn}`}></div>
+                            </div>
+                        </div>
+                    ))
+                ) : outfits.length > 0 ? (
+                    outfits.map((outfit) => (
+                        <div key={outfit.id} className={styles.outfitCard}>
+                            <div className={styles.outfitHeader}>
+                                <div className={styles.outfitInfo}>
+                                    <h2>{outfit.name || 'AI Curation'}</h2>
+                                    <span className={styles.vibeTag}>{outfit.vibe} • {outfit.occasion}</span>
+                                </div>
+                                <div className={styles.headerActions}>
+                                    <div className={styles.scoreBadge}>
+                                        <span className={styles.scoreValue}>{outfit.score}</span>
+                                        <span className={styles.scoreLabel}>AI Match</span>
+                                    </div>
+                                    <button
+                                        className={styles.deleteBtn}
+                                        onClick={(e) => handleDeleteOutfit(e, outfit.id)}
+                                        aria-label="Delete Outfit"
+                                    >
+                                        ✕
+                                    </button>
+                                </div>
+                            </div>
+                            <div className={styles.previewGrid}>
+                                {outfit.tryon_image_url ? (
+                                    <img
+                                        src={outfit.tryon_image_url.startsWith('http')
+                                            ? outfit.tryon_image_url
+                                            : `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}${outfit.tryon_image_url}`
+                                        }
+                                        className={styles.cardPreviewImage}
+                                        alt="Outfit Preview"
+                                    />
+                                ) : (
+                                    <div className={styles.gridPlaceholder}>
+                                        <span>{outfit.items.length} Pieces</span>
+                                    </div>
+                                )}
+                            </div>
+                            <div className={styles.actionRow}>
                                 <button
-                                    className={styles.deleteBtn}
-                                    onClick={(e) => handleDeleteOutfit(e, outfit.id)}
-                                    aria-label="Delete Outfit"
+                                    className={styles.viewBtn}
+                                    onClick={() => setSelectedOutfit(outfit)}
                                 >
-                                    ✕
+                                    Details
                                 </button>
                             </div>
                         </div>
-                        <div className={styles.previewGrid}>
-                            {outfit.tryon_image_url ? (
-                                <img
-                                    src={outfit.tryon_image_url.startsWith('http')
-                                        ? outfit.tryon_image_url
-                                        : `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}${outfit.tryon_image_url}`
-                                    }
-                                    className={styles.cardPreviewImage}
-                                    alt="Outfit Preview"
-                                />
-                            ) : (
-                                <div className={styles.gridPlaceholder}>
-                                    <span>{outfit.items.length} Pieces</span>
-                                </div>
-                            )}
-                        </div>
-                        <div className={styles.actionRow}>
-                            <button
-                                className={styles.viewBtn}
-                                onClick={() => setSelectedOutfit(outfit)}
-                            >
-                                Details
-                            </button>
-                        </div>
-                    </div>
-                )) : (
+                    ))
+                ) : (
                     <div className={styles.emptyState}>
                         <p>No outfits saved yet. Ask Ava for inspiration!</p>
                     </div>

@@ -417,6 +417,79 @@ Output a single photorealistic image of the person wearing all the provided clot
         
         return None
 
+    async def generate_outfit_collage(
+        self,
+        clothing_items: List[dict]
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Generate a simple grid collage of clothing items.
+        Used as a fallback when no body photo is available.
+        """
+        logging.info("🖼️ Generating outfit collage fallback...")
+        
+        try:
+            # Load all images in parallel
+            import asyncio
+            urls = []
+            for item in clothing_items:
+                url = item.get("mask_url") or item.get("image_url")
+                if url:
+                    urls.append(url)
+            
+            if not urls:
+                return None
+                
+            all_images = await asyncio.gather(*[self._load_image(url) for url in urls])
+            valid_images = [img for img in all_images if img]
+            
+            if not valid_images:
+                return None
+                
+            # Create a square canvas
+            canvas_size = 1024
+            canvas = Image.new("RGB", (canvas_size, canvas_size), (248, 250, 252)) # Light grey background
+            
+            num_items = len(valid_images)
+            if num_items == 1:
+                # Center single item
+                img = valid_images[0].convert("RGBA")
+                img.thumbnail((800, 800), Image.Resampling.LANCZOS)
+                paste_x = (canvas_size - img.width) // 2
+                paste_y = (canvas_size - img.height) // 2
+                canvas.paste(img, (paste_x, paste_y), img if img.mode == "RGBA" else None)
+            else:
+                # Grid layout
+                cols = 2 if num_items <= 4 else 3
+                rows = (num_items + cols - 1) // cols
+                cell_size = canvas_size // max(cols, rows)
+                
+                for idx, img in enumerate(valid_images):
+                    r, c = divmod(idx, cols)
+                    img = img.convert("RGBA")
+                    img.thumbnail((cell_size - 40, cell_size - 40), Image.Resampling.LANCZOS)
+                    
+                    x = c * cell_size + (cell_size - img.width) // 2
+                    y = r * cell_size + (cell_size - img.height) // 2
+                    canvas.paste(img, (x, y), img if img.mode == "RGBA" else None)
+            
+            # Save to bytes
+            img_buffer = io.BytesIO()
+            canvas.save(img_buffer, format="JPEG", quality=90)
+            img_bytes = img_buffer.getvalue()
+            
+            # Upload
+            output_filename = f"outfit_collage_{uuid.uuid4().hex}.jpg"
+            image_url = await storage_service.upload_file(img_bytes, output_filename, "image/jpeg")
+            
+            return {
+                "url": image_url,
+                "bytes": img_bytes
+            }
+            
+        except Exception as e:
+            logging.error(f"Failed to generate collage: {e}")
+            return None
+
 
 # Singleton instance
 tryon_generator = TryOnGenerator()

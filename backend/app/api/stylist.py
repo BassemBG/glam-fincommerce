@@ -121,10 +121,42 @@ async def save_outfit(
                 print(f"[DEBUG] Try-on generation SUCCESS: {tryon_image_url}")
                 logging.info(f"Generated try-on image: {tryon_image_url}")
             else:
-                print(f"[DEBUG] Try-on generation returned None")
+                print(f"[DEBUG] Try-on generation returned None, trying collage fallback")
+                collage_result = await tryon_generator.generate_outfit_collage(clothing_items_for_tryon)
+                if collage_result:
+                    tryon_image_url = collage_result.get("url")
+                    tryon_image_bytes = collage_result.get("bytes")
+                    print(f"[DEBUG] Collage generation SUCCESS: {tryon_image_url}")
         except Exception as e:
-            print(f"[DEBUG] Try-on generation ERROR: {str(e)}")
+            print(f"[DEBUG] Try-on/Collage generation ERROR: {str(e)}")
             logging.error(f"Try-on generation failed: {e}")
+            # Final attempt: Collage if try-on failed with error
+            try:
+                collage_result = await tryon_generator.generate_outfit_collage(clothing_items_for_tryon)
+                if collage_result:
+                    tryon_image_url = collage_result.get("url")
+                    tryon_image_bytes = collage_result.get("bytes")
+            except:
+                pass
+    else:
+        # No user photo, generate collage directly
+        try:
+            print(f"[DEBUG] No user photo, creating collage for {len(qdrant_items)} items")
+            clothing_items_for_collage = [
+                {
+                    "image_url": item["image_url"],
+                    "mask_url": item.get("mask_url"),
+                    "category": item["clothing"].get("category", "clothing")
+                }
+                for item in qdrant_items
+            ]
+            collage_result = await tryon_generator.generate_outfit_collage(clothing_items_for_collage)
+            if collage_result:
+                tryon_image_url = collage_result.get("url")
+                tryon_image_bytes = collage_result.get("bytes")
+                print(f"[DEBUG] Direct collage SUCCESS: {tryon_image_url}")
+        except Exception as e:
+            print(f"[DEBUG] Collage failed: {e}")
     
     # 4. Create initial DB record (Optional but good for fallback/relational tracking)
     provided_name = outfit_data.get("name", "")
