@@ -569,7 +569,8 @@ class CLIPQdrantService:
         outfit_id: str,
         image_data: bytes,
         outfit_data: Dict[str, Any],
-        user_id: str
+        user_id: str,
+        image_url: Optional[str] = None
     ) -> bool:
         """
         Store generated outfit with CLIP embedding and visualization
@@ -604,6 +605,8 @@ class CLIPQdrantService:
                 "items": outfit_data.get("items", []),
                 "reasoning": outfit_data.get("reasoning"),
                 "score": outfit_data.get("score"),
+                "style_tags": outfit_data.get("style_tags", []),
+                "image_url": image_url,  # Store the persistent URL
                 "image_base64": image_base64,
                 "image_size_kb": len(image_data) / 1024,
                 "embedding_type": "clip-vit-base-patch32",
@@ -669,6 +672,7 @@ class CLIPQdrantService:
                     "price": payload.get("price"),
                     "image_base64": payload.get("image_base64"),
                     "category": payload.get("clothing", {}).get("category"),
+                    "sub_category": payload.get("clothing", {}).get("sub_category"),
                     "body_region": payload.get("clothing", {}).get("body_region"),
                     "image_url": image_url
                 })
@@ -705,7 +709,11 @@ class CLIPQdrantService:
             
             outfits = []
             for point in points:
-                payload = point.payload or {}
+                # Prioritize persistent URL, fallback to data URI
+                image_url = payload.get("image_url")
+                if not image_url and payload.get("image_base64"):
+                    image_url = f"data:image/jpeg;base64,{payload.get('image_base64')}"
+
                 outfits.append({
                     "id": str(point.id),
                     "outfit_id": payload.get("outfit_id"),
@@ -714,8 +722,10 @@ class CLIPQdrantService:
                     "items": payload.get("items", []),
                     "reasoning": payload.get("reasoning"),
                     "score": payload.get("score"),
+                    "style_tags": payload.get("style_tags", []),
                     "image_base64": payload.get("image_base64"),
-                    "image_url": f"data:image/jpeg;base64,{payload.get('image_base64', '')}" if payload.get("image_base64") else "",
+                    "image_url": image_url,
+                    "tryon_image_url": image_url,  # Alias for frontend compatibility
                     "stored_at": payload.get("stored_at")
                 })
                 
@@ -762,6 +772,11 @@ class CLIPQdrantService:
                 payload = points[0].payload
                 point_id = points[0].id
                 
+            # Prioritize persistent URL, fallback to data URI
+            image_url = payload.get("image_url")
+            if not image_url and payload.get("image_base64"):
+                image_url = f"data:image/jpeg;base64,{payload.get('image_base64')}"
+
             return {
                 "id": str(point_id),
                 "outfit_id": payload.get("outfit_id"),
@@ -770,9 +785,10 @@ class CLIPQdrantService:
                 "items": payload.get("items", []),
                 "reasoning": payload.get("reasoning"),
                 "score": payload.get("score"),
+                "style_tags": payload.get("style_tags", []),
                 "image_base64": payload.get("image_base64"),
-                "image_url": f"data:image/jpeg;base64,{payload.get('image_base64', '')}" if payload.get("image_base64") else "",
-                "stored_at": payload.get("stored_at")
+                "image_url": image_url,
+                "tryon_image_url": image_url  # Alias for frontend compatibility
             }
         except Exception as e:
             logger.error(f"Failed to retrieve outfit by ID: {e}")

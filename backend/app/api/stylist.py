@@ -154,13 +154,15 @@ async def save_outfit(
             "description": description,
             "items": item_ids,
             "reasoning": db_outfit.reasoning,
-            "score": db_outfit.score
+            "score": db_outfit.score,
+            "style_tags": meta.get("style_tags", [])
         }
         await clip_qdrant_service.store_outfit_with_image(
             outfit_id=str(db_outfit.id),
             image_data=tryon_image_bytes,
             outfit_data=outfit_metadata,
-            user_id=user_id_to_save
+            user_id=user_id_to_save,
+            image_url=tryon_image_url
         )
 
     return db_outfit

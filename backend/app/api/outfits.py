@@ -61,9 +61,17 @@ async def get_user_outfits(db: Session = Depends(get_db)):
 @router.get("/{outfit_id}")
 async def get_outfit_detail(outfit_id: str, db: Session = Depends(get_db)):
     """Get a single outfit with full item details."""
-    # Try Qdrant retrieval first (using outfit_id as filter or direct ID)
-    # Since we store in Qdrant using a generated ID, we might need a specific search or just use the ID if we know it.
-    # For now, let's stick to DB as the anchor for details, but fetch items from Qdrant.
+    # 1. Try Qdrant retrieval first as primary source
+    qdrant_outfit = await clip_qdrant_service.get_outfit_by_id(outfit_id)
+    
+    if qdrant_outfit:
+        # Fetch detailed item objects from Qdrant for this outfit
+        item_ids = qdrant_outfit.get("items", [])
+        detailed_items = await clip_qdrant_service.get_items_by_ids(item_ids)
+        qdrant_outfit["items"] = detailed_items
+        return qdrant_outfit
+        
+    # 2. Fallback to DB for legacy/non-visual outfits
     outfit = db.query(Outfit).filter(Outfit.id == outfit_id).first()
     if not outfit:
         raise HTTPException(status_code=404, detail="Outfit not found")
@@ -73,7 +81,7 @@ async def get_outfit_detail(outfit_id: str, db: Session = Depends(get_db)):
     except:
         item_ids = []
     
-    # Fetch details from Qdrant
+    # Even for legacy outfits, fetch item details from Qdrant Cloud
     items = await clip_qdrant_service.get_items_by_ids(item_ids)
     
     return {
