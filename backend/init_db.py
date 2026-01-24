@@ -6,7 +6,7 @@ from app.db.session import engine
 from app.models.models import SQLModel, User
 from app.core.security import get_password_hash
 from app.services.zep_service import create_zep_user
-from sqlmodel import Session
+from sqlmodel import Session, select
 
 def init_database():
     # Create all tables
@@ -15,7 +15,7 @@ def init_database():
     
     # Create a demo user if none exists
     with Session(engine) as session:
-        existing_user = session.query(User).first()
+        existing_user = session.exec(select(User)).first()
         if not existing_user:
             # Use proper bcrypt hashing for demo user
             demo_user = User(

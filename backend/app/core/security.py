@@ -7,9 +7,7 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from app.core.config import settings
 import bcrypt
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 security = HTTPBearer()
-
 ALGORITHM = "HS256"
 
 def create_access_token(
@@ -25,16 +23,27 @@ def create_access_token(
     encoded_jwt = jwt.encode(to_encode, settings.SECRET_KEY, algorithm=ALGORITHM)
     return encoded_jwt
 
-# ----------------------------
 # Password utilities
 # ----------------------------
 def verify_password(plain_password: str, hashed_password: str) -> bool:
-    # Truncate plain password to 72 chars for bcrypt safety
-    return pwd_context.verify(plain_password[:72], hashed_password)
+    """Verify a password against its hash."""
+    try:
+        # bcrypt.checkpw requires bytes
+        password_bytes = plain_password.encode('utf-8')[:72]
+        hashed_bytes = hashed_password.encode('utf-8')
+        return bcrypt.checkpw(password_bytes, hashed_bytes)
+    except Exception as e:
+        logger.error(f"Password verification error: {e}")
+        return False
 
 def get_password_hash(password: str) -> str:
-    # Truncate password to 72 chars for bcrypt
-    return pwd_context.hash(password[:72])
+    """Generate a bcrypt hash of a password."""
+    # Truncate to 72 bytes to match bcrypt limitation
+    password_bytes = password.encode('utf-8')[:72]
+    # Generate salt and hash
+    salt = bcrypt.gensalt()
+    hashed = bcrypt.hashpw(password_bytes, salt)
+    return hashed.decode('utf-8')
 
 # ----------------------------
 # JWT utilities

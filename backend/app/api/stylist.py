@@ -96,6 +96,9 @@ async def save_outfit(
     description = meta.get("description", "")
     style_tags = json.dumps(meta.get("style_tags", []))
     
+    tryon_image_url = ""
+    tryon_image_bytes = ""
+
     print(f"[DEBUG] Attempting try-on for user {user_id_to_save}")
     print(f"[DEBUG] Body image: {db_user.full_body_image if db_user else 'None'}")
     print(f"[DEBUG] Number of items for try-on: {len(qdrant_items)}")

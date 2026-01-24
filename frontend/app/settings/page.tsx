@@ -105,7 +105,7 @@ export default function MePage() {
         formData.append('file', file);
 
         try {
-            // TODO: cehck this if error happens: was fetch()
+            // TODO: check this if error happens: was fetch()
             const photoRes = await authFetch(API.users.bodyPhoto, {
                 method: 'POST',
                 body: formData

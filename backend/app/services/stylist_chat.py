@@ -5,12 +5,6 @@ from typing import List, Dict, Any, Optional
 from app.services.outfit_composer import outfit_composer
 from app.models.models import ClothingItem, Outfit
 
-genai = None
-if settings.GEMINI_API_KEY:
-    try:
-        from google import genai as genai
-    except Exception:
-        genai = None
 
 class StylistChatAgent:
     def __init__(self):
