@@ -1,13 +1,13 @@
 "use client";
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import styles from './page.module.css';
 import { API } from '../../lib/api';
 import { authFetch, clearToken } from '../../lib/auth';
 import { useAuthGuard } from '../../lib/useAuthGuard';
 
-export default function MePage() {
+function SettingsContent() {
     const [user, setUser] = useState<any>(null);
     const [uploading, setUploading] = useState(false);
     const [showFullPhoto, setShowFullPhoto] = useState(false);
@@ -293,5 +293,13 @@ export default function MePage() {
                 )
             }
         </div >
+    );
+}
+
+export default function MePage() {
+    return (
+        <Suspense fallback={<div className={styles.container}>Loading settings...</div>}>
+            <SettingsContent />
+        </Suspense>
     );
 }

@@ -34,7 +34,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className={`${playfair.variable} ${lora.variable}`}>
-      <body>
+      <body suppressHydrationWarning>
         <LayoutShell>{children}</LayoutShell>
       </body>
     </html>

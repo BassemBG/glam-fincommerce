@@ -1,12 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import styles from "../auth.module.css";
 import { API } from "@/lib/api";
 import { saveToken } from "@/lib/auth";
 
-export default function LoginPage() {
+function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [email, setEmail] = useState("");
@@ -66,7 +66,7 @@ export default function LoginPage() {
 
         {error && <div className={styles.toastError}>{error}</div>}
 
-        <form onSubmit={handleLogin} className={styles.form}>            
+        <form onSubmit={handleLogin} className={styles.form}>
           <label className={styles.label}>Email
             <input
               type="email"
@@ -97,5 +97,13 @@ export default function LoginPage() {
         </p>
       </div>
     </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={<div className={styles.shell}><div className={styles.card}>Loading...</div></div>}>
+      <LoginForm />
+    </Suspense>
   );
 }
