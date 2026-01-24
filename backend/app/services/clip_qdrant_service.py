@@ -40,6 +40,10 @@ class CLIPQdrantService:
             # Initialize collection if it doesn't exist
             self._initialize_collection()
             
+            # Initialize outfits collection if it doesn't exist
+            self.outfits_collection_name = "outfits_clip_embeddings"
+            self._initialize_outfits_collection()
+            
         except Exception as e:
             logger.error(f"Failed to initialize CLIP Qdrant: {e}")
             self.client = None
@@ -109,10 +113,39 @@ class CLIPQdrantService:
             )
             
             logger.info("✓ Payload indexes for user_id, category, and colors ensured")
-                
+
         except Exception as e:
             logger.warning(f"Could not initialize collection or indexes: {e}")
-    
+
+                
+    def _initialize_outfits_collection(self):
+        """Create outfits collection with CLIP embedding dimensions if it doesn't exist"""
+        try:
+            collections = self.client.get_collections()
+            collection_names = [c.name for c in collections.collections]
+            
+            if self.outfits_collection_name not in collection_names:
+                logger.info(f"Creating outfits CLIP collection: {self.outfits_collection_name}")
+                self.client.create_collection(
+                    collection_name=self.outfits_collection_name,
+                    vectors_config=VectorParams(
+                        size=512,
+                        distance=Distance.COSINE
+                    )
+                )
+            
+            # Ensure payload index for user_id
+            self.client.create_payload_index(
+                collection_name=self.outfits_collection_name,
+                field_name="user_id",
+                field_schema=PayloadSchemaType.KEYWORD,
+            )
+            
+            logger.info(f"✓ Outfits CLIP collection ensured: {self.outfits_collection_name}")
+                
+        except Exception as e:
+            logger.warning(f"Could not initialize outfits collection: {e}")
+
     def generate_image_embedding(self, image_data: bytes) -> List[float]:
         """
         Generate CLIP embedding from image bytes
@@ -521,6 +554,80 @@ class CLIPQdrantService:
             logger.error(f"Failed to delete item {point_id}: {e}")
             return False
 
+
+    async def store_outfit_with_image(
+        self,
+        outfit_id: str,
+        image_data: bytes,
+        outfit_data: Dict[str, Any],
+        user_id: str
+    ) -> bool:
+        """
+        Store generated outfit with CLIP embedding and visualization
+        
+        Args:
+            outfit_id: Unique identifier
+            image_data: Generated outfit visualization bytes
+            outfit_data: Outfit metadata (name, description, items, reasoning, score)
+            user_id: User identifier
+            
+        Returns:
+            True if successful
+        """
+        if not self.client:
+            logger.error("Qdrant client not initialized")
+            return False
+        
+        try:
+            # Generate CLIP embedding from the generated visualization
+            logger.info("Generating CLIP embedding from outfit image...")
+            embeddings = self.generate_image_embedding(image_data)
+            
+            # Encode image as base64 for storage
+            image_base64 = base64.b64encode(image_data).decode('utf-8')
+            
+            # Create metadata payload
+            metadata = {
+                "user_id": user_id,
+                "outfit_id": outfit_id,
+                "name": outfit_data.get("name"),
+                "description": outfit_data.get("description"),
+                "items": outfit_data.get("items", []),
+                "reasoning": outfit_data.get("reasoning"),
+                "score": outfit_data.get("score"),
+                "image_base64": image_base64,
+                "image_size_kb": len(image_data) / 1024,
+                "embedding_type": "clip-vit-base-patch32",
+                "stored_at": __import__('datetime').datetime.now().isoformat()
+            }
+            
+            # Create point (use generic ID logic)
+            import uuid
+            try:
+                # If outfit_id is a UUID string, it might not hash well to an int for Qdrant if not handled carefully
+                # Qdrant accepts strings/UUIDs as IDs now, but let's stick to a consistent format
+                qdrant_id = str(uuid.uuid5(uuid.NAMESPACE_DNS, f"outfit-{outfit_id}"))
+            except Exception:
+                qdrant_id = str(uuid.uuid4())
+            
+            point = PointStruct(
+                id=qdrant_id,
+                vector=embeddings,
+                payload=metadata
+            )
+            
+            # Upsert the point
+            self.client.upsert(
+                collection_name=self.outfits_collection_name,
+                points=[point]
+            )
+            
+            logger.info(f"✓ Stored outfit with CLIP embedding and image: {outfit_id}")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Failed to store outfit with image: {e}")
+            return False
 
 # Global instance
 clip_qdrant_service = CLIPQdrantService()

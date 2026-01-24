@@ -8,7 +8,7 @@ from app.models.models import ClothingItem, Outfit
 class StylistChatAgent:
     def __init__(self):
         self.groq_service = groq_vision_service
-
+  
     async def chat(self, user_id: str, message: str, closet_items: List[ClothingItem], user_photo: Optional[str] = None, outfits: List[Outfit] = [], history: List[Dict] = []) -> Dict[str, Any]:
         """Main conversational interface for the stylist."""
         if not self.groq_service.client:
@@ -91,7 +91,7 @@ class StylistChatAgent:
 
     async def generate_outfit_metadata(self, items: List[ClothingItem]) -> Dict[str, Any]:
         """Generates a global description and style tags for an outfit."""
-        if not self.model or not items:
+        if not self.groq_service.client or not items:
             return {"description": "", "style_tags": []}
 
         items_desc = "\n".join([
@@ -112,13 +112,25 @@ class StylistChatAgent:
             "description": "...",
             "style_tags": ["tag1", "tag2", ...]
         }}
+        
+        Return ONLY a JSON object, no markdown, no code blocks.
         """
 
         try:
-            response = self.model.generate_content(prompt)
-            text = response.text.strip()
+            response_text = await self.groq_service.generate_text(
+                prompt=prompt,
+                temperature=0.7,
+                max_tokens=512
+            )
+            
+            text = response_text.strip()
             if text.startswith("```json"):
                 text = text.replace("```json", "", 1).rsplit("```", 1)[0].strip()
+            elif text.startswith("```"):
+                text = text.split("```")[1]
+                if text.startswith("json"):
+                    text = text[4:]
+                text = text.strip()
             
             return json.loads(text)
         except Exception as e:
