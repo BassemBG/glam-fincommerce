@@ -128,9 +128,17 @@ async def save_outfit(
             logging.error(f"Try-on generation failed: {e}")
     
     # 4. Create initial DB record (Optional but good for fallback/relational tracking)
+    provided_name = outfit_data.get("name", "")
+    ai_name = meta.get("name")
+    
+    # Prioritize AI name if provided name is generic or missing
+    final_name = ai_name if (ai_name and (not provided_name or "Outfit " in provided_name)) else provided_name
+    if not final_name:
+        final_name = f"Outfit {uuid.uuid4().hex[:6]}"
+
     db_outfit = Outfit(
         user_id=user_id_to_save,
-        name=outfit_data.get("name"),
+        name=final_name,
         occasion=outfit_data.get("occasion"),
         vibe=outfit_data.get("vibe"),
         items=json.dumps(item_ids) if isinstance(item_ids, list) else item_ids,
@@ -150,7 +158,7 @@ async def save_outfit(
     # This is now the PRIMARY way we'll load outfits in the /outfits page
     if tryon_image_bytes:
         outfit_metadata = {
-            "name": db_outfit.name,
+            "name": final_name,
             "description": description,
             "items": item_ids,
             "reasoning": db_outfit.reasoning,

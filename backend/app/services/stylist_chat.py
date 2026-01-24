@@ -104,11 +104,13 @@ class StylistChatAgent:
         {items_desc}
 
         Task:
-        1. Create a professional, fashion-forward global description of how these items work together as an outfit. (2-3 sentences)
-        2. Generate 5-8 relevant style tags (e.g., #minimalist, #streetwear, #chic, #earthtones).
+        1. Create a professional, catchy, and fashion-forward name for this outfit (e.g., "Urban Explorer", "Sunset Soirée", "Midnight Minimalist").
+        2. Create a professional global description of how these items work together as an outfit. (2-3 sentences)
+        3. Generate 5-8 relevant style tags (e.g., #minimalist, #streetwear, #chic).
 
         Return the result in JSON format:
         {{
+            "name": "...",
             "description": "...",
             "style_tags": ["tag1", "tag2", ...]
         }}
