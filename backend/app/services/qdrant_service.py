@@ -1,19 +1,31 @@
 from qdrant_client import QdrantClient
-from qdrant_client.http import models
+from qdrant_client.models import Distance, VectorParams, PointStruct, Filter, FieldCondition, MatchValue
 from app.core.config import settings
 import logging
 import os
 from typing import List, Dict, Any, Optional
 
+logger = logging.getLogger(__name__)
+
 class QdrantService:
     def __init__(self):
         self.collection_name = "outfits"
-        # We'll use a local path for storage if not provided in settings
-        storage_path = os.path.join(os.getcwd(), "qdrant_storage")
-        if not os.path.exists(storage_path):
-            os.makedirs(storage_path)
+        
+        # Use Qdrant Cloud if configured, otherwise fallback to local
+        if getattr(settings, 'QDRANT_URL', None) and getattr(settings, 'QDRANT_API_KEY', None):
+            logger.info(f"Connecting to Qdrant Cloud at {settings.QDRANT_URL}")
+            self.client = QdrantClient(
+                url=settings.QDRANT_URL,
+                api_key=settings.QDRANT_API_KEY
+            )
+        else:
+            # Fallback for local development
+            storage_path = os.path.join(os.getcwd(), "qdrant_storage")
+            if not os.path.exists(storage_path):
+                os.makedirs(storage_path)
+            logger.info(f"Connecting to Local Qdrant at {storage_path}")
+            self.client = QdrantClient(path=storage_path)
             
-        self.client = QdrantClient(path=storage_path)
         self._ensure_collection()
 
     def _ensure_collection(self):
@@ -26,7 +38,13 @@ class QdrantService:
             if exists:
                 # Check if vector size matches
                 collection_info = self.client.get_collection(self.collection_name)
-                current_size = collection_info.config.params.vectors.size
+                # Handle both object and dict styles of response
+                try:
+                    current_size = collection_info.config.params.vectors.size
+                except AttributeError:
+                    # Some versions return it differently
+                    current_size = collection_info.config.params.vectors[''].size if isinstance(collection_info.config.params.vectors, dict) else 512
+                
                 if current_size != vector_size:
                     logging.warning(f"Vector size mismatch ({current_size} != {vector_size}). Recreating collection.")
                     self.client.delete_collection(self.collection_name)
@@ -36,9 +54,9 @@ class QdrantService:
                 logging.info(f"Creating collection: {self.collection_name} with size {vector_size}")
                 self.client.create_collection(
                     collection_name=self.collection_name,
-                    vectors_config=models.VectorParams(
+                    vectors_config=VectorParams(
                         size=vector_size,
-                        distance=models.Distance.COSINE
+                        distance=Distance.COSINE
                     )
                 )
         except Exception as e:
@@ -50,7 +68,7 @@ class QdrantService:
             self.client.upsert(
                 collection_name=self.collection_name,
                 points=[
-                    models.PointStruct(
+                    PointStruct(
                         id=outfit_id,
                         vector=vector,
                         payload=payload
@@ -59,7 +77,7 @@ class QdrantService:
             )
             return True
         except Exception as e:
-            logging.error(f"Qdrant upsert error: {e}")
+            logger.error(f"Qdrant upsert error: {e}")
             return False
 
     async def search_similar_outfits(self, vector: List[float], limit: int = 5, filter_dict: Optional[Dict] = None):
@@ -69,12 +87,12 @@ class QdrantService:
             if filter_dict:
                 # Basic filter implementation
                 must = [
-                    models.FieldCondition(
+                    FieldCondition(
                         key=k,
-                        match=models.MatchValue(value=v)
+                        match=MatchValue(value=v)
                     ) for k, v in filter_dict.items()
                 ]
-                query_filter = models.Filter(must=must)
+                query_filter = Filter(must=must)
 
             results = self.client.search(
                 collection_name=self.collection_name,
@@ -84,7 +102,7 @@ class QdrantService:
             )
             return results
         except Exception as e:
-            logging.error(f"Qdrant search error: {e}")
+            logger.error(f"Qdrant search error: {e}")
             return []
 
 qdrant_service = QdrantService()
