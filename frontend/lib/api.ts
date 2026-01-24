@@ -18,7 +18,7 @@ export const API = {
     upload: `${API_URL}/api/v1/closet/upload`,
   },
   outfits: {
-    list: `${API_URL}/api/v1/outfits/`,
+    list: `${API_URL}/api/v1/outfits`,
   },
   stylist: {
     chat: `${API_URL}/api/v1/stylist/chat`,

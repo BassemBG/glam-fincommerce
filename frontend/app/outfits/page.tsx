@@ -36,6 +36,27 @@ export default function OutfitsPage() {
         setShowTryOn(true);
     };
 
+    const handleDeleteOutfit = async (e: React.MouseEvent, outfitId: string) => {
+        e.stopPropagation();
+        if (!confirm("Are you sure you want to delete this outfit?")) return;
+
+        try {
+            const res = await fetch(`${API.outfits.list}/${outfitId}`, {
+                method: 'DELETE'
+            });
+
+            if (res.ok) {
+                setOutfits(outfits.filter(o => o.id !== outfitId));
+                if (selectedOutfit?.id === outfitId) setSelectedOutfit(null);
+            } else {
+                alert("Failed to delete outfit");
+            }
+        } catch (err) {
+            console.error("Delete error:", err);
+            alert("An error occurred while deleting");
+        }
+    };
+
     return (
         <div className={styles.container}>
             <header className={styles.header}>
@@ -51,9 +72,18 @@ export default function OutfitsPage() {
                                 <h2>{outfit.name || 'AI Curation'}</h2>
                                 <span className={styles.vibeTag}>{outfit.vibe} • {outfit.occasion}</span>
                             </div>
-                            <div className={styles.scoreBadge}>
-                                <span className={styles.scoreValue}>{outfit.score}</span>
-                                <span className={styles.scoreLabel}>AI Match</span>
+                            <div className={styles.headerActions}>
+                                <div className={styles.scoreBadge}>
+                                    <span className={styles.scoreValue}>{outfit.score}</span>
+                                    <span className={styles.scoreLabel}>AI Match</span>
+                                </div>
+                                <button
+                                    className={styles.deleteBtn}
+                                    onClick={(e) => handleDeleteOutfit(e, outfit.id)}
+                                    aria-label="Delete Outfit"
+                                >
+                                    ✕
+                                </button>
                             </div>
                         </div>
                         <div className={styles.previewGrid}>

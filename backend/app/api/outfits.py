@@ -116,11 +116,18 @@ async def compare_new_item(
     return result
 
 @router.delete("/{outfit_id}")
-def delete_outfit(outfit_id: str, db: Session = Depends(get_db)):
-    """Delete an outfit."""
+async def delete_outfit(outfit_id: str, db: Session = Depends(get_db)):
+    """Delete an outfit from both DB and Qdrant."""
     outfit = db.query(Outfit).filter(Outfit.id == outfit_id).first()
     if not outfit:
+        # Fallback check: if it only exists in Qdrant, we might want to delete it there too
+        # but usually SQL is the source of truth for deletion
         raise HTTPException(status_code=404, detail="Outfit not found")
+        
+    # Delete from Qdrant first
+    await clip_qdrant_service.delete_outfit(outfit_id)
+    
+    # Delete from SQL
     db.delete(outfit)
     db.commit()
     return {"message": "Outfit deleted"}

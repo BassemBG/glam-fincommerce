@@ -40,6 +40,33 @@
     color: #1e293b;
 }
 
+.headerActions {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.deleteBtn {
+    background: #fee2e2;
+    color: #ef4444;
+    border: none;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-size: 0.8rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    z-index: 10;
+}
+
+.deleteBtn:hover {
+    background: #fecaca;
+    transform: scale(1.1);
+}
+
 .vibeTag {
     font-size: 0.7rem;
     color: #94a3b8;

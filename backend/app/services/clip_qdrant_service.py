@@ -563,6 +563,28 @@ class CLIPQdrantService:
             logger.error(f"Failed to delete item {point_id}: {e}")
             return False
 
+    async def delete_outfit(self, outfit_id: str) -> bool:
+        """
+        Delete an outfit from Qdrant using its original DB ID.
+        """
+        if not self.client:
+            return False
+            
+        try:
+            import uuid
+            # Use deterministic Qdrant ID logic
+            qdrant_id = str(uuid.uuid5(uuid.NAMESPACE_DNS, f"outfit-{outfit_id}"))
+            
+            self.client.delete(
+                collection_name=self.outfits_collection_name,
+                points_selector=[qdrant_id]
+            )
+            logger.info(f"✓ Deleted outfit from Qdrant: {outfit_id}")
+            return True
+        except Exception as e:
+            logger.error(f"Failed to delete outfit {outfit_id} from Qdrant: {e}")
+            return False
+
 
     async def store_outfit_with_image(
         self,
