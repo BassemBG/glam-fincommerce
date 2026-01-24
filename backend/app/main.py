@@ -2,7 +2,7 @@ import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from app.api import auth, closet, outfits, stylist, user
+from app.api import auth, closet, outfits, stylist, user, brands
 from app.core.config import settings
 
 app = FastAPI(
@@ -28,6 +28,9 @@ app.include_router(closet.router, prefix=f"{settings.API_V1_STR}/closet", tags=[
 app.include_router(outfits.router, prefix=f"{settings.API_V1_STR}/outfits", tags=["outfits"])
 app.include_router(stylist.router, prefix=f"{settings.API_V1_STR}/stylist", tags=["stylist"])
 app.include_router(user.router, prefix=f"{settings.API_V1_STR}/users", tags=["users"])
+app.include_router(brands.router, prefix=f"{settings.API_V1_STR}/brands", tags=["brands"])
+
+
 
 @app.get("/")
 def root():

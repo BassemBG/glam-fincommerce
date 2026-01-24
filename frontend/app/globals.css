@@ -99,3 +99,7 @@ h1 {
   color: #6a6a6a;
   font-weight: 400;
 }
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}

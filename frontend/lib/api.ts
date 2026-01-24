@@ -18,4 +18,8 @@ export const API = {
   stylist: {
     chat: `${API_URL}/api/v1/stylist/chat`,
   },
+  brandIngestion: {
+    ingest: `${API_URL}/api/v1/brands/ingest`,
+    list: `${API_URL}/api/v1/brands`,
+  },
 };
