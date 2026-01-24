@@ -629,5 +629,89 @@ class CLIPQdrantService:
             logger.error(f"Failed to store outfit with image: {e}")
             return False
 
+    async def get_items_by_ids(self, point_ids: List[str]) -> List[Dict[str, Any]]:
+        """
+        Retrieve specific clothing items from Qdrant by their IDs
+        """
+        if not self.client:
+            return []
+            
+        try:
+            # Qdrant retrieve by IDs
+            points = self.client.retrieve(
+                collection_name=self.collection_name,
+                ids=[int(pid) if pid.isdigit() else pid for pid in point_ids],
+                with_payload=True,
+                with_vectors=False
+            )
+            
+            items = []
+            for point in points:
+                payload = point.payload or {}
+                items.append({
+                    "id": str(point.id),
+                    "clothing": payload.get("clothing", {}),
+                    "brand": payload.get("brand"),
+                    "price": payload.get("price"),
+                    "image_base64": payload.get("image_base64"),
+                    "category": payload.get("clothing", {}).get("category"),
+                    "body_region": payload.get("clothing", {}).get("body_region"),
+                    "image_url": f"data:image/jpeg;base64,{payload.get('image_base64', '')}" if payload.get("image_base64") else ""
+                })
+            return items
+        except Exception as e:
+            logger.error(f"Failed to retrieve items by IDs: {e}")
+            return []
+
+    async def get_user_outfits(
+        self,
+        user_id: str,
+        limit: int = 50,
+        offset: Optional[Any] = None
+    ) -> Dict[str, Any]:
+        """
+        Get all outfits for a user from Qdrant
+        """
+        if not self.client:
+            return {"items": [], "next_page": None}
+            
+        try:
+            must_conditions = [
+                FieldCondition(key="user_id", match=MatchValue(value=user_id))
+            ]
+            
+            points, next_offset = self.client.scroll(
+                collection_name=self.outfits_collection_name,
+                scroll_filter=Filter(must=must_conditions),
+                limit=limit,
+                offset=offset,
+                with_payload=True,
+                with_vectors=False
+            )
+            
+            outfits = []
+            for point in points:
+                payload = point.payload or {}
+                outfits.append({
+                    "id": str(point.id),
+                    "outfit_id": payload.get("outfit_id"),
+                    "name": payload.get("name"),
+                    "description": payload.get("description"),
+                    "items": payload.get("items", []),
+                    "reasoning": payload.get("reasoning"),
+                    "score": payload.get("score"),
+                    "image_base64": payload.get("image_base64"),
+                    "image_url": f"data:image/jpeg;base64,{payload.get('image_base64', '')}" if payload.get("image_base64") else "",
+                    "stored_at": payload.get("stored_at")
+                })
+                
+            return {
+                "items": outfits,
+                "next_page": next_offset
+            }
+        except Exception as e:
+            logger.error(f"Failed to get user outfits: {e}")
+            return {"items": [], "next_page": None}
+
 # Global instance
 clip_qdrant_service = CLIPQdrantService()

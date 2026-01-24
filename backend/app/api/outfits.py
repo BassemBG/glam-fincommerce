@@ -4,14 +4,28 @@ from typing import List
 from app.db.session import get_db
 from app.models.models import Outfit, User, ClothingItem
 from app.services.shopping_advisor import shopping_advisor
+from app.services.clip_qdrant_service import clip_qdrant_service
 import json
 
 router = APIRouter()
 
 @router.get("/")
-def get_user_outfits(db: Session = Depends(get_db)):
-    """Get all outfits for the current user with item details."""
-    user = db.query(User).first()
+async def get_user_outfits(db: Session = Depends(get_db)):
+    """Get all outfits for the current user from Qdrant."""
+    user_id = "full_test_user"
+    
+    # Lead with Qdrant for visual outfits
+    qdrant_resp = await clip_qdrant_service.get_user_outfits(user_id=user_id, limit=50)
+    qdrant_outfits = qdrant_resp.get("items", [])
+    
+    if qdrant_outfits:
+        return qdrant_outfits
+        
+    # Fallback to DB if Qdrant is empty (legacy or non-visual outfits)
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        user = db.query(User).first()
+    
     if not user:
         return []
     
@@ -19,25 +33,14 @@ def get_user_outfits(db: Session = Depends(get_db)):
     result = []
     
     for outfit in outfits:
-        # Parse item IDs and fetch actual items
         try:
             item_ids = json.loads(outfit.items) if isinstance(outfit.items, str) else outfit.items
         except:
             item_ids = []
         
-        items = []
-        for item_id in item_ids:
-            item = db.query(ClothingItem).filter(ClothingItem.id == item_id).first()
-            if item:
-                items.append({
-                    "id": item.id,
-                    "sub_category": item.sub_category,
-                    "body_region": item.body_region,
-                    "image_url": item.image_url,
-                    "mask_url": item.mask_url,
-                    "colors": item.metadata_json.get("colors", []),
-                    "vibe": item.metadata_json.get("vibe", "")
-                })
+        # We can also fetch item details from Qdrant here if needed
+        # but for fallback, let's keep it simple or use the new helper
+        items = await clip_qdrant_service.get_items_by_ids(item_ids)
         
         result.append({
             "id": outfit.id,
@@ -56,8 +59,11 @@ def get_user_outfits(db: Session = Depends(get_db)):
     return result
 
 @router.get("/{outfit_id}")
-def get_outfit_detail(outfit_id: str, db: Session = Depends(get_db)):
+async def get_outfit_detail(outfit_id: str, db: Session = Depends(get_db)):
     """Get a single outfit with full item details."""
+    # Try Qdrant retrieval first (using outfit_id as filter or direct ID)
+    # Since we store in Qdrant using a generated ID, we might need a specific search or just use the ID if we know it.
+    # For now, let's stick to DB as the anchor for details, but fetch items from Qdrant.
     outfit = db.query(Outfit).filter(Outfit.id == outfit_id).first()
     if not outfit:
         raise HTTPException(status_code=404, detail="Outfit not found")
@@ -67,19 +73,8 @@ def get_outfit_detail(outfit_id: str, db: Session = Depends(get_db)):
     except:
         item_ids = []
     
-    items = []
-    for item_id in item_ids:
-        item = db.query(ClothingItem).filter(ClothingItem.id == item_id).first()
-        if item:
-            items.append({
-                "id": item.id,
-                "category": item.category,
-                "sub_category": item.sub_category,
-                "body_region": item.body_region,
-                "image_url": item.image_url,
-                "mask_url": item.mask_url,
-                "metadata": item.metadata_json
-            })
+    # Fetch details from Qdrant
+    items = await clip_qdrant_service.get_items_by_ids(item_ids)
     
     return {
         "id": outfit.id,

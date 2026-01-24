@@ -21,18 +21,26 @@ async def chat_with_stylist(
     chat_in: ChatMessage,
     db: Session = Depends(get_db)
 ):
-    db_user = db.query(User).first()
-    if not db_user:
-        raise HTTPException(status_code=400, detail="No user found.")
+    # Use hardcoded user for consistency
+    user_id = "full_test_user"
     
-    closet_items = db.query(ClothingItem).filter(ClothingItem.user_id == db_user.id).all()
-    outfits = db.query(Outfit).filter(Outfit.user_id == db_user.id).all()
+    # Try to find user in DB, fallback to generic if not found (for photo etc)
+    db_user = db.query(User).filter(User.id == user_id).first()
+    if not db_user:
+        db_user = db.query(User).first()
+    
+    # Get items from Qdrant instead of just SQL DB
+    qdrant_resp = await clip_qdrant_service.get_user_items(user_id=user_id, limit=200)
+    closet_items = qdrant_resp.get("items", [])
+    
+    # Outfits can still come from DB as primary source of metadata, or Qdrant for visual outfits
+    outfits = db.query(Outfit).filter(Outfit.user_id == user_id).all() if db_user else []
     
     result = await stylist_chat.chat(
-        user_id=str(db_user.id),
+        user_id=user_id,
         message=chat_in.message,
         closet_items=closet_items,
-        user_photo=db_user.full_body_image,
+        user_photo=db_user.full_body_image if db_user else None,
         outfits=outfits,
         history=chat_in.history
     )
@@ -50,11 +58,15 @@ async def save_outfit(
     outfit_data: dict,
     db: Session = Depends(get_db)
 ):
-    dummy_user = db.query(User).first()
-    if not dummy_user:
-        raise HTTPException(status_code=400, detail="No user found.")
+    # Use hardcoded user
+    user_id = "full_test_user"
+    db_user = db.query(User).filter(User.id == user_id).first()
+    if not db_user:
+        db_user = db.query(User).first()
     
-    # 1. Get item IDs and fetch actual items
+    user_id_to_save = user_id
+    
+    # 1. Get item IDs and fetch actual items from QDRANT
     item_ids = outfit_data.get("items", [])
     if isinstance(item_ids, str):
         try:
@@ -62,36 +74,57 @@ async def save_outfit(
         except:
             item_ids = []
     
-    db_items = db.query(ClothingItem).filter(ClothingItem.id.in_(item_ids)).all()
+    # Fetch item details from Qdrant Cloud
+    qdrant_items = await clip_qdrant_service.get_items_by_ids(item_ids)
     
     # 2. Generate global description and tags
-    meta = await stylist_chat.generate_outfit_metadata(db_items)
+    # We need to adapt this to work with Qdrant items (which have different structure than SQL models)
+    # But stylist_chat.generate_outfit_metadata was recently updated to handle ClothingItem list
+    # Let's ensure it can handle dicts or adapt the call
+    from app.models.models import ClothingItem
+    pseudo_items = [
+        ClothingItem(
+            id=item["id"],
+            sub_category=item["clothing"].get("sub_category"),
+            body_region=item["clothing"].get("body_region"),
+            metadata_json=item["clothing"]
+        ) for item in qdrant_items
+    ]
+    
+    meta = await stylist_chat.generate_outfit_metadata(pseudo_items)
     description = meta.get("description", "")
     style_tags = json.dumps(meta.get("style_tags", []))
     
     # 3. Generate try-on image if user has a body photo
     tryon_image_url = None
-    if dummy_user.full_body_image and db_items:
-        clothing_items = [
+    tryon_image_bytes = None
+    
+    if db_user and db_user.full_body_image and qdrant_items:
+        clothing_items_for_tryon = [
             {
-                "image_url": item.image_url,
-                "mask_url": item.mask_url,
-                "body_region": item.body_region
+                "image_url": item["image_url"],
+                "body_region": item["clothing"].get("body_region")
             }
-            for item in db_items
+            for item in qdrant_items
         ]
         try:
             tryon_image_url = await tryon_generator.generate_tryon_image(
-                body_image_url=dummy_user.full_body_image,
-                clothing_items=clothing_items
+                body_image_url=db_user.full_body_image,
+                clothing_items=clothing_items_for_tryon
             )
             logging.info(f"Generated try-on image: {tryon_image_url}")
+            
+            # Convert to bytes for Qdrant storage
+            if tryon_image_url and tryon_image_url.startswith("data:image"):
+                import base64
+                header, encoded = tryon_image_url.split(",", 1)
+                tryon_image_bytes = base64.b64decode(encoded)
         except Exception as e:
             logging.error(f"Try-on generation failed: {e}")
     
-    # 4. Create initial DB record
+    # 4. Create initial DB record (Optional but good for fallback/relational tracking)
     db_outfit = Outfit(
-        user_id=dummy_user.id,
+        user_id=user_id_to_save,
         name=outfit_data.get("name"),
         occasion=outfit_data.get("occasion"),
         vibe=outfit_data.get("vibe"),
@@ -108,30 +141,23 @@ async def save_outfit(
     db.commit()
     db.refresh(db_outfit)
     
-    # 5. Generate embedding and save to Qdrant
-    embedding_text = f"{db_outfit.name or ''}. {description}. Tags: {style_tags}"
-    vector = await embedding_service.get_text_embedding(embedding_text)
-    
-    if vector:
-        payload = {
-            "outfit_id": db_outfit.id,
-            "user_id": str(db_outfit.user_id),
+    # 5. Save to Qdrant (CLIP Visual Storage for Outfits)
+    # This is now the PRIMARY way we'll load outfits in the /outfits page
+    if tryon_image_bytes:
+        outfit_metadata = {
             "name": db_outfit.name,
-            "occasion": db_outfit.occasion,
-            "vibe": db_outfit.vibe,
-            "style_tags": meta.get("style_tags", [])
+            "description": description,
+            "items": item_ids,
+            "reasoning": db_outfit.reasoning,
+            "score": db_outfit.score
         }
-        success = await qdrant_service.upsert_outfit(
-            outfit_id=db_outfit.id,
-            vector=vector,
-            payload=payload
+        await clip_qdrant_service.store_outfit_with_image(
+            outfit_id=str(db_outfit.id),
+            image_data=tryon_image_bytes,
+            outfit_data=outfit_metadata,
+            user_id=user_id_to_save
         )
-        
-        if success:
-            db_outfit.qdrant_vector_id = db_outfit.id
-            db_outfit.qdrant_payload = payload
-            db.commit()
-    
+
     return db_outfit
 
 @router.post("/advisor/compare")
