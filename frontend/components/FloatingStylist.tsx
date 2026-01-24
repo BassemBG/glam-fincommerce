@@ -18,10 +18,12 @@ const FloatingStylist = () => {
     const [tryOnData, setTryOnData] = useState<any>(null);
     const [userPhoto, setUserPhoto] = useState<string | null>(null);
     const [hasItems, setHasItems] = useState(false);
+    const [stagedFile, setStagedFile] = useState<File | null>(null);
+    const [stagedPreview, setStagedPreview] = useState<string | null>(null);
 
     useEffect(() => {
         if (!token) return; // Don't fetch if no token
-        
+
         const fetchData = async () => {
             try {
                 const [userRes, itemsRes] = await Promise.all([
@@ -48,29 +50,74 @@ const FloatingStylist = () => {
     // Don't render if closet is empty
     if (!hasItems) return null;
 
-    const sendMessage = () => {
-        if (!input.trim()) return;
-        const userMsg = { role: 'user', text: input };
+    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (e.target.files && e.target.files[0]) {
+            const file = e.target.files[0];
+            setStagedFile(file);
+            setStagedPreview(URL.createObjectURL(file));
+        }
+    };
+
+    const removeStagedImage = () => {
+        setStagedFile(null);
+        setStagedPreview(null);
+    };
+
+    const sendMessage = async () => {
+        if (!input.trim() && !stagedFile) return;
+
+        const userMsg = {
+            role: 'user',
+            text: input,
+            image: stagedPreview
+        };
+
         setMessages([...messages, userMsg]);
+        const currentInput = input;
+        const currentFile = stagedFile;
+
         setInput('');
+        removeStagedImage();
         setIsLoading(true);
 
-        // Mocking the Backend response structure we just defined
-        setTimeout(() => {
-            const botResponse = {
-                role: 'assistant',
-                text: "I've curated some fresh looks for your request! These pieces from your closet would work perfectly together.",
-                images: [
-                    "https://images.unsplash.com/photo-1564584217132-2271feaeb3c5?w=200", // Cream Silk Blouse
-                    "https://images.unsplash.com/photo-1543163521-1bf539c55dd2?w=200"  // Gold heels
-                ],
-                suggested_outfits: [
-                    { name: "Golden Hour Glow", score: 9.8 }
-                ]
-            };
-            setMessages(prev => [...prev, botResponse]);
+        const formData = new FormData();
+        formData.append('message', currentInput);
+        if (currentFile) {
+            formData.append('file', currentFile);
+        }
+
+        // Convert history for backend
+        const historyJSON = JSON.stringify(messages.map(m => ({
+            role: m.role,
+            content: m.text
+        })));
+        formData.append('history', historyJSON);
+
+        try {
+            const res = await authFetch(API.stylist.chat, {
+                method: 'POST',
+                body: formData
+            });
+
+            if (res.ok) {
+                const botResponse = await res.json();
+                setMessages(prev => [...prev, {
+                    role: 'assistant',
+                    text: botResponse.response,
+                    images: botResponse.images,
+                    suggested_outfits: botResponse.suggested_outfits
+                }]);
+            } else {
+                setMessages(prev => [...prev, {
+                    role: 'assistant',
+                    text: "I'm having trouble connecting to my fashion brain right now. Try again?"
+                }]);
+            }
+        } catch (err) {
+            console.error("Chat error:", err);
+        } finally {
             setIsLoading(false);
-        }, 1500);
+        }
     };
 
     return (
@@ -101,6 +148,9 @@ const FloatingStylist = () => {
                             {messages.map((msg, i) => (
                                 <div key={i} className={`${styles.message} ${styles[msg.role]}`}>
                                     <div className={styles.bubble}>
+                                        {msg.image && (
+                                            <img src={msg.image} alt="User upload" className={styles.userUploadPreview} />
+                                        )}
                                         {msg.text}
 
                                         {msg.images && (
@@ -135,16 +185,30 @@ const FloatingStylist = () => {
                         </div>
 
                         <div className={styles.chatFooter}>
-                            <input
-                                type="text"
-                                placeholder="Ask your stylist..."
-                                value={input}
-                                onChange={(e) => setInput(e.target.value)}
-                                onKeyPress={(e) => e.key === 'Enter' && sendMessage()}
-                            />
-                            <button onClick={sendMessage} className={styles.sendBtn}>
-                                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="22" y1="2" x2="11" y2="13" /><polygon points="22 2 15 22 11 13 2 9 22 2" /></svg>
-                            </button>
+                            {stagedPreview && (
+                                <div className={styles.stagedArea}>
+                                    <div className={styles.stagedPreview}>
+                                        <img src={stagedPreview} alt="Staged" />
+                                        <button onClick={removeStagedImage} className={styles.removeStaged}>✕</button>
+                                    </div>
+                                </div>
+                            )}
+                            <div className={styles.inputRow}>
+                                <label className={styles.uploadToggle}>
+                                    <input type="file" accept="image/*" onChange={handleFileChange} hidden />
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 22H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h3.17l1.83-3h6l1.83 3H21a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2z" /><circle cx="12" cy="13" r="4" /></svg>
+                                </label>
+                                <input
+                                    type="text"
+                                    placeholder="Ask Ava anything..."
+                                    value={input}
+                                    onChange={(e) => setInput(e.target.value)}
+                                    onKeyPress={(e) => e.key === 'Enter' && sendMessage()}
+                                />
+                                <button onClick={sendMessage} className={styles.sendBtn} disabled={isLoading}>
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="22" y1="2" x2="11" y2="13" /><polygon points="22 2 15 22 11 13 2 9 22 2" /></svg>
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>
