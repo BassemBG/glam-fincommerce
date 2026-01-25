@@ -27,11 +27,20 @@ app.add_middleware(
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request: Request, exc: RequestValidationError):
     logger.error(f"Validation error on {request.url.path}: {exc.errors()}")
+    
+    # Handle non-serializable body (like bytes from file uploads)
+    body = exc.body if hasattr(exc, 'body') else None
+    if isinstance(body, bytes):
+        try:
+            body = body.decode("utf-8")
+        except:
+            body = "<binary data>"
+            
     return JSONResponse(
         status_code=422,
         content={
             "detail": exc.errors(),
-            "body": exc.body if hasattr(exc, 'body') else None
+            "body": body
         },
     )
 

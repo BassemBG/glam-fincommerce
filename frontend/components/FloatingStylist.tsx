@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import styles from './FloatingStylist.module.css';
 import TryOnVisualizer from './TryOnVisualizer';
 import { API } from '../lib/api';
@@ -20,6 +20,52 @@ const FloatingStylist = () => {
     const [hasItems, setHasItems] = useState(false);
     const [stagedFile, setStagedFile] = useState<File | null>(null);
     const [stagedPreview, setStagedPreview] = useState<string | null>(null);
+    const [user, setUser] = useState<any>(null);
+
+    // Simple markdown renderer for links [text](url) and bold **text**
+    const renderMarkdown = (content: string) => {
+        if (!content) return null;
+
+        // Match [text](url)
+        const linkRegex = /\[([^\]]+)\]\(([^)]+)\)/g;
+        // Match **text**
+        const boldRegex = /\*\*([^*]+)\*\*/g;
+
+        let parts: (string | React.ReactNode)[] = [content];
+
+        // Replace bold
+        parts = parts.flatMap(part => {
+            if (typeof part !== 'string') return [part];
+            const bits = part.split(boldRegex);
+            return bits.map((bit, i) => i % 2 === 1 ? <strong key={`b-${i}`}>{bit}</strong> : bit);
+        });
+
+        // Replace links
+        parts = parts.flatMap(part => {
+            if (typeof part !== 'string') return [part];
+            const bits = part.split(linkRegex);
+            const elements: (string | React.ReactNode)[] = [];
+            for (let i = 0; i < bits.length; i += 3) {
+                elements.push(bits[i]);
+                if (bits[i + 1]) {
+                    elements.push(
+                        <a
+                            key={`l-${i}`}
+                            href={bits[i + 2]}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            style={{ color: '#22c55e', textDecoration: 'underline' }}
+                        >
+                            {bits[i + 1]}
+                        </a>
+                    );
+                }
+            }
+            return elements;
+        });
+
+        return parts;
+    };
 
     useEffect(() => {
         if (!token) return; // Don't fetch if no token
@@ -34,6 +80,7 @@ const FloatingStylist = () => {
                 if (userRes.ok) {
                     const data = await userRes.json();
                     setUserPhoto(data.full_body_image);
+                    setUser(data);
                 }
 
                 if (itemsRes.ok) {
@@ -140,6 +187,11 @@ const FloatingStylist = () => {
                             <div className={styles.headerTitle}>
                                 <div className={styles.statusDot}></div>
                                 <h3>AI Stylist</h3>
+                                {user?.budget_limit && (
+                                    <span className={styles.budgetBadge}>
+                                        Budget: {user.budget_limit} {user.currency || 'TND'}
+                                    </span>
+                                )}
                             </div>
                             <button className={styles.closeBtn} onClick={() => setIsOpen(false)}>✕</button>
                         </div>
@@ -151,7 +203,9 @@ const FloatingStylist = () => {
                                         {msg.image && (
                                             <img src={msg.image} alt="User upload" className={styles.userUploadPreview} />
                                         )}
-                                        {msg.text}
+                                        <div className={styles.textContent}>
+                                            {renderMarkdown(msg.text)}
+                                        </div>
 
                                         {msg.images && (
                                             <div className={styles.imageGrid}>
