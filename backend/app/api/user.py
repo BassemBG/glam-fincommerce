@@ -48,7 +48,10 @@ async def upload_body_photo(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """Uploads the user's full-body photo for try-ons."""
+    """Uploads the user's full-body photo for try-ons and analyzes morphology."""
+    from app.services.clothing_ingestion_service import ClothingIngestionService
+    from app.services.zep_service import add_morphology_to_thread
+    
     content = await file.read()
     user = current_user
         
@@ -62,7 +65,28 @@ async def upload_body_photo(
     db.commit()
     db.refresh(user)
     
-    return {"image_url": image_url}
+    # Analyze body morphology
+    morphology_analysis = None
+    try:
+        ingestion_service = ClothingIngestionService()
+        morphology_analysis = await ingestion_service.analyze_body_type(content)
+        logger.info(f"Body morphology analyzed for user {user.id}: {morphology_analysis}")
+        
+        # Send morphology to Zep thread
+        if user.zep_thread_id and morphology_analysis:
+            add_morphology_to_thread(
+                user_id=user.id,
+                thread_id=user.zep_thread_id,
+                morphology_data=morphology_analysis
+            )
+            logger.info(f"Morphology sent to Zep thread {user.zep_thread_id}")
+    except Exception as e:
+        logger.warning(f"Failed to analyze body morphology: {e}")
+    
+    return {
+        "image_url": image_url,
+        "morphology": morphology_analysis
+    }
 
 @router.post("/analyze-profile")
 async def analyze_user_profile(

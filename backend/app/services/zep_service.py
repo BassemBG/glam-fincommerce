@@ -157,11 +157,64 @@ def add_onboarding_to_graph(user_id: str, onboarding_data: dict, user_email: str
         logger.info(f"[Zep] ****SUCCESS**** Onboarding message added to thread {thread_id}")
         logger.info(f"[Zep] ****RESPONSE**** {response}")
         return True
-
+    
     except Exception as e:
         logger.error(f"✗ [Zep] ****EXCEPTION**** in add_onboarding_to_graph: {type(e).__name__}: {e}", exc_info=True)
         import traceback
         logger.error(f"[Zep] Full traceback:\n{traceback.format_exc()}")
+        return False
+
+
+def add_morphology_to_thread(user_id: str, thread_id: str, morphology_data: dict):
+    """
+    Add user's body morphology and physical description to their Zep thread.
+    This helps the stylist understand the user's body type, skin tone, height, etc.
+    """
+    logger.info(f"[Zep] Adding morphology data to thread {thread_id} for user {user_id}")
+    
+    if not zep_client:
+        logger.error("✗ [Zep] Zep client not initialized. Cannot add morphology.")
+        return False
+    
+    if not thread_id:
+        logger.error("✗ [Zep] No thread_id provided for morphology message")
+        return False
+    
+    try:
+        import json
+        
+        # Format morphology description
+        morph_desc = f"""User's Body Morphology and Physical Description:
+- Gender Presentation: {morphology_data.get('gender_presentation', 'N/A')}
+- Body Type: {morphology_data.get('body_type', 'N/A')}
+- Skin Tone: {morphology_data.get('skin_tone', 'N/A')}
+- Estimated Height: {morphology_data.get('estimated_height', 'N/A')}
+- Confidence: {morphology_data.get('body_confidence', 0.0)}
+
+This information should be used to provide personalized styling recommendations that flatter the user's body type and complement their skin tone."""
+        
+        message = Message(
+            name=f"System",
+            role="system",
+            content=morph_desc,
+            metadata={
+                "source": "body_morphology_analysis",
+                "user_id": str(user_id),
+                "morphology": morphology_data
+            }
+        )
+        
+        logger.info(f"[Zep] Sending morphology message to thread {thread_id}")
+        response = zep_client.thread.add_messages(
+            thread_id=thread_id,
+            messages=[message]
+        )
+        
+        logger.info(f"✓ [Zep] Morphology message added to thread {thread_id}")
+        return True
+        
+    except Exception as e:
+        logger.error(f"✗ [Zep] Failed to add morphology to thread: {e}", exc_info=True)
         return False
 
 
