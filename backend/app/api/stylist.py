@@ -6,7 +6,8 @@ from app.db.session import get_db
 from app.services.stylist_chat import stylist_chat
 from app.services.vision_analyzer import vision_analyzer
 from app.services.clip_qdrant_service import clip_qdrant_service
-from app.models.models import ClothingItem, User, Outfit
+from app.models.models import ClothingItem, User, Outfit, ClothingIngestionHistory
+from sqlmodel import select
 import uuid
 import json
 
@@ -78,7 +79,7 @@ async def save_outfit(
     
     user_id_to_save = user_id
     
-    # 1. Get item IDs and fetch actual items from QDRANT
+    # 1. Get item IDs and fetch actual items from SQLite
     item_ids = outfit_data.get("items", [])
     if isinstance(item_ids, str):
         try:
@@ -86,22 +87,32 @@ async def save_outfit(
         except:
             item_ids = []
     
-    # Fetch item details from Qdrant Cloud
-    qdrant_items = await clip_qdrant_service.get_items_by_ids(item_ids)
+    # Fetch item details from SQLite instead of Qdrant
+    statement = select(ClothingIngestionHistory).where(
+        ClothingIngestionHistory.id.in_(item_ids) if item_ids else (ClothingIngestionHistory.id == "none")
+    )
+    db_items = db.execute(statement).scalars().all()
     
     # 2. Generate global description and tags
-    # We need to adapt this to work with Qdrant items (which have different structure than SQL models)
-    # But stylist_chat.generate_outfit_metadata was recently updated to handle ClothingItem list
-    # Let's ensure it can handle dicts or adapt the call
-    from app.models.models import ClothingItem
+    # Map SQLite objects to ClothingItem-like structure for metadata generation
     pseudo_items = [
         ClothingItem(
-            id=item["id"],
-            sub_category=item["clothing"].get("sub_category"),
-            body_region=item["clothing"].get("body_region"),
-            image_url=item.get("image_url", ""),
-            metadata_json=item["clothing"]
-        ) for item in qdrant_items
+            id=item.id,
+            sub_category=item.sub_category,
+            body_region=item.body_region,
+            image_url=item.image_url,
+            metadata_json={
+                "category": item.category,
+                "sub_category": item.sub_category,
+                "body_region": item.body_region,
+                "colors": item.colors,
+                "material": item.material,
+                "vibe": item.vibe,
+                "season": item.season,
+                "description": item.description,
+                "styling_tips": item.styling_tips
+            }
+        ) for item in db_items
     ]
     
     meta = await stylist_chat.generate_outfit_metadata(pseudo_items)
@@ -111,19 +122,15 @@ async def save_outfit(
     tryon_image_url = ""
     tryon_image_bytes = ""
 
-    print(f"[DEBUG] Attempting try-on for user {user_id_to_save}")
-    print(f"[DEBUG] Body image: {db_user.full_body_image if db_user else 'None'}")
-    print(f"[DEBUG] Number of items for try-on: {len(qdrant_items)}")
-
-    if db_user and db_user.full_body_image and qdrant_items:
+    if db_user and db_user.full_body_image and db_items:
         clothing_items_for_tryon = [
             {
-                "image_url": item["image_url"],
-                "body_region": item["clothing"].get("body_region"),
-                "category": item["clothing"].get("category", "clothing"),
-                "sub_category": item["clothing"].get("sub_category", "")
+                "image_url": item.image_url,
+                "body_region": item.body_region,
+                "category": item.category or "clothing",
+                "sub_category": item.sub_category or ""
             }
-            for item in qdrant_items
+            for item in db_items
         ]
         try:
             print(f"[DEBUG] Calling tryon_generator.generate_tryon_image...")
@@ -157,14 +164,14 @@ async def save_outfit(
     else:
         # No user photo, generate collage directly
         try:
-            print(f"[DEBUG] No user photo, creating collage for {len(qdrant_items)} items")
+            print(f"[DEBUG] No user photo, creating collage for {len(db_items)} items")
             clothing_items_for_collage = [
                 {
-                    "image_url": item["image_url"],
-                    "mask_url": item.get("mask_url"),
-                    "category": item["clothing"].get("category", "clothing")
+                    "image_url": item.image_url,
+                    "mask_url": item.image_url, # Fallback
+                    "category": item.category or "clothing"
                 }
-                for item in qdrant_items
+                for item in db_items
             ]
             collage_result = await tryon_generator.generate_outfit_collage(clothing_items_for_collage)
             if collage_result:
@@ -202,7 +209,6 @@ async def save_outfit(
     db.refresh(db_outfit)
     
     # 5. Save to Qdrant (CLIP Visual Storage for Outfits)
-    # This is now the PRIMARY way we'll load outfits in the /outfits page
     if tryon_image_bytes:
         outfit_metadata = {
             "name": final_name,
@@ -211,7 +217,7 @@ async def save_outfit(
             "reasoning": db_outfit.reasoning,
             "score": db_outfit.score,
             "style_tags": meta.get("style_tags", []),
-            "item_images": [item.get("image_url") for item in qdrant_items if item.get("image_url")]
+            "item_images": [item.image_url for item in db_items if item.image_url]
         }
         await clip_qdrant_service.store_outfit_with_image(
             outfit_id=str(db_outfit.id),
