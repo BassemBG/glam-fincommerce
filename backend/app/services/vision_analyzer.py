@@ -1,4 +1,4 @@
-from app.services.groq_vision_service import groq_vision_service
+from app.services.azure_openai_service import azure_openai_service
 import json
 import logging
 import json
@@ -77,7 +77,7 @@ DEMO_RESPONSES = [
 
 class VisionAnalyzer:
     def __init__(self):
-        self.groq_service = groq_vision_service
+        self.ai_service = azure_openai_service
         self._rembg_session = None
 
     def _get_demo_response(self) -> Dict[str, Any]:
@@ -85,16 +85,31 @@ class VisionAnalyzer:
         return random.choice(DEMO_RESPONSES).copy()
 
     async def analyze_clothing(self, image_data: bytes) -> Dict[str, Any]:
-        """Analyzes a clothing item image using Groq, falls back to demo data."""
-        if not self.groq_service.client:
-            logging.info("Using demo response (no Groq API key)")
+        """Analyzes a clothing item image using Azure OpenAI, falls back to demo data."""
+        if not self.ai_service.client:
+            logging.info("Using demo response (no Azure OpenAI credentials)")
             return self._get_demo_response()
 
+        prompt = """Analyze this clothing item image and provide a detailed fashion analysis.
+        Return ONLY valid JSON with these exact fields:
+        {
+          "category": "clothing|shoes|accessory",
+          "sub_category": "specific type (e.g., T-shirt, Jeans, Midi Dress, Sneakers, Leather Jacket)",
+          "body_region": "head|top|bottom|feet|full_body|outerwear|accessory",
+          "colors": ["list", "of", "primary", "colors"],
+          "material": "material type (denim, silk, wool, cotton, leather, polyester, nylon, etc.)",
+          "vibe": "minimalist|boho|chic|streetwear|classic|casual|formal|athletic|romantic|vintage|preppy|edgy",
+          "season": "Spring|Summer|Autumn|Winter|All Seasons",
+          "description": "Detailed natural language description (2-3 sentences) of the item including style, fit, condition",
+          "styling_tips": "How to style this piece with other items",
+          "estimated_brand_range": "luxury|premium|mid-range|affordable|fast-fashion|unknown"
+        }"""
+
         try:
-            result = await self.groq_service.analyze_clothing(image_data)
+            result = await self.ai_service.analyze_image(image_data, prompt)
             return result
         except Exception as e:
-            logging.debug(f"AI analysis failed ({e}), using demo response")
+            logging.error(f"Azure AI analysis failed ({e}), using demo response")
             return self._get_demo_response()
 
     async def remove_background(self, image_data: bytes) -> bytes:

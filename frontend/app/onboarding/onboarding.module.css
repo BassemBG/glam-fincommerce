@@ -69,6 +69,7 @@
     opacity: 0;
     transform: translateY(30px);
   }
+
   to {
     opacity: 1;
     transform: translateY(0);
@@ -79,6 +80,7 @@
   from {
     opacity: 0;
   }
+
   to {
     opacity: 1;
   }
@@ -327,4 +329,36 @@
   .secondaryBtn {
     width: 100%;
   }
+
+  .row {
+    flex-direction: column;
+    gap: 0;
+  }
+}
+
+.row {
+  display: flex;
+  gap: 16px;
+}
+
+.row>div {
+  flex: 1;
+}
+
+.budgetRangeGroup {
+  border-top: 1px solid #e2e8f0;
+  padding-top: 24px;
+}
+
+.budgetInputs {
+  display: flex;
+  gap: 16px;
+}
+
+.subLabel {
+  display: block;
+  font-size: 0.8rem;
+  color: #64748b;
+  margin-bottom: 4px !important;
+  font-weight: 500 !important;
 }

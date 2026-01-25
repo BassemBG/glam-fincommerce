@@ -111,8 +111,40 @@ class CLIPQdrantService:
                 field_name="clothing.colors",
                 field_schema=PayloadSchemaType.KEYWORD,
             )
+            self.client.create_payload_index(
+                collection_name=self.collection_name,
+                field_name="clothing.body_region",
+                field_schema=PayloadSchemaType.KEYWORD,
+            )
+            self.client.create_payload_index(
+                collection_name=self.collection_name,
+                field_name="clothing.vibe",
+                field_schema=PayloadSchemaType.KEYWORD,
+            )
+            self.client.create_payload_index(
+                collection_name=self.collection_name,
+                field_name="clothing.sub_category",
+                field_schema=PayloadSchemaType.KEYWORD,
+            )
+            self.client.create_payload_index(
+                collection_name=self.collection_name,
+                field_name="clothing.material",
+                field_schema=PayloadSchemaType.KEYWORD,
+            )
+            self.client.create_payload_index(
+                collection_name=self.collection_name,
+                field_name="clothing.season",
+                field_schema=PayloadSchemaType.KEYWORD,
+            )
             
-            logger.info("✓ Payload indexes for user_id, category, and colors ensured")
+            # Index for outfit filtering
+            self.client.create_payload_index(
+                collection_name=self.outfits_collection_name,
+                field_name="style_tags",
+                field_schema=PayloadSchemaType.KEYWORD,
+            )
+            
+            logger.info("✓ Payload indexes for user_id, category, colors, body_region, vibe, sub_category, material, and season ensured")
 
         except Exception as e:
             logger.warning(f"Could not initialize collection or indexes: {e}")
@@ -440,7 +472,10 @@ class CLIPQdrantService:
                     "score": result.score,
                     "clothing": result.payload.get("clothing", {}),
                     "brand": result.payload.get("brand"),
+                    "brand_confidence": result.payload.get("brand_confidence"),
                     "price": result.payload.get("price"),
+                    "price_range": result.payload.get("price_range"),
+                    "image_url": result.payload.get("image_url"),
                     "image_base64": result.payload.get("image_base64")
                 }
                 items.append(item)
@@ -536,6 +571,71 @@ class CLIPQdrantService:
             
         except Exception as e:
             logger.error(f"Failed to get user items: {e}")
+            return {"items": [], "next_page": None}
+
+    async def filter_user_items(
+        self,
+        user_id: str,
+        category: Optional[str] = None,
+        sub_category: Optional[str] = None,
+        region: Optional[str] = None,
+        color: Optional[str] = None,
+        vibe: Optional[str] = None,
+        material: Optional[str] = None,
+        season: Optional[str] = None,
+        limit: int = 50,
+        offset: Optional[Any] = None
+    ) -> Dict[str, Any]:
+        """
+        Filter user clothing items based on specific payload fields.
+        """
+        if not self.client:
+            return {"items": [], "next_page": None}
+
+        try:
+            must_conditions = [
+                FieldCondition(key="user_id", match=MatchValue(value=user_id))
+            ]
+            if category:
+                must_conditions.append(FieldCondition(key="clothing.category", match=MatchValue(value=category)))
+            if sub_category:
+                must_conditions.append(FieldCondition(key="clothing.sub_category", match=MatchValue(value=sub_category)))
+            if region:
+                must_conditions.append(FieldCondition(key="clothing.body_region", match=MatchValue(value=region)))
+            if color:
+                must_conditions.append(FieldCondition(key="clothing.colors", match=MatchValue(value=color)))
+            if vibe:
+                must_conditions.append(FieldCondition(key="clothing.vibe", match=MatchValue(value=vibe)))
+            if material:
+                must_conditions.append(FieldCondition(key="clothing.material", match=MatchValue(value=material)))
+            if season:
+                must_conditions.append(FieldCondition(key="clothing.season", match=MatchValue(value=season)))
+
+            points, next_offset = self.client.scroll(
+                collection_name=self.collection_name,
+                scroll_filter=Filter(must=must_conditions),
+                limit=limit,
+                offset=offset,
+                with_payload=True,
+                with_vectors=False
+            )
+
+            items = []
+            for point in points:
+                payload = point.payload or {}
+                image_url = payload.get("image_url")
+                if not image_url and payload.get("image_base64"):
+                    image_url = f"data:image/jpeg;base64,{payload.get('image_base64')}"
+                
+                items.append({
+                    "id": str(point.id),
+                    "clothing": payload.get("clothing", {}),
+                    "image_url": image_url
+                })
+
+            return {"items": items, "next_page": next_offset}
+        except Exception as e:
+            logger.error(f"Failed to filter user items: {e}")
             return {"items": [], "next_page": None}
 
     async def delete_item(self, point_id: str) -> bool:
@@ -732,6 +832,7 @@ class CLIPQdrantService:
             
             outfits = []
             for point in points:
+                payload = point.payload or {}
                 # Prioritize persistent URL, fallback to data URI
                 image_url = payload.get("image_url")
                 if not image_url and payload.get("image_base64"):
@@ -749,7 +850,7 @@ class CLIPQdrantService:
                     "item_images": payload.get("item_images", []),
                     "image_base64": payload.get("image_base64"),
                     "image_url": image_url,
-                    "tryon_image_url": image_url,  # Alias for frontend compatibility
+                    "tryon_image_url": image_url,
                     "stored_at": payload.get("stored_at")
                 })
                 
@@ -759,6 +860,65 @@ class CLIPQdrantService:
             }
         except Exception as e:
             logger.error(f"Failed to get user outfits: {e}")
+            return {"items": [], "next_page": None}
+
+    async def filter_user_outfits(
+        self,
+        user_id: str,
+        tag: Optional[str] = None,
+        min_score: Optional[float] = None,
+        limit: int = 50,
+        offset: Optional[Any] = None
+    ) -> Dict[str, Any]:
+        """
+        Filter user outfits based on payload fields.
+        """
+        if not self.client:
+            return {"items": [], "next_page": None}
+
+        try:
+            must_conditions = [
+                FieldCondition(key="user_id", match=MatchValue(value=user_id))
+            ]
+            if tag:
+                must_conditions.append(FieldCondition(key="style_tags", match=MatchValue(value=tag)))
+            
+            # min_score via FieldCondition might be complex in Qdrant scroll if it's a range.
+            # Qdrant client scroll filter uses FieldCondition with Range.
+
+            results = self.client.scroll(
+                collection_name=self.outfits_collection_name,
+                scroll_filter=Filter(must=must_conditions),
+                limit=limit,
+                offset=offset,
+                with_payload=True,
+                with_vectors=False
+            )
+            
+            points, next_offset = results
+            outfits = []
+            for point in points:
+                payload = point.payload or {}
+                score = payload.get("score", 0)
+                if min_score and score < min_score:
+                    continue
+
+                image_url = payload.get("image_url")
+                if not image_url and payload.get("image_base64"):
+                    image_url = f"data:image/jpeg;base64,{payload.get('image_base64')}"
+
+                outfits.append({
+                    "id": str(point.id),
+                    "name": payload.get("name"),
+                    "description": payload.get("description"),
+                    "score": score,
+                    "style_tags": payload.get("style_tags", []),
+                    "image_url": image_url
+                })
+
+            return {"items": outfits, "next_page": next_offset}
+        except Exception as e:
+            logger.error(f"Failed to filter outfits: {e}")
             return {"items": [], "next_page": None}
 
     async def get_outfit_by_id(self, outfit_id: str) -> Optional[Dict[str, Any]]:

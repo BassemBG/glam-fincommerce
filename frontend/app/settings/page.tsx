@@ -15,6 +15,10 @@ function SettingsContent() {
     const [pinterestLoading, setPinterestLoading] = useState(false);
     const [pinterestMessage, setPinterestMessage] = useState<string | null>(null);
     const [showPinterestInfo, setShowPinterestInfo] = useState(false);
+
+    const [saveLoading, setSaveLoading] = useState(false);
+    const [saveStatus, setSaveStatus] = useState<'idle' | 'success' | 'error'>('idle');
+
     const router = useRouter();
     const searchParams = useSearchParams();
     const token = useAuthGuard();
@@ -95,6 +99,21 @@ function SettingsContent() {
     };
 
     const [analysisResults, setAnalysisResults] = useState<any>(null);
+
+    const handleSettingsUpdate = async (key: string, value: any) => {
+        try {
+            const res = await authFetch(API.users.settings, {
+                method: 'PUT',
+                body: JSON.stringify({ [key]: value })
+            });
+            if (res.ok) {
+                setUser((prev: any) => ({ ...prev, [key]: value }));
+            }
+        } catch (err) {
+            console.error("Failed to update settings:", err);
+        }
+    };
+
 
     const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
@@ -265,9 +284,14 @@ function SettingsContent() {
                 <div className={styles.settingItem}>
                     <div className={styles.settingInfo}>
                         <h3>Style Profile</h3>
-                        <p>Minimalist, Chic, Streetwear</p>
+                        <p>{user?.daily_style || 'Minimalist, Chic'}</p>
                     </div>
-                    <button className={styles.actionBtn}>Edit</button>
+                    <button
+                        className={styles.actionBtn}
+                        onClick={() => router.push('/settings/profile')}
+                    >
+                        Edit
+                    </button>
                 </div>
             </div>
 

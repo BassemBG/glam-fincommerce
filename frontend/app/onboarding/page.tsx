@@ -7,24 +7,7 @@ import { API } from "@/lib/api";
 import { authFetch } from "@/lib/auth";
 import { useAuthGuard } from "@/lib/useAuthGuard";
 
-const DAILY_STYLES = ["Modern Chic", "Sport", "Classic", "Bohemian", "Minimalist", "Edgy", "Preppy"];
-const COLOR_OPTIONS = [
-  { label: "Black / White / Grey", value: "bw-grey" },
-  { label: "Neutral (Beige, Brown, Cream)", value: "neutral" },
-  { label: "Dark Colors", value: "dark" },
-  { label: "Bright Colors", value: "bright" },
-  { label: "Pastels", value: "pastels" },
-];
-const FIT_OPTIONS = ["Tight / Fitted", "Regular", "Loose / Oversized", "Depends on the item"];
-const PRICE_OPTIONS = ["Low (Budget First)", "Medium (Quality over Price)", "High (I Invest)", "Depends on the Item"];
-const BUYING_PRIORITIES = [
-  "Comfort",
-  "Style",
-  "Price",
-  "Brand",
-  "Quality / Durability",
-  "Trendiness",
-];
+import { DAILY_STYLES, COLOR_OPTIONS, FIT_OPTIONS, PRICE_OPTIONS, BUYING_PRIORITIES, GENDER_OPTIONS } from "@/lib/constants";
 
 export default function OnboardingPage() {
   const router = useRouter();
@@ -35,8 +18,10 @@ export default function OnboardingPage() {
   const [error, setError] = useState<string | null>(null);
 
   const [formData, setFormData] = useState({
+    gender: "",
     age: "",
     education: "",
+    country: "",
     daily_style: "",
     clothing_description: "",
     styled_combinations: "",
@@ -44,6 +29,9 @@ export default function OnboardingPage() {
     fit_preference: "",
     price_comfort: "",
     buying_priorities: [] as string[],
+    min_budget: "",
+    max_budget: "",
+    wallet_balance: "",
   });
 
   const [pinterestLoading, setPinterestLoading] = useState(false);
@@ -103,8 +91,8 @@ export default function OnboardingPage() {
       buying_priorities: prev.buying_priorities.includes(priority)
         ? prev.buying_priorities.filter((p) => p !== priority)
         : prev.buying_priorities.length < 2
-        ? [...prev.buying_priorities, priority]
-        : prev.buying_priorities,
+          ? [...prev.buying_priorities, priority]
+          : prev.buying_priorities,
     }));
   };
 
@@ -118,8 +106,10 @@ export default function OnboardingPage() {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
+          gender: formData.gender || null,
           age: formData.age ? parseInt(formData.age) : null,
           education: formData.education || null,
+          country: formData.country || null,
           daily_style: formData.daily_style || null,
           clothing_description: formData.clothing_description || null,
           styled_combinations: formData.styled_combinations || null,
@@ -127,6 +117,9 @@ export default function OnboardingPage() {
           fit_preference: formData.fit_preference || null,
           price_comfort: formData.price_comfort || null,
           buying_priorities: formData.buying_priorities,
+          min_budget: formData.min_budget ? parseFloat(formData.min_budget) : null,
+          max_budget: formData.max_budget ? parseFloat(formData.max_budget) : null,
+          wallet_balance: formData.wallet_balance ? parseFloat(formData.wallet_balance) : 0.0,
         }),
       });
 
@@ -152,7 +145,7 @@ export default function OnboardingPage() {
   // Check early: if NO localStorage flag, redirect immediately
   useEffect(() => {
     if (!token) return;
-    
+
     // First, check if user is even supposed to be on this page
     const flag = typeof window !== 'undefined' ? localStorage.getItem('needsOnboarding') : null;
     if (flag !== '1') {
@@ -160,14 +153,14 @@ export default function OnboardingPage() {
       router.replace("/");
       return;
     }
-    
+
     // If we have the flag, verify onboarding status on server
     const verify = async () => {
       try {
         const res = await authFetch(API.users.me);
         if (res.ok) {
           const user = await res.json();
-          
+
           // If already completed, redirect to home
           if (user.onboarding_completed) {
             router.replace("/");
@@ -206,18 +199,45 @@ export default function OnboardingPage() {
       {step === 1 && (
         <div className={`${styles.card} ${styles[stepClass]}`}>
           <div className={styles.step}>
-            <h2>👤 Tell Us About Yourself</h2>
+            <h2>👤 Identity & Location</h2>
             <div className={styles.formGroup}>
-              <label>Age (optional)</label>
-              <input
-                type="number"
-                min="13"
-                max="120"
-                value={formData.age}
-                onChange={(e) => setFormData({ ...formData, age: e.target.value })}
-                placeholder="25"
-              />
+              <label>Select Gender</label>
+              <div className={styles.gridOptions} style={{ marginTop: '8px' }}>
+                {GENDER_OPTIONS.map((g) => (
+                  <button
+                    key={g}
+                    className={`${styles.option} ${formData.gender === g ? styles.selected : ""}`}
+                    onClick={() => setFormData({ ...formData, gender: g })}
+                  >
+                    {g}
+                  </button>
+                ))}
+              </div>
             </div>
+
+            <div className={styles.row}>
+              <div className={styles.formGroup}>
+                <label>Age (optional)</label>
+                <input
+                  type="number"
+                  min="13"
+                  max="120"
+                  value={formData.age}
+                  onChange={(e) => setFormData({ ...formData, age: e.target.value })}
+                  placeholder="25"
+                />
+              </div>
+              <div className={styles.formGroup}>
+                <label>Country (for localized fashion)</label>
+                <input
+                  type="text"
+                  value={formData.country}
+                  onChange={(e) => setFormData({ ...formData, country: e.target.value })}
+                  placeholder="e.g., France, USA, Tunisia"
+                />
+              </div>
+            </div>
+
             <div className={styles.formGroup}>
               <label>Where do you study / work? (optional)</label>
               <input
@@ -302,7 +322,7 @@ export default function OnboardingPage() {
       {step === 5 && (
         <div className={`${styles.card} ${styles[stepClass]}`}>
           <div className={styles.step}>
-            <h2>💸 Price Comfort Zone</h2>
+            <h2>💸 Price Comfort & Budget</h2>
             <p className={styles.subtitle}>What feels like "normal" spending for you?</p>
             <div className={styles.radioGroup}>
               {PRICE_OPTIONS.map((price) => (
@@ -318,6 +338,41 @@ export default function OnboardingPage() {
                 </label>
               ))}
             </div>
+
+            <div className={styles.budgetRangeGroup} style={{ marginTop: '32px' }}>
+              <label>Financial Pacing (optional)</label>
+              <div className={styles.budgetInputs}>
+                <div className={styles.formGroup}>
+                  <label className={styles.subLabel}>Starting Wallet Balance</label>
+                  <input
+                    type="number"
+                    value={formData.wallet_balance}
+                    onChange={(e) => setFormData({ ...formData, wallet_balance: e.target.value })}
+                    placeholder="e.g., 500"
+                  />
+                </div>
+                <div style={{ display: 'flex', gap: '16px', width: '100%', marginTop: '16px' }}>
+                  <div className={styles.formGroup} style={{ flex: 1 }}>
+                    <label className={styles.subLabel}>Monthly Min Budget</label>
+                    <input
+                      type="number"
+                      value={formData.min_budget}
+                      onChange={(e) => setFormData({ ...formData, min_budget: e.target.value })}
+                      placeholder="0"
+                    />
+                  </div>
+                  <div className={styles.formGroup} style={{ flex: 1 }}>
+                    <label className={styles.subLabel}>Monthly Max Budget</label>
+                    <input
+                      type="number"
+                      value={formData.max_budget}
+                      onChange={(e) => setFormData({ ...formData, max_budget: e.target.value })}
+                      placeholder="500"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       )}
@@ -332,9 +387,8 @@ export default function OnboardingPage() {
               {BUYING_PRIORITIES.map((priority) => (
                 <button
                   key={priority}
-                  className={`${styles.option} ${
-                    formData.buying_priorities.includes(priority) ? styles.selected : ""
-                  }`}
+                  className={`${styles.option} ${formData.buying_priorities.includes(priority) ? styles.selected : ""
+                    }`}
                   onClick={() => handlePriorityToggle(priority)}
                 >
                   {priority}

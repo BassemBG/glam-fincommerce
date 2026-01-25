@@ -14,6 +14,11 @@ export const API = {
     bodyPhoto: `${API_URL}/api/v1/users/body-photo`,
     analyzeProfile: `${API_URL}/api/v1/users/analyze-profile`,
     onboarding: `${API_URL}/api/v1/users/onboarding`,
+    settings: `${API_URL}/api/v1/users/settings`,
+    wallet: {
+      spend: `${API_URL}/api/v1/users/wallet/spend`,
+      topup: `${API_URL}/api/v1/users/wallet/topup`,
+    }
   },
   clothing: {
     ingest: `${API_URL}/api/v1/clothing/ingest`,

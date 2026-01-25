@@ -18,8 +18,10 @@ class User(SQLModel, table=True):
     zep_thread_id: Optional[str] = None  # Thread ID for storing onboarding data in Zep
     
     # Onboarding profile fields
+    gender: Optional[str] = None  # "male", "female", "neutral", "other"
     age: Optional[int] = None
     education: Optional[str] = None  # Where they study
+    country: Optional[str] = None  # User's country for localized search
     daily_style: Optional[str] = None  # e.g., "modern chic", "sport", "classic"
     color_preferences: List[str] = Field(default=[], sa_column=Column(JSON))  # ["black/white/grey", "bright colors", ...]
     fit_preference: Optional[str] = None  # "tight", "regular", "loose", "depends"
@@ -28,6 +30,13 @@ class User(SQLModel, table=True):
     clothing_description: Optional[str] = None  # Description of their clothes
     styled_combinations: Optional[str] = None  # Description of past styled combinations
     onboarding_completed: bool = Field(default=False)
+    
+    # Financial constraints for AI Stylist
+    budget_limit: Optional[float] = Field(default=None)
+    min_budget: Optional[float] = Field(default=None)
+    max_budget: Optional[float] = Field(default=None)
+    currency: str = Field(default="TND", max_length=10)
+    wallet_balance: float = Field(default=0.0)
     
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)

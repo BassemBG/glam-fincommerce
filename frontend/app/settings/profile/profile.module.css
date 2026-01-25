@@ -1,0 +1,335 @@
+.shell {
+    min-height: 100vh;
+    background:
+        radial-gradient(1200px 400px at 10% -10%, rgba(34, 197, 94, 0.08), transparent 60%),
+        radial-gradient(800px 300px at 90% -10%, rgba(234, 179, 8, 0.08), transparent 60%),
+        #ffffff;
+    display: flex;
+    flex-direction: column;
+    padding: 20px;
+    position: relative;
+    overflow: hidden;
+}
+
+.header {
+    text-align: center;
+    color: #0f172a;
+    margin-top: 40px;
+    margin-bottom: 30px;
+    animation: fadeIn 0.6s ease-out;
+    position: relative;
+}
+
+.backLink {
+    position: absolute;
+    top: 0;
+    left: 0;
+    background: none;
+    border: none;
+    color: #64748b;
+    font-weight: 500;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    border-radius: 8px;
+    transition: all 0.2s ease;
+}
+
+.backLink:hover {
+    background: #f1f5f9;
+    color: #0f172a;
+}
+
+.header h1 {
+    font-size: 2.2rem;
+    margin-bottom: 8px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+}
+
+.header p {
+    font-size: 1rem;
+    opacity: 0.9;
+    max-width: 500px;
+    margin: 0 auto;
+}
+
+.editorContent {
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+    width: 100%;
+    max-width: 640px;
+    margin: 0 auto 60px;
+}
+
+.card {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 20px;
+    padding: 32px 28px;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+    animation: slideUp 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes slideUp {
+    from {
+        opacity: 0;
+        transform: translateY(30px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+    }
+
+    to {
+        opacity: 1;
+    }
+}
+
+.step h2 {
+    font-size: 1.5rem;
+    margin-bottom: 20px;
+    color: #0f172a;
+    border-bottom: 1px solid #f1f5f9;
+    padding-bottom: 12px;
+}
+
+.formGroup {
+    margin-bottom: 24px;
+}
+
+.formGroup label {
+    display: block;
+    font-weight: 600;
+    color: #1e293b;
+    margin-bottom: 10px;
+    font-size: 0.95rem;
+}
+
+.formGroup input,
+.formGroup textarea {
+    width: 100%;
+    padding: 12px 14px;
+    border: 1.5px solid #e2e8f0;
+    border-radius: 10px;
+    font-size: 1rem;
+    font-family: inherit;
+    transition: all 0.2s ease;
+    color: #0f172a;
+    background: #ffffff;
+}
+
+.formGroup input:focus,
+.formGroup textarea:focus {
+    outline: none;
+    border-color: #22c55e;
+    box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.12);
+}
+
+.gridOptions {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+    gap: 10px;
+}
+
+.option {
+    padding: 12px;
+    background: #f8fafc;
+    border: 1.8px solid transparent;
+    border-radius: 10px;
+    cursor: pointer;
+    font-weight: 500;
+    transition: all 0.2s ease;
+    color: #0f172a;
+    font-size: 0.9rem;
+}
+
+.option:hover {
+    background: #f1f5f9;
+    border-color: #e2e8f0;
+}
+
+.option.selected {
+    background: #22c55e;
+    color: #ffffff;
+    border-color: #22c55e;
+    box-shadow: 0 4px 12px rgba(34, 197, 94, 0.2);
+}
+
+.checkboxGroup {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.checkboxLabel {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    cursor: pointer;
+    padding: 8px;
+    border-radius: 8px;
+    transition: background 0.2s ease;
+}
+
+.checkboxLabel:hover {
+    background: #f8fafc;
+}
+
+.checkboxLabel input {
+    width: 18px;
+    height: 18px;
+    accent-color: #22c55e;
+}
+
+.checkboxText {
+    color: #1e293b;
+    font-weight: 500;
+    font-size: 0.95rem;
+}
+
+.radioGroup {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.radioLabel {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    cursor: pointer;
+    padding: 12px;
+    border: 1.5px solid #e2e8f0;
+    border-radius: 10px;
+    transition: all 0.2s ease;
+}
+
+.radioLabel:hover {
+    border-color: #22c55e;
+    background: #f8fafc;
+}
+
+.radioLabel input {
+    accent-color: #22c55e;
+}
+
+.radioText {
+    color: #1e293b;
+    font-weight: 500;
+    font-size: 0.95rem;
+}
+
+.row {
+    display: flex;
+    gap: 16px;
+}
+
+.row>div {
+    flex: 1;
+}
+
+.budgetInputs {
+    display: flex;
+    gap: 16px;
+}
+
+.subLabel {
+    display: block;
+    font-size: 0.8rem;
+    color: #64748b;
+    margin-bottom: 4px;
+    font-weight: 500;
+}
+
+.footer {
+    display: flex;
+    gap: 16px;
+    justify-content: flex-end;
+    margin-top: 20px;
+}
+
+.primaryBtn,
+.secondaryBtn {
+    padding: 12px 24px;
+    border: none;
+    border-radius: 10px;
+    font-weight: 600;
+    font-size: 0.95rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.primaryBtn {
+    background: #22c55e;
+    color: #ffffff;
+    box-shadow: 0 4px 12px rgba(34, 197, 94, 0.2);
+}
+
+.primaryBtn:hover:not(:disabled) {
+    transform: translateY(-1px);
+    background: #16a34a;
+}
+
+.primaryBtn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.secondaryBtn {
+    background: #ffffff;
+    color: #0f172a;
+    border: 1.5px solid #e2e8f0;
+}
+
+.secondaryBtn:hover {
+    background: #f8fafc;
+    border-color: #cbd5e1;
+}
+
+.error {
+    background: #fef2f2;
+    color: #b91c1c;
+    padding: 14px;
+    border-radius: 10px;
+    border: 1px solid #fecaca;
+    font-weight: 500;
+    font-size: 0.9rem;
+    margin-bottom: 20px;
+}
+
+.success {
+    background: #f0fdf4;
+    color: #15803d;
+    padding: 14px;
+    border-radius: 10px;
+    border: 1px solid #bbf7d0;
+    font-weight: 500;
+    font-size: 0.9rem;
+    margin-bottom: 20px;
+}
+
+@media (max-width: 640px) {
+    .header {
+        padding-top: 40px;
+    }
+
+    .backLink {
+        top: -20px;
+    }
+
+    .row {
+        flex-direction: column;
+        gap: 0;
+    }
+}
