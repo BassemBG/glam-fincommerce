@@ -440,7 +440,10 @@ class CLIPQdrantService:
                     "score": result.score,
                     "clothing": result.payload.get("clothing", {}),
                     "brand": result.payload.get("brand"),
+                    "brand_confidence": result.payload.get("brand_confidence"),
                     "price": result.payload.get("price"),
+                    "price_range": result.payload.get("price_range"),
+                    "image_url": result.payload.get("image_url"),
                     "image_base64": result.payload.get("image_base64")
                 }
                 items.append(item)
