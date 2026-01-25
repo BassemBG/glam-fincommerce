@@ -12,8 +12,8 @@
     align-items: center;
     padding: 0 8px;
     padding-bottom: var(--safe-area-inset-bottom);
-    z-index: 10000;
-    /* Above everything but critical modals */
+    z-index: 100;
+    /* Above regular content but easily covered by overlays */
 }
 
 .navItem {

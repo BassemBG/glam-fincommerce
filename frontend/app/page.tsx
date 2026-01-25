@@ -251,87 +251,89 @@ export default function Home() {
   }
 
   return (
-    <div className={`${styles.dashboard} ${isSelectionMode ? styles.selectionActive : ''}`}>
-      <header className={styles.header}>
-        <div className={styles.headerTop}>
-          <h1>{isSelectionMode ? "Select Pieces" : "My Closet"}</h1>
-          {isSelectionMode && (
-            <button className={styles.cancelBtn} onClick={() => {
-              setIsSelectionMode(false);
-              setSelectedForOutfit([]);
-            }}>Done</button>
+    <>
+      <div className={`${styles.dashboard} ${isSelectionMode ? styles.selectionActive : ''} animate-fade-in`}>
+        <header className={styles.header}>
+          <div className={styles.headerTop}>
+            <h1>{isSelectionMode ? "Select Pieces" : "My Closet"}</h1>
+            {isSelectionMode && (
+              <button className={styles.cancelBtn} onClick={() => {
+                setIsSelectionMode(false);
+                setSelectedForOutfit([]);
+              }}>Done</button>
+            )}
+          </div>
+          {!isSelectionMode && (
+            <div className={styles.stats}>
+              <div className={styles.statCard}>
+                <span className={styles.statValue}>{items.length}</span>
+                <span className={styles.statLabel}>Items</span>
+              </div>
+              <div className={styles.statCard}>
+                <span className={styles.statValue}>0</span>
+                <span className={styles.statLabel}>Outfits</span>
+              </div>
+            </div>
           )}
-        </div>
+        </header>
+
         {!isSelectionMode && (
-          <div className={styles.stats}>
-            <div className={styles.statCard}>
-              <span className={styles.statValue}>{items.length}</span>
-              <span className={styles.statLabel}>Items</span>
-            </div>
-            <div className={styles.statCard}>
-              <span className={styles.statValue}>0</span>
-              <span className={styles.statLabel}>Outfits</span>
-            </div>
+          <div className={styles.filters}>
+            <button className={`${styles.filterBtn} ${styles.active}`}>All</button>
+            <button className={styles.filterBtn}>Tops</button>
+            <button className={styles.filterBtn}>Bottoms</button>
+            <button className={styles.filterBtn}>Dresses</button>
+            <button className={styles.filterBtn}>Shoes</button>
           </div>
         )}
-      </header>
 
-      {!isSelectionMode && (
-        <div className={styles.filters}>
-          <button className={`${styles.filterBtn} ${styles.active}`}>All</button>
-          <button className={styles.filterBtn}>Tops</button>
-          <button className={styles.filterBtn}>Bottoms</button>
-          <button className={styles.filterBtn}>Dresses</button>
-          <button className={styles.filterBtn}>Shoes</button>
-        </div>
-      )}
-
-      {loading ? (
-        <div className={styles.loadingState}>
-          <div className={styles.spinner}></div>
-          <p>Loading your wardrobe...</p>
-        </div>
-      ) : (
-        <div className={styles.grid}>
-          {items.map((item) => (
-            <div
-              key={item.id}
-              className={`${styles.card} ${isSelectionMode ? styles.jiggle : ''} ${selectedForOutfit.includes(item.id) ? styles.selected : ''}`}
-              onMouseDown={() => handleTouchStart(item.id)}
-              onMouseUp={handleTouchEnd}
-              onMouseLeave={handleTouchEnd}
-              onTouchStart={() => handleTouchStart(item.id)}
-              onTouchEnd={handleTouchEnd}
-              onClick={() => {
-                if (isSelectionMode) {
-                  toggleItemSelection(item.id);
-                } else {
-                  setSelectedItem(item);
-                }
-              }}
-            >
-              <div className={styles.imageWrapper}>
-                <img src={item.mask_url || item.image_url} alt={item.sub_category || 'Clothing'} className={styles.image} />
-                {isSelectionMode && (
-                  <div className={styles.selectionIndicator}>
-                    {selectedForOutfit.includes(item.id) ? "✓" : ""}
-                  </div>
-                )}
+        {loading ? (
+          <div className={styles.loadingState}>
+            <div className={styles.spinner}></div>
+            <p>Loading your wardrobe...</p>
+          </div>
+        ) : (
+          <div className={styles.grid}>
+            {items.map((item) => (
+              <div
+                key={item.id}
+                className={`${styles.card} ${isSelectionMode ? styles.jiggle : ''} ${selectedForOutfit.includes(item.id) ? styles.selected : ''}`}
+                onMouseDown={() => handleTouchStart(item.id)}
+                onMouseUp={handleTouchEnd}
+                onMouseLeave={handleTouchEnd}
+                onTouchStart={() => handleTouchStart(item.id)}
+                onTouchEnd={handleTouchEnd}
+                onClick={() => {
+                  if (isSelectionMode) {
+                    toggleItemSelection(item.id);
+                  } else {
+                    setSelectedItem(item);
+                  }
+                }}
+              >
+                <div className={styles.imageWrapper}>
+                  <img src={item.mask_url || item.image_url} alt={item.sub_category || 'Clothing'} className={styles.image} />
+                  {isSelectionMode && (
+                    <div className={styles.selectionIndicator}>
+                      {selectedForOutfit.includes(item.id) ? "✓" : ""}
+                    </div>
+                  )}
+                </div>
+                <div className={styles.itemInfo}>
+                  <span className={styles.itemSub}>{item.sub_category || item.category}</span>
+                  <span className={styles.itemCategory}>{item.body_region.replace('_', ' ')}</span>
+                </div>
               </div>
-              <div className={styles.itemInfo}>
-                <span className={styles.itemSub}>{item.sub_category || item.category}</span>
-                <span className={styles.itemCategory}>{item.body_region.replace('_', ' ')}</span>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
+            ))}
+          </div>
+        )}
 
-      {isSelectionMode && selectedForOutfit.length > 0 && (
-        <button className={styles.floatingActionBtn} onClick={handleCreateOutfit}>
-          Create Outfit ({selectedForOutfit.length})
-        </button>
-      )}
+        {isSelectionMode && selectedForOutfit.length > 0 && (
+          <button className={styles.floatingActionBtn} onClick={handleCreateOutfit}>
+            Create Outfit ({selectedForOutfit.length})
+          </button>
+        )}
+      </div>
 
       {/* Animation Magic */}
       {isAnimating && (
@@ -382,6 +384,7 @@ export default function Home() {
       {selectedItem && !isSelectionMode && (
         <div className={styles.overlay} onClick={() => setSelectedItem(null)}>
           <div className={styles.detailCard} onClick={e => e.stopPropagation()}>
+            <div className={styles.sheetHandle}></div>
             <button className={styles.closeBtn} onClick={() => setSelectedItem(null)}>✕</button>
 
             <div className={styles.detailHeader}>
@@ -466,6 +469,6 @@ export default function Home() {
           }}
         />
       )}
-    </div>
+    </>
   );
 }
