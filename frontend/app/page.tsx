@@ -29,14 +29,6 @@ interface ClothingItem {
 
 export default function Home() {
   const router = useRouter();
-  // Always send root traffic to auth entry (login/signup)
-  useEffect(() => {
-    router.replace('/auth/login');
-  }, [router]);
-
-  // Prevent rendering the rest of the page when redirecting
-  return null;
-
   const [selectedItem, setSelectedItem] = useState<ClothingItem | null>(null);
   const [isSelectionMode, setIsSelectionMode] = useState(false);
   const [selectedForOutfit, setSelectedForOutfit] = useState<string[]>([]);

@@ -131,7 +131,7 @@ export default function OnboardingPage() {
       if (typeof window !== 'undefined') {
         localStorage.removeItem('needsOnboarding');
       }
-      router.push("/");
+      router.push("/settings");
     } catch (err: any) {
       setError(err.message || "Something went wrong");
     } finally {
