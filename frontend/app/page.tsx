@@ -35,6 +35,16 @@ export default function Home() {
   const [isAnimating, setIsAnimating] = useState(false);
   const [showSparks, setShowSparks] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [statusMessage, setStatusMessage] = useState("");
+
+  const statusMessages = [
+    "Analyzing garment draping...",
+    "Synthesizing lighting environment...",
+    "Perfecting your virtual fit...",
+    "Rendering AI simulation...",
+    "Finalizing your curated look..."
+  ];
   const [showTryOn, setShowTryOn] = useState(false);
   const [userPhoto, setUserPhoto] = useState<string | null>(null);
   const [items, setItems] = useState<ClothingItem[]>([]);
@@ -110,6 +120,9 @@ export default function Home() {
 
   const handleCreateOutfit = async () => {
     setIsAnimating(true);
+    setShowSparks(false);
+    setShowSuccess(false);
+    setIsProcessing(false);
 
     // Build outfit data from selected items
     const selectedItems = items.filter(item => selectedForOutfit.includes(item.id));
@@ -120,8 +133,23 @@ export default function Home() {
       vibe: selectedItems[0]?.metadata_json?.vibe || "chic"
     };
 
+    // Step 1: Animation of pieces flying into open doors
+    await new Promise(resolve => setTimeout(resolve, 1800));
+
+    // Step 2: Close doors and start processing
+    setShowSparks(true);
+    setIsProcessing(true);
+
+    // Rotate messages
+    let msgIndex = 0;
+    setStatusMessage(statusMessages[0]);
+    const msgInterval = setInterval(() => {
+      msgIndex = (msgIndex + 1) % statusMessages.length;
+      setStatusMessage(statusMessages[msgIndex]);
+    }, 4000);
+
     try {
-      // Save outfit to backend
+      // Save outfit and generate Try-on
       const response = await authFetch(API.outfits.save, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -133,25 +161,25 @@ export default function Home() {
       }
     } catch (err) {
       console.error('Error saving outfit:', err);
+    } finally {
+      clearInterval(msgInterval);
     }
 
+    // Step 3: Success state!
+    setIsProcessing(false);
+    setShowSuccess(true);
+
     setTimeout(() => {
-      setShowSparks(true);
-      setTimeout(() => {
-        setShowSuccess(true);
-        setTimeout(() => {
-          setIsAnimating(false);
-          setIsSelectionMode(false);
-          if (userPhoto) {
-            setShowTryOn(true);
-          } else {
-            setSelectedForOutfit([]);
-          }
-          setShowSparks(false);
-          setShowSuccess(false);
-        }, 2500);
-      }, 1000);
-    }, 2000);
+      setIsAnimating(false);
+      setIsSelectionMode(false);
+      if (userPhoto) {
+        setShowTryOn(true);
+      } else {
+        setSelectedForOutfit([]);
+      }
+      setShowSparks(false);
+      setShowSuccess(false);
+    }, 2500);
   };
 
   const [isDeleting, setIsDeleting] = useState(false);
@@ -305,9 +333,18 @@ export default function Home() {
           {!showSuccess ? (
             <div className={styles.magicContainer}>
               <div className={`${styles.closetDoor} ${showSparks ? styles.closed : styles.open}`}>
+                {isProcessing && <div className={styles.aiAura}></div>}
                 <div className={styles.doorLeft}></div>
                 <div className={styles.doorRight}></div>
               </div>
+
+              {isProcessing && (
+                <div className={styles.processingInfo}>
+                  <div className={styles.processingPulse}></div>
+                  <p className={styles.processingText}>{statusMessage}</p>
+                </div>
+              )}
+
               <div className={styles.flyingPieces}>
                 {selectedForOutfit.map((id, idx) => {
                   const item = items.find(i => i.id === id);
