@@ -353,64 +353,140 @@ Output a single photorealistic image of the person wearing all the provided clot
             "bytes": img_bytes
         }
     
+    async def resolve_image_url(self, url: str) -> str:
+        """
+        If the URL is a web page, try to extract the primary product image/og:image.
+        Otherwise return the URL as is.
+        """
+        if not url.startswith(("http://", "https://")):
+            return url
+            
+        # If it already looks like an image, don't waste time fetching HTML
+        if any(url.lower().endswith(ext) for ext in [".jpg", ".jpeg", ".png", ".webp", ".avif"]):
+            return url
+            
+        try:
+            import httpx
+            import re
+            
+            headers = {
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+            }
+
+            async with httpx.AsyncClient(follow_redirects=True, timeout=10.0) as client:
+                response = await client.get(url, headers=headers)
+                if response.status_code != 200:
+                    return url
+                
+                content_type = response.headers.get("Content-Type", "").lower()
+                if "image" in content_type:
+                    return url # It's actually an image
+                
+                # It's likely HTML. Try to find meta tags.
+                html = response.text
+                
+                # 1. Look for og:image
+                og_match = re.search(r'<meta[^>]*property=["\']og:image["\'][^>]*content=["\']([^"\']+)["\']', html)
+                if not og_match:
+                    og_match = re.search(r'<meta[^>]*content=["\']([^"\']+)["\'][^>]*property=["\']og:image["\']', html)
+                
+                if og_match:
+                    image_url = og_match.group(1)
+                    if not image_url.startswith("http"):
+                        from urllib.parse import urljoin
+                        image_url = urljoin(url, image_url)
+                    print(f"[DEBUG] Resolved {url[:50]}... to og:image: {image_url}")
+                    return image_url
+                
+                # 2. Look for twitter:image
+                tw_match = re.search(r'<meta[^>]*name=["\']twitter:image["\'][^>]*content=["\']([^"\']+)["\']', html)
+                if tw_match:
+                    image_url = tw_match.group(1)
+                    if not image_url.startswith("http"):
+                        from urllib.parse import urljoin
+                        image_url = urljoin(url, image_url)
+                    return image_url
+                
+            return url # Fallback to original
+        except Exception as e:
+            logging.error(f"Error resolving image from URL {url[:50]}: {e}")
+            return url
+
     async def _load_image(self, image_path: str) -> Optional[Image.Image]:
-        """Load an image from a URL, local path, or base64 data."""
+        """Load an image from a URL, local path, or base64 data using robust downloading."""
         if not image_path:
             return None
             
+        # Resolve HTML pages to images if needed
+        if image_path.startswith(("http://", "https://")):
+            image_path = await self.resolve_image_url(image_path)
+            
         print(f"[DEBUG] Loading image: {image_path[:70]}...")
         try:
-            # 1. Handle base64 data URIs (e.g., data:image/jpeg;base64,...)
+            # 1. Handle base64 data URIs
             if image_path.startswith("data:image"):
-                print(f"[DEBUG] Detected base64 data URI")
                 import base64
                 try:
                     header, encoded = image_path.split(",", 1)
                     image_data = base64.b64decode(encoded)
-                    img = Image.open(io.BytesIO(image_data))
-                    print(f"[DEBUG] Decoded base64 successfully, size: {img.size}")
-                    return img
+                    return Image.open(io.BytesIO(image_data))
                 except Exception as e:
-                    print(f"[DEBUG] Base64 decode failed: {str(e)}")
                     logging.error(f"Failed to decode base64 data URI: {e}")
                     return None
             
-            # 2. Handle raw base64 strings (if they don't look like URLs or paths)
+            # 2. Handle raw base64 strings
             if not image_path.startswith(("http", "/")) and len(image_path) > 100:
                 import base64
                 try:
                     image_data = base64.b64decode(image_path)
                     return Image.open(io.BytesIO(image_data))
                 except Exception:
-                    # Not base64, fall through
                     pass
 
-            # 3. Convert localhost URLs to local file paths to avoid self-request deadlock
+            # 3. Handle Localhost conversion
             if "localhost" in image_path or "127.0.0.1" in image_path:
                 from urllib.parse import urlparse
                 parsed = urlparse(image_path)
-                image_path = parsed.path  # e.g., /uploads/filename.jpg
+                image_path = parsed.path
             
-            # 4. Handle remote URLs
+            # 4. Handle remote URLs with Robust Downloader
             if image_path.startswith(("http://", "https://")):
-                response = requests.get(image_path, timeout=10)
-                response.raise_for_status()
-                return Image.open(io.BytesIO(response.content))
+                import httpx
+                
+                # Browser-like headers to bypass simple anti-bot blocks
+                headers = {
+                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+                    "Accept": "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8",
+                    "Accept-Language": "en-US,en;q=0.9",
+                    "Referer": "https://www.google.com/"
+                }
+
+                async with httpx.AsyncClient(follow_redirects=True, timeout=15.0) as client:
+                    response = await client.get(image_path, headers=headers)
+                    
+                    if response.status_code != 200:
+                        logging.warning(f"Failed to download image from {image_path[:50]}: HTTP {response.status_code}")
+                        return None
+                    
+                    # Verify it's actually an image
+                    content_type = response.headers.get("Content-Type", "").lower()
+                    if "html" in content_type or not ("image" in content_type):
+                        logging.warning(f"URL is not a direct image: {image_path[:50]} (Type: {content_type})")
+                        return None
+                        
+                    return Image.open(io.BytesIO(response.content))
             
             # 5. Handle local paths
             else:
-                # Try relative to upload_dir
                 rel_path = image_path.replace("/uploads/", "").lstrip("/")
                 local_path = os.path.join(self.upload_dir, rel_path)
                 
                 if not os.path.exists(local_path):
-                    # Try absolute or relative to CWD
                     local_path = image_path
                 
                 if os.path.exists(local_path):
                     return Image.open(local_path)
-                else:
-                    logging.debug(f"Image info: Not a file, not a URL: {image_path[:50]}...")
                     
         except Exception as e:
             logging.error(f"Failed to load image {image_path[:100]}...: {e}")

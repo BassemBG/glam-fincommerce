@@ -141,7 +141,8 @@ async def browse_internet_for_fashion(query: str, user_id: str, max_price: Optio
                     "api_key": tavily_api_key,
                     "query": search_query,
                     "search_depth": "advanced",
-                    "max_results": 5
+                    "max_results": 5,
+                    "include_images": True
                 }
             )
             
@@ -311,13 +312,14 @@ async def visualize_outfit(user_id: str, item_ids: Optional[List[str]] = None, i
                 })
 
         if not clothing_dicts:
-            return "No items provided for visualization. Please provide item_ids or image_urls."
+            return "No valid items or images provided for visualization. Please provide item_ids or image_urls."
             
+        # The generator will now automatically resolve HTML pages to images
         result = await tryon_generator.generate_tryon_image(user.full_body_image, clothing_dicts)
         if result and result.get("url"):
             return f"Visualization generated: {result['url']}. Tell the user: 'I’ve visualized this look on you! [View it here]({result['url']})'"
         else:
-            return "I tried to generate a visualization but something went wrong. I can still describe the look for you!"
+            return "I tried to generate a visualization but I couldn't resolve the images from the links provided. Please make sure the links are direct product pages or images!"
             
     finally:
         db.close()
