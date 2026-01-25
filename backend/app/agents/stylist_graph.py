@@ -143,16 +143,23 @@ async def call_model(state: AgentState):
 
         Response Format (Strictly JSON):
         {{
-          "response": "Your conversational message here. If you visualized something, RENDER it as: ![Visualization]({{result_url}})",
+          "response": "Your conversational message here. If You visualized something, RENDER it as: ![Visualization](https://....png|.jpeg|.jpg). Tell the user to confirm the purchase on their screen if you initiated one.",
           "images": ["List of direct 'Image URL' strings found in tool results"],
           "suggested_outfits": [
             {{
               "name": "Outfit Name",
               "score": 9.5,
               "image_url": "The 'Visual Link' URL",
-              "item_details": [{{ "id": "uuid", "sub_category": "jeans", "image_url": "URL" }}]
+              "item_details": [{{ "id": "id", "sub_category": "jeans", "image_url": "URL" }}]
             }}
-          ]
+          ],
+          "wallet_confirmation": {{
+            "required": false,
+            "item_name": "...",
+            "price": 0.0,
+            "currency": "...",
+            "current_balance": 0.0
+          }}
         }}
         
         Autonomous Reasoning:

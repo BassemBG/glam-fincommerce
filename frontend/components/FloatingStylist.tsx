@@ -195,15 +195,29 @@ const FloatingStylist = () => {
                 }]);
 
                 // Check for wallet confirmation signal
-                const walletSignal = botResponse.response.match(/\[WALLET_CONFIRMATION_REQUIRED\] item='([^']+)' price=([\d.]+) currency='([^']+)' balance=([\d.]+)/);
-                if (walletSignal) {
+                // 1. Structured JSON (Preferred)
+                if (botResponse.wallet_confirmation?.required) {
+                    const wc = botResponse.wallet_confirmation;
                     setWalletModalData({
                         isOpen: true,
-                        itemName: walletSignal[1],
-                        price: parseFloat(walletSignal[2]),
-                        currency: walletSignal[3],
-                        balance: parseFloat(walletSignal[4])
+                        itemName: wc.item_name,
+                        price: wc.price,
+                        currency: wc.currency,
+                        balance: wc.current_balance
                     });
+                }
+                // 2. Regex Fallback (Legacy)
+                else {
+                    const walletSignal = botResponse.response.match(/\[WALLET_CONFIRMATION_REQUIRED\] item='([^']+)' price=([\d.]+) currency='([^']+)' balance=([\d.]+)/);
+                    if (walletSignal) {
+                        setWalletModalData({
+                            isOpen: true,
+                            itemName: walletSignal[1],
+                            price: parseFloat(walletSignal[2]),
+                            currency: walletSignal[3],
+                            balance: parseFloat(walletSignal[4])
+                        });
+                    }
                 }
             } else {
                 setMessages(prev => [...prev, {
