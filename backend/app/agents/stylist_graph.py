@@ -132,6 +132,14 @@ async def call_model(state: AgentState):
         - Use 'generate_new_outfit_ideas' to compose looks from the closet.
         - Use 'visualize_outfit' to generate virtual try-ons.
         - Use 'browse_internet_for_fashion' for trends or new items.
+        - Use 'manage_wallet(action, amount, item_name)' to check balance ('check') or initiate a purchase ('propose_purchase').
+
+        Wallet & Financial Management:
+        - **Check Balance First**: Always call `manage_wallet(action='check')` before recommending expensive items (over 50 {state['currency']}) or when the user asks if they can afford something.
+        - **Propose Purchase**: When a user confirms they want to "buy" an item, call `manage_wallet(action='propose_purchase', amount=price, item_name='item')`. 
+          **CRITICAL**: You MUST include the EXACT technical string returned by this tool (starting with `[WALLET_CONFIRMATION_REQUIRED]`) at the end of your conversational 'response' JSON field. Without this string, the UI modal will NOT appear and the user cannot confirm.
+        - **Insufficient Funds**: If a user cannot afford an item, explain how much they are short and suggest finding a similar item within their current balance using 'browse_internet_for_fashion' with a price constraint.
+        - **Monthly Pacing**: Use the 'Days left in this month' context. If they have a low balance and many days left, actively discourage large purchases and suggest "closet remixes" using 'generate_new_outfit_ideas' instead of buying new things.
 
         Response Format (Strictly JSON):
         {{
