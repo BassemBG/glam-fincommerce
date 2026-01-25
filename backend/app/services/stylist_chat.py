@@ -61,16 +61,31 @@ class StylistChatAgent:
             try:
                 # Attempt to parse if looks like JSON
                 import json
+                import re
                 text = response_text.strip()
-                if text.startswith("```json"):
-                    text = text.replace("```json", "", 1).rsplit("```", 1)[0].strip()
-                elif text.startswith("```"):
-                    text = text.split("```")[1]
-                    if text.startswith("json"): text = text[4:]
-                    text = text.strip()
                 
-                parsed = json.loads(text)
+                # Robust extraction: Look for anything between ```json and ``` or just { and }
+                json_match = re.search(r"```json\s*(.*?)\s*```", text, re.DOTALL)
+                if not json_match:
+                    json_match = re.search(r"```\s*(.*?)\s*```", text, re.DOTALL)
+                
+                if json_match:
+                    content_to_parse = json_match.group(1).strip()
+                else:
+                    # Try to find the first '{' and last '}'
+                    start = text.find('{')
+                    end = text.rfind('}')
+                    if start != -1 and end != -1:
+                        content_to_parse = text[start:end+1]
+                    else:
+                        content_to_parse = text
+
+                parsed = json.loads(content_to_parse)
                 print(f"[DEBUG] Successfully parsed JSON: {parsed.keys()}")
+                
+                # Ensure it has the required structure
+                if "response" not in parsed:
+                     parsed["response"] = response_text # Fallback
                 return parsed
             except Exception as parse_err:
                 print(f"[DEBUG] JSON parsing failed: {parse_err}")

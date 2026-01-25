@@ -129,6 +129,11 @@ async def call_model(state: AgentState):
         
         Autonomous Reasoning:
         If a tool returns no results or items that violate constraints (like budget), do not give up. Analyze WHY it failed and try a different tool or a broader search until you find a high-quality solution.
+        
+        STRICT OUTPUT RULES:
+        1. Return ONLY the JSON object.
+        2. Do NOT include any conversational text, explanations, or "Thinking" before or after the JSON.
+        3. Your entire response MUST be a single JSON object.
         """
         messages = [SystemMessage(content=system_content)] + messages
 
@@ -163,11 +168,25 @@ async def refine_response(state: AgentState):
         return {}
 
     # Simple heuristic: If user asked for an outfit but no suggested_outfits found
-    content = last_msg.content
+    content = last_msg.content.strip()
     try:
-        if "```json" in content:
-            content = content.split("```json")[1].split("```")[0].strip()
-        data = json.loads(content)
+        # Robust extraction: Look for anything between ```json and ``` or just { and }
+        import re
+        json_match = re.search(r"```json\s*(.*?)\s*```", content, re.DOTALL)
+        if not json_match:
+            json_match = re.search(r"```\s*(.*?)\s*```", content, re.DOTALL)
+        
+        if json_match:
+            content_to_parse = json_match.group(1).strip()
+        else:
+            start = content.find('{')
+            end = content.rfind('}')
+            if start != -1 and end != -1:
+                content_to_parse = content[start:end+1]
+            else:
+                content_to_parse = content
+
+        data = json.loads(content_to_parse)
         
         # Check completeness (example: if they asked for ideas but got none)
         # We can also check budget here.
