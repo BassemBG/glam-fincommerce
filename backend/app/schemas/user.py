@@ -27,6 +27,7 @@ class UserOnboarding(BaseModel):
     styled_combinations: Optional[str] = None
     min_budget: Optional[float] = None
     max_budget: Optional[float] = None
+    wallet_balance: Optional[float] = 0.0
 
 class UserOut(BaseModel):
     id: str
@@ -43,6 +44,7 @@ class UserOut(BaseModel):
     buying_priorities: List[str] = []
     min_budget: Optional[float] = None
     max_budget: Optional[float] = None
+    wallet_balance: Optional[float] = 0.0
     onboarding_completed: bool = False
 
     class Config:

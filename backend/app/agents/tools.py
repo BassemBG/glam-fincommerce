@@ -141,7 +141,7 @@ async def browse_internet_for_fashion(query: str, user_id: str, max_price: Optio
                     "api_key": tavily_api_key,
                     "query": search_query,
                     "search_depth": "advanced",
-                    "max_results": 5,
+                    "max_results": 10,
                     "include_images": True
                 }
             )
@@ -547,3 +547,35 @@ async def evaluate_purchase_match(user_id: str, item_description: str, price: Op
         
     except Exception as e:
         return f"Evaluation error: {str(e)}"
+
+@tool
+def manage_wallet(user_id: str, action: str, amount: Optional[float] = None, item_name: Optional[str] = None) -> str:
+    """
+    Manage the user's fashion wallet.
+    - action='check': Check the current balance.
+    - action='propose_purchase': Suggest buying an item. This WILL NOT subtract money, 
+      but will trigger a confirmation modal on the frontend.
+    """
+    print(f"\n[TOOL CALL] manage_wallet(user_id='{user_id}', action='{action}', amount={amount}, item_name={item_name})")
+    db = SessionLocal()
+    try:
+        user = db.query(User).filter(User.id == user_id).first()
+        if not user:
+            return "User not found."
+            
+        if action == "check":
+            return f"Current wallet balance: {user.wallet_balance} {user.currency}."
+            
+        if action == "propose_purchase":
+            if amount is None or item_name is None:
+                return "Please provide both amount and item_name for a purchase proposal."
+            
+            if user.wallet_balance < amount:
+                return f"Insufficient funds. This item costs {amount} {user.currency}, but your balance is {user.wallet_balance} {user.currency}."
+                
+            # We return a special structured response that the frontend/agent can parse
+            return f"[WALLET_CONFIRMATION_REQUIRED] item='{item_name}' price={amount} currency='{user.currency}' balance={user.wallet_balance}"
+            
+        return "Invalid action. Use 'check' or 'propose_purchase'."
+    finally:
+        db.close()

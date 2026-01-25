@@ -31,6 +31,7 @@ export default function OnboardingPage() {
     buying_priorities: [] as string[],
     min_budget: "",
     max_budget: "",
+    wallet_balance: "",
   });
 
   const [pinterestLoading, setPinterestLoading] = useState(false);
@@ -118,6 +119,7 @@ export default function OnboardingPage() {
           buying_priorities: formData.buying_priorities,
           min_budget: formData.min_budget ? parseFloat(formData.min_budget) : null,
           max_budget: formData.max_budget ? parseFloat(formData.max_budget) : null,
+          wallet_balance: formData.wallet_balance ? parseFloat(formData.wallet_balance) : 0.0,
         }),
       });
 
@@ -338,25 +340,36 @@ export default function OnboardingPage() {
             </div>
 
             <div className={styles.budgetRangeGroup} style={{ marginTop: '32px' }}>
-              <label>Typical Monthly Budget for Clothes (optional)</label>
+              <label>Financial Pacing (optional)</label>
               <div className={styles.budgetInputs}>
                 <div className={styles.formGroup}>
-                  <label className={styles.subLabel}>Min</label>
+                  <label className={styles.subLabel}>Starting Wallet Balance</label>
                   <input
                     type="number"
-                    value={formData.min_budget}
-                    onChange={(e) => setFormData({ ...formData, min_budget: e.target.value })}
-                    placeholder="0"
+                    value={formData.wallet_balance}
+                    onChange={(e) => setFormData({ ...formData, wallet_balance: e.target.value })}
+                    placeholder="e.g., 500"
                   />
                 </div>
-                <div className={styles.formGroup}>
-                  <label className={styles.subLabel}>Max</label>
-                  <input
-                    type="number"
-                    value={formData.max_budget}
-                    onChange={(e) => setFormData({ ...formData, max_budget: e.target.value })}
-                    placeholder="500"
-                  />
+                <div style={{ display: 'flex', gap: '16px', width: '100%', marginTop: '16px' }}>
+                  <div className={styles.formGroup} style={{ flex: 1 }}>
+                    <label className={styles.subLabel}>Monthly Min Budget</label>
+                    <input
+                      type="number"
+                      value={formData.min_budget}
+                      onChange={(e) => setFormData({ ...formData, min_budget: e.target.value })}
+                      placeholder="0"
+                    />
+                  </div>
+                  <div className={styles.formGroup} style={{ flex: 1 }}>
+                    <label className={styles.subLabel}>Monthly Max Budget</label>
+                    <input
+                      type="number"
+                      value={formData.max_budget}
+                      onChange={(e) => setFormData({ ...formData, max_budget: e.target.value })}
+                      placeholder="500"
+                    />
+                  </div>
                 </div>
               </div>
             </div>

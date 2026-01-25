@@ -36,6 +36,7 @@ class User(SQLModel, table=True):
     min_budget: Optional[float] = Field(default=None)
     max_budget: Optional[float] = Field(default=None)
     currency: str = Field(default="TND", max_length=10)
+    wallet_balance: float = Field(default=0.0)
     
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)

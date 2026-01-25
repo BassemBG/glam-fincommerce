@@ -37,6 +37,7 @@ export default function ProfileEditorPage() {
         buying_priorities: [] as string[],
         min_budget: "",
         max_budget: "",
+        wallet_balance: "",
     });
 
     useEffect(() => {
@@ -61,6 +62,7 @@ export default function ProfileEditorPage() {
                         buying_priorities: data.buying_priorities || [],
                         min_budget: data.min_budget?.toString() || "",
                         max_budget: data.max_budget?.toString() || "",
+                        wallet_balance: data.wallet_balance?.toString() || "0.0",
                     });
                 }
             } catch (err) {
@@ -97,6 +99,7 @@ export default function ProfileEditorPage() {
                     age: formData.age ? parseInt(formData.age) : null,
                     min_budget: formData.min_budget ? parseFloat(formData.min_budget) : null,
                     max_budget: formData.max_budget ? parseFloat(formData.max_budget) : null,
+                    wallet_balance: formData.wallet_balance ? parseFloat(formData.wallet_balance) : 0.0,
                 }),
             });
 
@@ -220,6 +223,16 @@ export default function ProfileEditorPage() {
                     <div className={styles.step}>
                         <h2>💸 Financial Preferences</h2>
                         <div className={styles.formGroup}>
+                            <label>Current Wallet Balance</label>
+                            <input
+                                type="number"
+                                value={formData.wallet_balance}
+                                onChange={(e) => setFormData({ ...formData, wallet_balance: e.target.value })}
+                                placeholder="e.g. 1000"
+                            />
+                        </div>
+
+                        <div className={styles.formGroup} style={{ marginTop: '20px' }}>
                             <label>Monthly Budget Range</label>
                             <div className={styles.budgetInputs}>
                                 <div className={styles.formGroup}>

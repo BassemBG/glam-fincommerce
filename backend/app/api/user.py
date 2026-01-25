@@ -147,6 +147,7 @@ def complete_onboarding(
     user.styled_combinations = onboarding_data.styled_combinations
     user.min_budget = onboarding_data.min_budget
     user.max_budget = onboarding_data.max_budget
+    user.wallet_balance = onboarding_data.wallet_balance if onboarding_data.wallet_balance is not None else 0.0
     user.onboarding_completed = True
     
     db.add(user)
@@ -215,6 +216,7 @@ def update_user_settings(
     if "currency" in settings_data: user.currency = settings_data["currency"]
     if "min_budget" in settings_data: user.min_budget = settings_data["min_budget"]
     if "max_budget" in settings_data: user.max_budget = settings_data["max_budget"]
+    if "wallet_balance" in settings_data: user.wallet_balance = settings_data["wallet_balance"]
     
     # Profile fields
     if "gender" in settings_data: user.gender = settings_data["gender"]
@@ -255,7 +257,48 @@ def get_me(current_user: User = Depends(get_current_user)):
         "min_budget": current_user.min_budget,
         "max_budget": current_user.max_budget,
         "currency": current_user.currency,
+        "wallet_balance": current_user.wallet_balance,
         "full_body_image": getattr(current_user, 'full_body_image', None),
         "onboarding_completed": current_user.onboarding_completed,
         "zep_thread_id": getattr(current_user, "zep_thread_id", None),
     }
+
+@router.post("/wallet/topup")
+def topup_wallet(
+    amount: float,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Securely add funds to the user's wallet."""
+    if amount <= 0:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=400, detail="Amount must be positive")
+        
+    current_user.wallet_balance += amount
+    db.add(current_user)
+    db.commit()
+    db.refresh(current_user)
+    return {"balance": current_user.wallet_balance}
+
+@router.post("/wallet/spend")
+def spend_from_wallet(
+    amount: float,
+    item_name: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Deduct funds from the wallet after user confirmation."""
+    if amount <= 0:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=400, detail="Amount must be positive")
+        
+    if current_user.wallet_balance < amount:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=400, detail="Insufficient funds")
+        
+    current_user.wallet_balance -= amount
+    db.add(current_user)
+    db.commit()
+    db.refresh(current_user)
+    
+    return {"status": "success", "new_balance": current_user.wallet_balance, "item": item_name}

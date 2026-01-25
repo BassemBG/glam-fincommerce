@@ -6,6 +6,7 @@ import TryOnVisualizer from './TryOnVisualizer';
 import { API } from '../lib/api';
 import { authFetch } from '../lib/auth';
 import { useAuthGuard } from '../lib/useAuthGuard';
+import { WalletConfirmationModal } from './WalletConfirmationModal';
 
 const FloatingStylist = () => {
     const token = useAuthGuard();
@@ -21,6 +22,19 @@ const FloatingStylist = () => {
     const [stagedFile, setStagedFile] = useState<File | null>(null);
     const [stagedPreview, setStagedPreview] = useState<string | null>(null);
     const [user, setUser] = useState<any>(null);
+    const [walletModalData, setWalletModalData] = useState<{
+        isOpen: boolean;
+        itemName: string;
+        price: number;
+        currency: string;
+        balance: number;
+    }>({
+        isOpen: false,
+        itemName: '',
+        price: 0,
+        currency: 'TND',
+        balance: 0
+    });
 
     // Simple markdown renderer for links [text](url) and bold **text**
     const renderMarkdown = (content: string) => {
@@ -36,7 +50,7 @@ const FloatingStylist = () => {
         let parts: (string | React.ReactNode)[] = [content];
 
         // Replace bold
-        parts = parts.flatMap(part => {
+        parts = parts.flatMap((part): (string | React.ReactNode)[] => {
             if (typeof part !== 'string') return [part];
             const bits = part.split(boldRegex);
             return bits.map((bit, i) => i % 2 === 1 ? <strong key={`b-${i}`}>{bit}</strong> : bit);
@@ -179,6 +193,18 @@ const FloatingStylist = () => {
                     images: botResponse.images,
                     suggested_outfits: botResponse.suggested_outfits
                 }]);
+
+                // Check for wallet confirmation signal
+                const walletSignal = botResponse.response.match(/\[WALLET_CONFIRMATION_REQUIRED\] item='([^']+)' price=([\d.]+) currency='([^']+)' balance=([\d.]+)/);
+                if (walletSignal) {
+                    setWalletModalData({
+                        isOpen: true,
+                        itemName: walletSignal[1],
+                        price: parseFloat(walletSignal[2]),
+                        currency: walletSignal[3],
+                        balance: parseFloat(walletSignal[4])
+                    });
+                }
             } else {
                 setMessages(prev => [...prev, {
                     role: 'assistant',
@@ -212,7 +238,11 @@ const FloatingStylist = () => {
                             <div className={styles.headerTitle}>
                                 <div className={styles.statusDot}></div>
                                 <h3>AI Stylist</h3>
-                                {user?.budget_limit && (
+                                {user?.wallet_balance !== undefined ? (
+                                    <span className={styles.budgetBadge}>
+                                        Balance: {user.wallet_balance} {user.currency || 'TND'}
+                                    </span>
+                                ) : user?.budget_limit && (
                                     <span className={styles.budgetBadge}>
                                         Budget: {user.budget_limit} {user.currency || 'TND'}
                                     </span>
@@ -300,6 +330,22 @@ const FloatingStylist = () => {
                     onClose={() => setTryOnData(null)}
                 />
             )}
+
+            <WalletConfirmationModal
+                isOpen={walletModalData.isOpen}
+                onClose={() => setWalletModalData(prev => ({ ...prev, isOpen: false }))}
+                itemName={walletModalData.itemName}
+                price={walletModalData.price}
+                currency={walletModalData.currency}
+                balance={walletModalData.balance}
+                onSuccess={(newBalance) => {
+                    setUser((prev: any) => prev ? { ...prev, wallet_balance: newBalance } : prev);
+                    setMessages(prev => [...prev, {
+                        role: 'assistant',
+                        text: `Great! I've updated your wallet. Your new balance is **${newBalance} ${walletModalData.currency}**. I've added these items to your purchase history!`
+                    }]);
+                }}
+            />
         </>
     );
 };

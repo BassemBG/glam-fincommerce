@@ -22,8 +22,17 @@ class StylistChatAgent:
         db = SessionLocal()
         user = db.query(User).filter(User.id == user_id).first()
         budget = user.budget_limit if user else None
+        wallet_balance = user.wallet_balance if user else 0.0
         currency = user.currency if user else "TND"
         db.close()
+
+        # Calculate Temporal Context
+        from datetime import datetime
+        import calendar
+        now = datetime.now()
+        today_date = now.strftime("%Y-%m-%d")
+        _, last_day = calendar.monthrange(now.year, now.month)
+        days_remaining = last_day - now.day
 
         # Convert simple history to LangChain messages
         langchain_history = []
@@ -40,7 +49,10 @@ class StylistChatAgent:
             "messages": langchain_history,
             "user_id": user_id,
             "budget_limit": budget,
+            "wallet_balance": wallet_balance,
             "currency": currency,
+            "today_date": today_date,
+            "days_remaining": days_remaining,
             "image_data": image_data,
             "intermediate_steps": []
         }

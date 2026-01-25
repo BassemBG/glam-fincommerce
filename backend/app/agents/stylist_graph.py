@@ -17,7 +17,8 @@ from app.agents.tools import (
     filter_saved_outfits,
     get_outfit_details,
     analyze_fashion_influence,
-    evaluate_purchase_match
+    evaluate_purchase_match,
+    manage_wallet
 )
 from app.core.config import settings
 import json
@@ -30,7 +31,10 @@ class AgentState(TypedDict):
     messages: Annotated[List[BaseMessage], add_messages]
     user_id: str
     budget_limit: Optional[float]
+    wallet_balance: Optional[float]
     currency: str
+    today_date: str
+    days_remaining: int
     image_data: Optional[bytes] # For multi-modal reasoning
     intermediate_steps: Annotated[List[tuple], "Steps taken by the agent"]
 
@@ -48,7 +52,8 @@ tools = [
     filter_saved_outfits,
     get_outfit_details,
     analyze_fashion_influence,
-    evaluate_purchase_match
+    evaluate_purchase_match,
+    manage_wallet
 ]
 tool_node = ToolNode(tools)
 
@@ -89,9 +94,20 @@ async def call_model(state: AgentState):
                 break
 
     # Inject budget context
-    budget_context = ""
+    financial_context = []
     if state.get("budget_limit") is not None:
-        budget_context = f"Constraint: The user's budget is {state['budget_limit']} {state['currency']}."
+        financial_context.append(f"Monthly Budget Limit: {state['budget_limit']} {state['currency']}")
+    
+    if state.get("wallet_balance") is not None:
+        financial_context.append(f"Current Wallet Balance: {state['wallet_balance']} {state['currency']}")
+    
+    time_context = []
+    if state.get("today_date"):
+        time_context.append(f"Today's Date: {state['today_date']}")
+    if state.get("days_remaining") is not None:
+        time_context.append(f"Days left in this month: {state['days_remaining']}")
+
+    full_context_str = "\n".join(financial_context + time_context)
 
     # Prevent SystemMessage duplication: Only add if not already present
     has_system = any(isinstance(m, SystemMessage) for m in messages)
@@ -99,7 +115,11 @@ async def call_model(state: AgentState):
         system_content = f"""
         You are 'Ava', an advanced AI Virtual Stylist. 
         User Context: ID is '{state['user_id']}'.
-        Current {budget_context}
+        
+        Financial & Temporal Context:
+        {full_context_str}
+        
+        Important: You must use this financial context to advise the user. If they have a low wallet balance and many days left in the month, be more cautious/conservative with expensive recommendations.
         
         Capabilities:
         - Use 'search_closet' for natural language searches.
