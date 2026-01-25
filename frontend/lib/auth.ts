@@ -24,6 +24,9 @@ export const authFetch = async (input: RequestInfo | URL, init: RequestInit = {}
     if (token) {
       headers.set("Authorization", `Bearer ${token}`);
     }
+    if (init.body && !(init.body instanceof FormData) && !headers.has("Content-Type")) {
+      headers.set("Content-Type", "application/json");
+    }
     const response = await fetch(input, { ...init, headers });
     return response;
   } catch (error) {

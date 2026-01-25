@@ -8,6 +8,7 @@ from app.schemas.user import UserOnboarding, UserOut
 from app.core.config import settings
 from app.core.security import ALGORITHM
 from app.services.zep_service import add_onboarding_to_thread, add_onboarding_to_graph, create_zep_thread
+from typing import Dict, Optional, Any
 import uuid
 import os
 import logging
@@ -194,6 +195,24 @@ def complete_onboarding(
         logger.exception(f"[ONBOARDING] ****EXCEPTION**** Failed to push onboarding data to Zep for user {user.id}: {e}")
     
     logger.info(f"[ONBOARDING] ****COMPLETE_ONBOARDING_END**** for user {user.id}")
+    return user
+
+@router.put("/settings")
+def update_user_settings(
+    settings_data: Dict[str, Any],
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Update user-specific settings like budget and currency."""
+    user = current_user
+    if "budget_limit" in settings_data:
+        user.budget_limit = settings_data["budget_limit"]
+    if "currency" in settings_data:
+        user.currency = settings_data["currency"]
+        
+    db.add(user)
+    db.commit()
+    db.refresh(user)
     return user
 
 @router.get("/me")

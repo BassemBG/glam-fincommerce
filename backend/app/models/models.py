@@ -29,6 +29,10 @@ class User(SQLModel, table=True):
     styled_combinations: Optional[str] = None  # Description of past styled combinations
     onboarding_completed: bool = Field(default=False)
     
+    # Financial constraints for AI Stylist
+    budget_limit: Optional[float] = Field(default=None)
+    currency: str = Field(default="TND", max_length=10)
+    
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
 

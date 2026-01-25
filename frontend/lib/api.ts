@@ -14,6 +14,7 @@ export const API = {
     bodyPhoto: `${API_URL}/api/v1/users/body-photo`,
     analyzeProfile: `${API_URL}/api/v1/users/analyze-profile`,
     onboarding: `${API_URL}/api/v1/users/onboarding`,
+    settings: `${API_URL}/api/v1/users/settings`,
   },
   clothing: {
     ingest: `${API_URL}/api/v1/clothing/ingest`,
