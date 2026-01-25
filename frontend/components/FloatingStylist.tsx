@@ -26,7 +26,9 @@ const FloatingStylist = () => {
     const renderMarkdown = (content: string) => {
         if (!content) return null;
 
-        // Match [text](url)
+        // Match ![description](url) - Images first to avoid overlap with links
+        const imageRegex = /!\[([^\]]*)\]\(([^)]+)\)/g;
+        // Match [text](url) - Links
         const linkRegex = /\[([^\]]+)\]\(([^)]+)\)/g;
         // Match **text**
         const boldRegex = /\*\*([^*]+)\*\*/g;
@@ -40,6 +42,29 @@ const FloatingStylist = () => {
             return bits.map((bit, i) => i % 2 === 1 ? <strong key={`b-${i}`}>{bit}</strong> : bit);
         });
 
+        // Replace images
+        parts = parts.flatMap(part => {
+            if (typeof part !== 'string') return [part];
+            const bits = part.split(imageRegex);
+            const elements: (string | React.ReactNode)[] = [];
+            for (let i = 0; i < bits.length; i += 3) {
+                elements.push(bits[i]);
+                if (bits[i + 1] !== undefined) {
+                    elements.push(
+                        <div key={`img-container-${i}`} className={styles.renderedImageContainer}>
+                            <img
+                                key={`img-${i}`}
+                                src={bits[i + 2]}
+                                alt={bits[i + 1] || 'Embedded image'}
+                                className={styles.renderedImage}
+                            />
+                        </div>
+                    );
+                }
+            }
+            return elements;
+        });
+
         // Replace links
         parts = parts.flatMap(part => {
             if (typeof part !== 'string') return [part];
@@ -47,7 +72,7 @@ const FloatingStylist = () => {
             const elements: (string | React.ReactNode)[] = [];
             for (let i = 0; i < bits.length; i += 3) {
                 elements.push(bits[i]);
-                if (bits[i + 1]) {
+                if (bits[i + 1] !== undefined) {
                     elements.push(
                         <a
                             key={`l-${i}`}

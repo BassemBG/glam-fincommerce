@@ -158,7 +158,6 @@
     flex-direction: column;
     gap: 16px;
     min-height: 0;
-    /* Critical for flex scroll */
 }
 
 .message {
@@ -379,4 +378,27 @@
     background: #94a3b8;
     cursor: not-allowed;
     box-shadow: none;
+}
+
+/* Rendered Markdown Images */
+.renderedImageContainer {
+    margin: 10px 0;
+    width: 100%;
+    max-width: 260px;
+    border-radius: 16px;
+    overflow: hidden;
+    border: 1px solid #f1f5f9;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+    transition: transform 0.3s ease;
+}
+
+.renderedImageContainer:hover {
+    transform: scale(1.02);
+}
+
+.renderedImage {
+    width: 100%;
+    height: auto;
+    display: block;
+    object-fit: cover;
 }

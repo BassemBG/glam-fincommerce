@@ -99,7 +99,7 @@ async def call_model(state: AgentState):
 
         Response Format (Strictly JSON):
         {{
-          "response": "Your conversational message here. If you visualized something, include the link as: [View Visualization](url)",
+          "response": "Your conversational message here. If you visualized something, RENDER it as: ![Visualization]({{result_url}})",
           "images": ["List of direct 'Image URL' strings found in 'search_closet' results"],
           "suggested_outfits": [
             {{
@@ -111,7 +111,9 @@ async def call_model(state: AgentState):
           ]
         }}
         
-        Important: Always look for 'Image URL' or 'Visual Link' fields in tool outputs and put them into the structured JSON fields above so the user can see them.
+        Important: 
+        1. Always use markdown image syntax `![Description](url)` in the 'response' field if you want the user to see an image immediately.
+        2. Always look for 'Image URL' or 'Visual Link' fields in tool outputs and put them into the structured JSON fields.
         """
         messages = [SystemMessage(content=system_content)] + messages
 
