@@ -16,9 +16,6 @@ function SettingsContent() {
     const [pinterestMessage, setPinterestMessage] = useState<string | null>(null);
     const [showPinterestInfo, setShowPinterestInfo] = useState(false);
 
-    // Local state for financial settings
-    const [localBudget, setLocalBudget] = useState<string>('');
-    const [localCurrency, setLocalCurrency] = useState<string>('TND');
     const [saveLoading, setSaveLoading] = useState(false);
     const [saveStatus, setSaveStatus] = useState<'idle' | 'success' | 'error'>('idle');
 
@@ -34,9 +31,6 @@ function SettingsContent() {
                 if (res.ok) {
                     const data = await res.json();
                     setUser(data);
-                    // Initialize local state from user data
-                    setLocalBudget(data.budget_limit?.toString() || '');
-                    setLocalCurrency(data.currency || 'TND');
                     // Refresh connection status once user is known
                     checkPinterestStatus();
                 } else {
@@ -120,32 +114,6 @@ function SettingsContent() {
         }
     };
 
-    const handleSaveFinancials = async () => {
-        try {
-            setSaveLoading(true);
-            setSaveStatus('idle');
-            const res = await authFetch(API.users.settings, {
-                method: 'PUT',
-                body: JSON.stringify({
-                    budget_limit: localBudget ? parseFloat(localBudget) : null,
-                    currency: localCurrency
-                })
-            });
-            if (res.ok) {
-                const updatedUser = await res.json();
-                setUser(updatedUser);
-                setSaveStatus('success');
-                setTimeout(() => setSaveStatus('idle'), 3000);
-            } else {
-                setSaveStatus('error');
-            }
-        } catch (err) {
-            console.error("Failed to save financials:", err);
-            setSaveStatus('error');
-        } finally {
-            setSaveLoading(false);
-        }
-    };
 
     const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
@@ -314,45 +282,16 @@ function SettingsContent() {
                     </button>
                 </div>
                 <div className={styles.settingItem}>
-                    <div className={styles.settingInfo} style={{ width: '100%' }}>
-                        <div className={styles.settingHeaderInline}>
-                            <h3>Shopping Budget</h3>
-                            {saveStatus === 'success' && <span className={styles.saveSuccess}>✓ Saved</span>}
-                            {saveStatus === 'error' && <span className={styles.saveError}>✕ Error</span>}
-                        </div>
-                        <div className={styles.budgetRow}>
-                            <input
-                                type="number"
-                                value={localBudget}
-                                onChange={(e) => setLocalBudget(e.target.value)}
-                                placeholder="e.g. 500"
-                                className={styles.budgetInput}
-                            />
-                            <select
-                                value={localCurrency}
-                                onChange={(e) => setLocalCurrency(e.target.value)}
-                                className={styles.currencySelect}
-                            >
-                                <option value="TND">TND</option>
-                                <option value="USD">USD</option>
-                                <option value="EUR">EUR</option>
-                            </select>
-                            <button
-                                className={styles.saveBtn}
-                                onClick={handleSaveFinancials}
-                                disabled={saveLoading}
-                            >
-                                {saveLoading ? <span className={styles.loadingDots}>Saving...</span> : "Save"}
-                            </button>
-                        </div>
-                    </div>
-                </div>
-                <div className={styles.settingItem}>
                     <div className={styles.settingInfo}>
                         <h3>Style Profile</h3>
                         <p>{user?.daily_style || 'Minimalist, Chic'}</p>
                     </div>
-                    <button className={styles.actionBtn}>Edit</button>
+                    <button
+                        className={styles.actionBtn}
+                        onClick={() => router.push('/settings/profile')}
+                    >
+                        Edit
+                    </button>
                 </div>
             </div>
 

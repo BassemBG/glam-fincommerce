@@ -91,18 +91,28 @@ async def search_saved_outfits(query: str, user_id: str) -> str:
         return f"Error searching outfits: {str(e)}"
 
 @tool
-async def browse_internet_for_fashion(query: str, max_price: Optional[float] = None) -> str:
+async def browse_internet_for_fashion(query: str, user_id: str, max_price: Optional[float] = None) -> str:
     """
     Search the internet for fashion items, trends, or prices.
-    Used for spotting new items to buy or checking current fashion trends.
-    Optionally filters by max price.
+    Specialized for spotting new items or trends. Uses user context for localization.
     """
-    print(f"\n[TOOL CALL] browse_internet_for_fashion(query='{query}', max_price={max_price})")
+    print(f"\n[TOOL CALL] browse_internet_for_fashion(query='{query}', user_id='{user_id}', max_price={max_price})")
+    
     tavily_api_key = getattr(settings, 'TAVILY_API_KEY', None)
     if not tavily_api_key:
         return "Internet search is currently unavailable (TAVILY_API_KEY missing)."
 
+    # Get user vitals to extract country for localized search
+    vitals_json = _get_user_vitals_logic(user_id)
+    vitals = json.loads(vitals_json)
+    country = vitals.get("country", "")
+    gender = vitals.get("gender", "")
+
     search_query = query
+    if country:
+        search_query += f" in {country}"
+    if gender:
+        search_query = f"{gender} {search_query}"
     
     # NEW: Translate query to French for broader research
     try:
@@ -112,7 +122,7 @@ async def browse_internet_for_fashion(query: str, max_price: Optional[float] = N
             openai_api_key=settings.AZURE_OPENAI_API_KEY,
             api_version="2024-08-01-preview"
         )
-        translation_prompt = f"Translate the following fashion search query from English to French. Return ONLY the translated text, no quotes or explanations: '{query}'"
+        translation_prompt = f"Translate the following fashion search query from English to French. Return ONLY the translated text, no quotes or explanations: '{search_query}'"
         translation_res = await translator.ainvoke([HumanMessage(content=translation_prompt)])
         translated_query = translation_res.content.strip().strip("'").strip('"')
         print(f"[DEBUG] Translated query: {translated_query}")
@@ -148,12 +158,7 @@ async def browse_internet_for_fashion(query: str, max_price: Optional[float] = N
         logger.error(f"Error in browse_internet_for_fashion tool: {e}")
         return f"Error searching internet: {str(e)}"
 
-@tool
-def get_user_vitals(user_id: str) -> str:
-    """
-    Retrieve user preferences, budget constraints, and current style profile.
-    Always call this when a user asks for recommendations to ensure budget/style constraints are met.
-    """
+def _get_user_vitals_logic(user_id: str) -> str:
     db = SessionLocal()
     try:
         user = db.query(User).filter(User.id == user_id).first()
@@ -162,7 +167,11 @@ def get_user_vitals(user_id: str) -> str:
             
         vitals = {
             "full_name": user.full_name,
+            "gender": user.gender,
+            "country": user.country,
             "budget_limit": user.budget_limit or "Not set",
+            "min_budget": user.min_budget,
+            "max_budget": user.max_budget,
             "currency": user.currency,
             "style_profile": user.style_profile,
             "daily_style": user.daily_style,
@@ -176,6 +185,14 @@ def get_user_vitals(user_id: str) -> str:
         return json.dumps(vitals, indent=2)
     finally:
         db.close()
+
+@tool
+def get_user_vitals(user_id: str) -> str:
+    """
+    Retrieve user preferences, budget constraints, and current style profile.
+    Always call this when a user asks for recommendations to ensure budget/style constraints are met.
+    """
+    return _get_user_vitals_logic(user_id)
 
 @tool
 async def generate_new_outfit_ideas(user_id: str, occasion: str, vibe: str = "chic") -> str:
