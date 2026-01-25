@@ -35,6 +35,7 @@ class Settings(BaseSettings):
     # Azure OpenAI (for AI-powered try-on)
     AZURE_OPENAI_ENDPOINT: str = ""
     AZURE_OPENAI_API_KEY: str = ""
+    AZURE_OPENAI_CHAT_DEPLOYMENT: str = "gpt-4o"
     AZURE_OPENAI_IMAGE_DEPLOYMENT: str = "gpt-image-1.5"
 
     # AWS S3 (optional - for image storage, deprecated in favor of Azure)

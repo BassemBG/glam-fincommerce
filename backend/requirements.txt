@@ -30,3 +30,8 @@ aiofiles
 email-validator
 azure-storage-blob
 openai
+langgraph
+langchain
+langchain-openai
+langchain-community
+langchain-groq
