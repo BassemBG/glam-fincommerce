@@ -15,7 +15,9 @@ from app.agents.tools import (
     filter_closet_items,
     list_all_outfits,
     filter_saved_outfits,
-    get_outfit_details
+    get_outfit_details,
+    analyze_fashion_influence,
+    evaluate_purchase_match
 )
 from app.core.config import settings
 import json
@@ -44,7 +46,9 @@ tools = [
     filter_closet_items,
     list_all_outfits,
     filter_saved_outfits,
-    get_outfit_details
+    get_outfit_details,
+    analyze_fashion_influence,
+    evaluate_purchase_match
 ]
 tool_node = ToolNode(tools)
 
@@ -100,6 +104,8 @@ async def call_model(state: AgentState):
         Capabilities:
         - Use 'search_closet' for natural language searches.
         - Use 'filter_closet_items(category, region, color, vibe)' for exact field-based filtering.
+        - Use 'analyze_fashion_influence' to see high-level style themes and "Gaps" based on Pinterest.
+        - Use 'evaluate_purchase_match(item_description, price)' to get a professional "Buy/Skip" recommendation based on closet and influences.
         - Use 'list_all_outfits' to see the user's saved collection.
         - Use 'filter_saved_outfits(tag, min_score)' to find specific types of looks.
         - Use 'get_outfit_details(name or id)' to see which items are in a saved outfit.

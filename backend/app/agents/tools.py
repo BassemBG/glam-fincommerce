@@ -3,6 +3,7 @@ from app.services.tryon_generator import tryon_generator
 import json
 from typing import List, Dict, Any, Optional
 from langchain_core.tools import tool
+from langchain_core.messages import HumanMessage
 from app.services.clip_qdrant_service import clip_qdrant_service
 from app.services.outfit_composer import outfit_composer
 from app.services.vision_analyzer import vision_analyzer
@@ -289,19 +290,36 @@ async def visualize_outfit(user_id: str, item_ids: Optional[List[str]] = None, i
 async def filter_closet_items(
     user_id: str,
     category: Optional[str] = None,
+    sub_category: Optional[str] = None,
     region: Optional[str] = None,
     color: Optional[str] = None,
-    vibe: Optional[str] = None
+    vibe: Optional[str] = None,
+    material: Optional[str] = None,
+    season: Optional[str] = None
 ) -> str:
     """
-    Search closet using exact filters like category (e.g., 'tops'), region (e.g., 'bottom'), 
-    color (e.g., 'blue'), or vibe (e.g., 'minimalist').
-    Use this when semantic search isn't specific enough.
+    Search closet using exact filters from the clothing schema:
+    - category: 'clothing'|'shoes'|'accessory'
+    - sub_category: e.g., 'T-shirt', 'Jeans', 'Sneakers'
+    - region: 'head'|'top'|'bottom'|'feet'|'full_body'|'outerwear'|'accessory'
+    - color: e.g., 'red', 'blue'
+    - vibe: 'minimalist'|'boho'|'chic'|'streetwear'|'classic'|'casual'
+    - material: e.g., 'denim', 'silk', 'wool'
+    - season: 'Spring'|'Summer'|'Autumn'|'Winter'|'All Seasons'
+    
+    Use this when semantic search isn't specific enough (e.g., 'Find all my wool winter outerwear').
     """
-    print(f"\n[TOOL CALL] filter_closet_items(user_id='{user_id}', category={category}, region={region}, color={color}, vibe={vibe})")
+    print(f"\n[TOOL CALL] filter_closet_items(user_id='{user_id}', category={category}, sub_category={sub_category}, region={region}, color={color}, vibe={vibe}, material={material}, season={season})")
     try:
         results = await clip_qdrant_service.filter_user_items(
-            user_id=user_id, category=category, region=region, color=color, vibe=vibe
+            user_id=user_id, 
+            category=category, 
+            sub_category=sub_category,
+            region=region, 
+            color=color, 
+            vibe=vibe,
+            material=material,
+            season=season
         )
         items = results.get("items", [])
         if not items:
@@ -390,3 +408,107 @@ async def get_outfit_details(user_id: str, outfit_id: Optional[str] = None, name
         return details
     except Exception as e:
         return f"Error getting outfit details: {str(e)}"
+
+@tool
+async def analyze_fashion_influence(user_id: str) -> str:
+    """
+    Analyzes the user's fashion influences by comparing Pinterest pins (from Zep Graph) 
+    with their current closet. It identifies style themes, recurring colors, 
+    and "Style Gaps" to help prioritize shopping.
+    """
+    print(f"\n[TOOL CALL] analyze_fashion_influence(user_id='{user_id}')")
+    try:
+        # 1. Fetch style facts from Zep
+        zep_facts = "No style insights found."
+        if zep_client:
+            results = zep_client.graph.search(query="fashion style preferences pins", user_id=user_id, limit=10)
+            if results:
+                facts = []
+                for res in results:
+                    if hasattr(res, 'fact'): facts.append(res.fact)
+                    elif isinstance(res, (tuple, list)) and len(res) > 0: facts.append(res[0])
+                    else: facts.append(str(res))
+                zep_facts = "\n".join(facts)
+
+        # 2. Fetch closet summary
+        closet_res = await clip_qdrant_service.get_user_items(user_id, limit=20)
+        closet_items = closet_res.get("items", [])
+        closet_summary = ", ".join([f"{i['clothing'].get('sub_category')} ({i['clothing'].get('color')})" for i in closet_items])
+
+        # 3. Use LLM to analyze the gap (Internal reasoning pass)
+        from langchain_openai import AzureChatOpenAI
+        advisor_model = AzureChatOpenAI(
+            azure_endpoint=settings.AZURE_OPENAI_ENDPOINT,
+            azure_deployment=settings.AZURE_OPENAI_CHAT_DEPLOYMENT,
+            openai_api_key=settings.AZURE_OPENAI_API_KEY,
+            api_version="2024-08-01-preview"
+        )
+        
+        analysis_prompt = f"""Analyze the following style data for a user:
+        Pinterest/Inspiration Facts:
+        {zep_facts}
+        
+        Current Closet Items:
+        {closet_summary}
+        
+        Task:
+        1. Identify 3 core "Influence Themes" (e.g., 'Oversized Streetwear', 'Minimalist Linen').
+        2. Identify 2 "Wardrobe Gaps" (items they are influenced by but don't own).
+        3. Recommend 2 specific search queries for finding new items.
+        
+        Keep it concise and professional."""
+        
+        analysis = await advisor_model.ainvoke([HumanMessage(content=analysis_prompt)])
+        return analysis.content
+        
+    except Exception as e:
+        logger.error(f"Influence analysis error: {e}")
+        return f"Could not complete influence analysis: {str(e)}"
+
+@tool
+async def evaluate_purchase_match(user_id: str, item_description: str, price: Optional[float] = None) -> str:
+    """
+    Evaluates if a potential new item is a good match for the user.
+    It considers:
+    - Redundancy (does user already have something similar?)
+    - Style Fit (does it match Pinterest influences and Zep style DNA?)
+    - Versatility (how many outfits would it unlock?)
+    """
+    print(f"\n[TOOL CALL] evaluate_purchase_match(user_id='{user_id}', item='{item_description}')")
+    try:
+        # 1. Check closet for redundancy
+        similar_items = await clip_qdrant_service.search_by_text(item_description, user_id, limit=2)
+        redundancy_check = "No similar items found."
+        if similar_items:
+            redundancy_check = "User already owns: " + ", ".join([i['clothing'].get('sub_category') for i in similar_items])
+
+        # 2. Check influence/DNA
+        influence_summary = await analyze_fashion_influence.ainvoke({"user_id": user_id})
+
+        # 3. Final Evaluation Pass
+        from langchain_openai import AzureChatOpenAI
+        advisor_model = AzureChatOpenAI(
+            azure_endpoint=settings.AZURE_OPENAI_ENDPOINT,
+            azure_deployment=settings.AZURE_OPENAI_CHAT_DEPLOYMENT,
+            openai_api_key=settings.AZURE_OPENAI_API_KEY,
+            api_version="2024-08-01-preview"
+        )
+        
+        eval_prompt = f"""You are a professional Personal Shopping Advisor.
+        Item to Evaluate: {item_description} (Price: {price or 'Unknown'})
+        
+        Closet Redundancy: {redundancy_check}
+        User's Style Influence Context: {influence_summary}
+        
+        Task:
+        1. Give a "Match Score" out of 10.
+        2. Provide a "Recommendation" (Buy, Skip, or Consider).
+        3. Explain why, focusing on how it fits their 'Pinterest Vibe' and if it adds value to their closet.
+        4. List 2 items they already own that would pair perfectly with this.
+        """
+        
+        result = await advisor_model.ainvoke([HumanMessage(content=eval_prompt)])
+        return result.content
+        
+    except Exception as e:
+        return f"Evaluation error: {str(e)}"
