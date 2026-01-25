@@ -46,6 +46,7 @@ export default function Home() {
     "Finalizing your curated look..."
   ];
   const [showTryOn, setShowTryOn] = useState(false);
+  const [generatedTryOn, setGeneratedTryOn] = useState<string | null>(null);
   const [userPhoto, setUserPhoto] = useState<string | null>(null);
   const [items, setItems] = useState<ClothingItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -156,7 +157,12 @@ export default function Home() {
         body: JSON.stringify(outfitData)
       });
 
-      if (!response.ok) {
+      if (response.ok) {
+        const data = await response.json();
+        if (data.tryon_image_url) {
+          setGeneratedTryOn(data.tryon_image_url);
+        }
+      } else {
         console.error('Failed to save outfit');
       }
     } catch (err) {
@@ -448,12 +454,14 @@ export default function Home() {
       {showTryOn && userPhoto && selectedForOutfit.length > 0 && (
         <TryOnVisualizer
           bodyImage={userPhoto}
+          tryonImageUrl={generatedTryOn || undefined}
           items={selectedForOutfit.map(id => {
             const item = items.find(i => i.id === id);
             return { image_url: item?.image_url || '', body_region: item?.body_region || 'top' };
           })}
           onClose={() => {
             setShowTryOn(false);
+            setGeneratedTryOn(null);
             setSelectedForOutfit([]);
           }}
         />
