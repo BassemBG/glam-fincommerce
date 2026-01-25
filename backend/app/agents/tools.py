@@ -285,3 +285,108 @@ async def visualize_outfit(user_id: str, item_ids: Optional[List[str]] = None, i
             
     finally:
         db.close()
+@tool
+async def filter_closet_items(
+    user_id: str,
+    category: Optional[str] = None,
+    region: Optional[str] = None,
+    color: Optional[str] = None,
+    vibe: Optional[str] = None
+) -> str:
+    """
+    Search closet using exact filters like category (e.g., 'tops'), region (e.g., 'bottom'), 
+    color (e.g., 'blue'), or vibe (e.g., 'minimalist').
+    Use this when semantic search isn't specific enough.
+    """
+    print(f"\n[TOOL CALL] filter_closet_items(user_id='{user_id}', category={category}, region={region}, color={color}, vibe={vibe})")
+    try:
+        results = await clip_qdrant_service.filter_user_items(
+            user_id=user_id, category=category, region=region, color=color, vibe=vibe
+        )
+        items = results.get("items", [])
+        if not items:
+            return "No items found matching those filters."
+        
+        summary = []
+        for item in items:
+            c = item.get("clothing", {})
+            summary.append(f"- {c.get('sub_category')} ({c.get('category')}): {c.get('color')}, {c.get('vibe')}. ID: {item['id']}. Image: {item.get('image_url')}")
+        
+        return "\n".join(summary)
+    except Exception as e:
+        return f"Filter error: {str(e)}"
+
+@tool
+async def list_all_outfits(user_id: str) -> str:
+    """
+    List all saved outfits in the user's collection.
+    Use this to answer questions like 'What are my outfits?' or 'Show me my collection'.
+    """
+    print(f"\n[TOOL CALL] list_all_outfits(user_id='{user_id}')")
+    try:
+        results = await clip_qdrant_service.get_user_outfits(user_id)
+        outfits = results.get("items", [])
+        if not outfits:
+            return "You don't have any saved outfits yet."
+        
+        summary = [f"- {o['name']}: {o['description']} (Score: {o['score']}/10). ID: {o['id']}" for o in outfits]
+        return "Your saved outfits:\n" + "\n".join(summary)
+    except Exception as e:
+        return f"Error listing outfits: {str(e)}"
+
+@tool
+async def filter_saved_outfits(user_id: str, tag: Optional[str] = None, min_score: Optional[float] = None) -> str:
+    """
+    Filter saved outfits by style tags (e.g., '#chic') or minimum score.
+    Use this for specific lookups like 'Show me my best outfits' or 'formal outfits'.
+    """
+    print(f"\n[TOOL CALL] filter_saved_outfits(user_id='{user_id}', tag={tag}, min_score={min_score})")
+    try:
+        results = await clip_qdrant_service.filter_user_outfits(user_id=user_id, tag=tag, min_score=min_score)
+        outfits = results.get("items", [])
+        if not outfits:
+            return "No outfits found matching those criteria."
+        
+        summary = [f"- {o['name']} (Score: {o['score']}/10): {o['description']}. ID: {o['id']}" for o in outfits]
+        return "Matching outfits:\n" + "\n".join(summary)
+    except Exception as e:
+        return f"Error filtering outfits: {str(e)}"
+
+@tool
+async def get_outfit_details(user_id: str, outfit_id: Optional[str] = None, name: Optional[str] = None) -> str:
+    """
+    Retrieve full details for a specific outfit using its ID or Name.
+    Use this to see exactly which items are in an outfit.
+    """
+    print(f"\n[TOOL CALL] get_outfit_details(user_id='{user_id}', outfit_id={outfit_id}, name={name})")
+    try:
+        # If name is provided but not ID, we might need a search or list lookup first.
+        # For now, let's try to fetch by ID directly. 
+        # get_outfit_by_id in service is actually good for this.
+        target_id = outfit_id
+        if name and not target_id:
+            # Fallback to listing and finding by name (simplification)
+            res = await clip_qdrant_service.get_user_outfits(user_id)
+            for o in res.get("items", []):
+                if o['name'].lower() == name.lower():
+                    target_id = o['outfit_id'] or o['id']
+                    break
+        
+        if not target_id:
+            return "Could not find that outfit by name or ID."
+
+        outfit = await clip_qdrant_service.get_outfit_by_id(target_id)
+        if not outfit:
+            return "Outfit details not found."
+        
+        details = (
+            f"Outfit: {outfit.get('name')}\n"
+            f"Description: {outfit.get('description')}\n"
+            f"Items: {outfit.get('items')}\n"
+            f"Reasoning: {outfit.get('reasoning')}\n"
+            f"Score: {outfit.get('score')}/10\n"
+            f"Visual: {outfit.get('image_url')}"
+        )
+        return details
+    except Exception as e:
+        return f"Error getting outfit details: {str(e)}"

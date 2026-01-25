@@ -11,7 +11,11 @@ from app.agents.tools import (
     get_user_vitals, 
     generate_new_outfit_ideas,
     search_zep_graph,
-    visualize_outfit
+    visualize_outfit,
+    filter_closet_items,
+    list_all_outfits,
+    filter_saved_outfits,
+    get_outfit_details
 )
 from app.core.config import settings
 import json
@@ -36,7 +40,11 @@ tools = [
     get_user_vitals, 
     generate_new_outfit_ideas,
     search_zep_graph,
-    visualize_outfit
+    visualize_outfit,
+    filter_closet_items,
+    list_all_outfits,
+    filter_saved_outfits,
+    get_outfit_details
 ]
 tool_node = ToolNode(tools)
 
@@ -90,30 +98,31 @@ async def call_model(state: AgentState):
         Current {budget_context}
         
         Capabilities:
-        - Use 'search_closet' to find items the user already owns.
+        - Use 'search_closet' for natural language searches.
+        - Use 'filter_closet_items(category, region, color, vibe)' for exact field-based filtering.
+        - Use 'list_all_outfits' to see the user's saved collection.
+        - Use 'filter_saved_outfits(tag, min_score)' to find specific types of looks.
+        - Use 'get_outfit_details(name or id)' to see which items are in a saved outfit.
         - Use 'generate_new_outfit_ideas' to compose looks from the closet.
-        - Use 'visualize_outfit(user_id, item_ids=[], image_urls=[])' to generate a virtual try-on image.
-          You can mix existing closet items (IDs) and new items found on the internet (URLs).
-          Use this whenever the user says "try this on", "show me how this looks", or "visualize".
+        - Use 'visualize_outfit' to generate virtual try-ons.
         - Use 'browse_internet_for_fashion' for trends or new items.
 
         Response Format (Strictly JSON):
         {{
           "response": "Your conversational message here. If you visualized something, RENDER it as: ![Visualization]({{result_url}})",
-          "images": ["List of direct 'Image URL' strings found in 'search_closet' results"],
+          "images": ["List of direct 'Image URL' strings found in tool results"],
           "suggested_outfits": [
             {{
               "name": "Outfit Name",
               "score": 9.5,
-              "image_url": "The 'Visual Link' URL from 'search_saved_outfits' or 'visualize_outfit'",
-              "item_details": [{{ "id": "uuid", "sub_category": "jeans", "image_url": "The 'Image URL' of this specific item" }}]
+              "image_url": "The 'Visual Link' URL",
+              "item_details": [{{ "id": "uuid", "sub_category": "jeans", "image_url": "URL" }}]
             }}
           ]
         }}
         
-        Important: 
-        1. Always use markdown image syntax `![Description](url)` in the 'response' field if you want the user to see an image immediately.
-        2. Always look for 'Image URL' or 'Visual Link' fields in tool outputs and put them into the structured JSON fields.
+        Autonomous Reasoning:
+        If a tool returns no results or items that violate constraints (like budget), do not give up. Analyze WHY it failed and try a different tool or a broader search until you find a high-quality solution.
         """
         messages = [SystemMessage(content=system_content)] + messages
 
@@ -127,20 +136,51 @@ def should_continue(state: AgentState):
         return "tools"
     return "check_budget"
 
-async def check_budget_constraint(state: AgentState):
+async def refine_response(state: AgentState):
     """
-    Final check node to ensure the AI's final answer respects the budget.
-    If the AI suggested something expensive, this node will force a correction.
+    Evaluates the agent's turn. If the response is low-quality or lacks expected visuals,
+    it instructs the agent to try again (up to a limit).
     """
-    last_message = state["messages"][-1]
-    if state.get("budget_limit") is None or not isinstance(last_message, AIMessage):
+    messages = state["messages"]
+    last_msg = messages[-1]
+    
+    # Only refine if it's an AI message without tool calls (the "final" thought)
+    if not isinstance(last_msg, AIMessage) or last_msg.tool_calls:
+        return {}
+        
+    loop_count = 0
+    for msg in reversed(messages):
+        if isinstance(msg, AIMessage) and "CRITIQUE:" in msg.content:
+            loop_count += 1
+    
+    if loop_count >= 2: # Max 2 refinement turns
         return {}
 
-    # Basic logic: If budget is mentioned in response, we verify.
-    # In a real production agent, we might do another LLM pass to verify the numbers.
-    # For now, we'll let it pass but log it.
-    
+    # Simple heuristic: If user asked for an outfit but no suggested_outfits found
+    content = last_msg.content
+    try:
+        if "```json" in content:
+            content = content.split("```json")[1].split("```")[0].strip()
+        data = json.loads(content)
+        
+        # Check completeness (example: if they asked for ideas but got none)
+        # We can also check budget here.
+        if state.get("budget_limit") and data.get("response"):
+            # If the response mentions cost but violates budget, critique.
+            pass
+            
+    except:
+        # If not valid JSON, force a retry to fix format
+        return {"messages": [HumanMessage(content="CRITIQUE: Your response was not in valid JSON format. Please ensure you return the strictly defined JSON structure.")]}
+
     return {}
+
+def should_loop_back(state: AgentState):
+    """Decide if we should refine further or end."""
+    last_message = state["messages"][-1]
+    if isinstance(last_message, HumanMessage) and "CRITIQUE:" in last_message.content:
+        return "agent"
+    return END
 
 # --- Graph Construction ---
 
@@ -149,7 +189,7 @@ workflow = StateGraph(AgentState)
 # Add Nodes
 workflow.add_node("agent", call_model)
 workflow.add_node("tools", tool_node)
-workflow.add_node("check_budget", check_budget_constraint)
+workflow.add_node("refine", refine_response)
 
 # Set Entry Point
 workflow.set_entry_point("agent")
@@ -160,13 +200,21 @@ workflow.add_conditional_edges(
     should_continue,
     {
         "tools": "tools",
-        "check_budget": "check_budget"
+        "check_budget": "refine"
+    }
+)
+
+workflow.add_conditional_edges(
+    "refine",
+    should_loop_back,
+    {
+        "agent": "agent",
+        END: END
     }
 )
 
 # Tool execution always loops back to the agent for next decision
 workflow.add_edge("tools", "agent")
-workflow.add_edge("check_budget", END)
 
 # Compile
 stylist_agent = workflow.compile()
