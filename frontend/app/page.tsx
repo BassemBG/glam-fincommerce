@@ -162,7 +162,7 @@ export default function Home() {
 
     setIsDeleting(true);
     try {
-      const res = await fetch(API.closet.delete(id), { method: 'DELETE' });
+      const res = await authFetch(API.closet.delete(id), { method: 'DELETE' });
       if (res.ok) {
         setItems(prev => prev.filter(item => item.id !== id));
         setSelectedItem(null);
