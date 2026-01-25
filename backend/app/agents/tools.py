@@ -4,6 +4,7 @@ import json
 from typing import List, Dict, Any, Optional
 from langchain_core.tools import tool
 from langchain_core.messages import HumanMessage
+from langchain_openai import AzureChatOpenAI
 from app.services.clip_qdrant_service import clip_qdrant_service
 from app.services.outfit_composer import outfit_composer
 from app.services.vision_analyzer import vision_analyzer
@@ -102,8 +103,25 @@ async def browse_internet_for_fashion(query: str, max_price: Optional[float] = N
         return "Internet search is currently unavailable (TAVILY_API_KEY missing)."
 
     search_query = query
+    
+    # NEW: Translate query to French for broader research
+    try:
+        translator = AzureChatOpenAI(
+            azure_endpoint=settings.AZURE_OPENAI_ENDPOINT,
+            azure_deployment=settings.AZURE_OPENAI_CHAT_DEPLOYMENT,
+            openai_api_key=settings.AZURE_OPENAI_API_KEY,
+            api_version="2024-08-01-preview"
+        )
+        translation_prompt = f"Translate the following fashion search query from English to French. Return ONLY the translated text, no quotes or explanations: '{query}'"
+        translation_res = await translator.ainvoke([HumanMessage(content=translation_prompt)])
+        translated_query = translation_res.content.strip().strip("'").strip('"')
+        print(f"[DEBUG] Translated query: {translated_query}")
+        search_query = translated_query
+    except Exception as e:
+        logger.warning(f"Translation failed, using original query: {e}")
+
     if max_price:
-        search_query += f" under {max_price}"
+        search_query += f" moins de {max_price}"
 
     try:
         async with httpx.AsyncClient(timeout=20.0) as client:
@@ -436,7 +454,6 @@ async def analyze_fashion_influence(user_id: str) -> str:
         closet_summary = ", ".join([f"{i['clothing'].get('sub_category')} ({i['clothing'].get('color')})" for i in closet_items])
 
         # 3. Use LLM to analyze the gap (Internal reasoning pass)
-        from langchain_openai import AzureChatOpenAI
         advisor_model = AzureChatOpenAI(
             azure_endpoint=settings.AZURE_OPENAI_ENDPOINT,
             azure_deployment=settings.AZURE_OPENAI_CHAT_DEPLOYMENT,
@@ -486,7 +503,6 @@ async def evaluate_purchase_match(user_id: str, item_description: str, price: Op
         influence_summary = await analyze_fashion_influence.ainvoke({"user_id": user_id})
 
         # 3. Final Evaluation Pass
-        from langchain_openai import AzureChatOpenAI
         advisor_model = AzureChatOpenAI(
             azure_endpoint=settings.AZURE_OPENAI_ENDPOINT,
             azure_deployment=settings.AZURE_OPENAI_CHAT_DEPLOYMENT,
