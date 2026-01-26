@@ -6,6 +6,7 @@ from app.db.session import get_db
 from app.services.stylist_chat import stylist_chat
 from app.services.vision_analyzer import vision_analyzer
 from app.services.clip_qdrant_service import clip_qdrant_service
+from app.services.zep_service import add_outfit_summary_to_graph
 from app.models.models import ClothingItem, User, Outfit
 import uuid
 import json
@@ -200,8 +201,45 @@ async def save_outfit(
     db.add(db_outfit)
     db.commit()
     db.refresh(db_outfit)
+
+    # 5. Send outfit summary to Zep for persona memory
+    if db_user and getattr(db_user, "zep_thread_id", None):
+        item_names = [
+            item.get("clothing", {}).get("sub_category")
+            or item.get("clothing", {}).get("category")
+            or "item"
+            for item in qdrant_items
+        ]
+        colors = []
+        for item in qdrant_items:
+            colors.extend(item.get("clothing", {}).get("colors", []))
+        # dedupe colors while preserving order
+        seen = set()
+        dedup_colors = []
+        for c in colors:
+            if c not in seen:
+                dedup_colors.append(c)
+                seen.add(c)
+
+        summary_payload = {
+            "summary": description or "Outfit saved",
+            "items": item_names,
+            "colors": dedup_colors,
+            "style_keywords": meta.get("style_tags", []),
+            "fit": outfit_data.get("vibe"),
+            "occasion": outfit_data.get("occasion"),
+        }
+
+        add_outfit_summary_to_graph(
+            user_id=user_id_to_save,
+            summary=summary_payload,
+            image_url=tryon_image_url,
+            timestamp=None,
+            user_email=db_user.email,
+            thread_id=db_user.zep_thread_id,
+        )
     
-    # 5. Save to Qdrant (CLIP Visual Storage for Outfits)
+    # 6. Save to Qdrant (CLIP Visual Storage for Outfits)
     # This is now the PRIMARY way we'll load outfits in the /outfits page
     if tryon_image_bytes:
         outfit_metadata = {
