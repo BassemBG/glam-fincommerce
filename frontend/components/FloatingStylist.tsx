@@ -243,6 +243,20 @@ const FloatingStylist = () => {
                                         balance: wc.current_balance
                                     });
                                 }
+                                // Regex Fallback (in case Glam forgot to populate the object but included the text)
+                                else {
+                                    const walletRegex = /\[WALLET_CONFIRMATION_REQUIRED\] item='([^']+)' price=([\d.]+) currency='([^']+)'(?: balance=([\d.]+))?/;
+                                    const match = botResponse.response.match(walletRegex);
+                                    if (match) {
+                                        setWalletModalData({
+                                            isOpen: true,
+                                            itemName: match[1],
+                                            price: parseFloat(match[2]),
+                                            currency: match[3],
+                                            balance: match[4] ? parseFloat(match[4]) : (user?.wallet_balance || 0)
+                                        });
+                                    }
+                                }
                             }
                         }
                     }
