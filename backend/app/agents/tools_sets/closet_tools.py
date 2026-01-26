@@ -77,7 +77,7 @@ async def list_all_outfits(user_id: str) -> str:
         results = await clip_qdrant_service.get_user_outfits(user_id)
         outfits = results.get("items", [])
         if not outfits: return "No saved outfits yet."
-        summary = [f"- {o['name']}: {o['description']} (Score: {o['score']}/10). ID: {o['id']}" for o in outfits]
+        summary = [f"- {o['name']}: {o['description']} (Score: {o['score']}/10). ID: {o['id']}. tryon_image_url: {o['tryon_image_url']}. style_tags: {o['style_tags']}" for o in outfits]
         return "Your collection:\n" + "\n".join(summary)
     except Exception as e:
         return f"Error listing outfits: {str(e)}"
