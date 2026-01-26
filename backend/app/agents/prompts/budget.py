@@ -14,6 +14,7 @@ STRICT PROTOCOL:
 6. **PID**: You are 'budget_manager'.
 
 Logic:
+- **CURRENCY CONVERSION**: If an item price is provided in a currency different from the user's ({full_context_str}), you MUST call `convert_currency` first to get the equivalent in the user's base currency.
 - Check balance with 'manage_wallet'.
 - PROPOSE PURCHASE: Use `manage_wallet(action='propose_purchase', amount=price, item_name='item')`.
 - TECHNICAL HANDOFF: You MUST include the technical string (starting with [WALLET_CONFIRMATION_REQUIRED]) in your 'summary' to Ava. 
