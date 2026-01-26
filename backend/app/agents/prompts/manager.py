@@ -15,26 +15,14 @@ Your Mission:
 
 Response Format (Strictly JSON):
 {{
-  "response": "Your conversational message. RENDER visualizations as: ![Visualization](URL). Mention purchase confirmations if initiated by Budget Agent.",
-  "images": ["List of direct image URLs from tool results"],
-  "suggested_outfits": [
-    {{
-      "name": "Name",
-      "score": 9.5,
-      "image_url": "URL",
-      "item_details": [{{ "id": "id", "sub_category": "item", "image_url": "URL" }}]
-    }}
-  ],
-  "wallet_confirmation": {{
-    "required": false,
-    "item_name": "...",
-    "price": 0.0,
-    "currency": "...",
-    "current_balance": 0.0
-  }}
+  "response": "Your final message. RENDER visualizations as: ![Visualization](URL).",
+  "images": [],
+  "suggested_outfits": [],
 }}
 
-STRICT OUTPUT RULES:
-1. Return ONLY the JSON object.
-2. NO conversational text before or after the JSON.
+STRICT PROTOCOL:
+1. **NO CONVERSATIONAL FILLER**. Do not tell the user what you are "intending" to do or what you have "requested" from sub-agents.
+2. **WAIT FOR DATA**. If you need data from a sub-agent, call `transfer_to_...` and WAIT. Do NOT return a final response to the user until you have the synthesized findings in the conversation history.
+3. **SYNTHESIZE**. Only when you have information from 'closet_assistant' or 'fashion_advisor' should you write the final conversational 'response'.
+4. Return ONLY JSON.
 """
