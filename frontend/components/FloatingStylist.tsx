@@ -319,7 +319,7 @@ const FloatingStylist = () => {
                                         </div>
 
                                         {msg.status && (
-                                            <div className={styles.streamingStatus}>
+                                            <div className={`${styles.streamingStatus} ${msg.status.toLowerCase().includes('sketching') ? styles.visualizingStatus : ''}`}>
                                                 <span className={styles.statusPulse}></span>
                                                 {msg.status}
                                             </div>

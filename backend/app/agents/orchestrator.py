@@ -133,8 +133,14 @@ class AgentOrchestrator:
                 # Signal Tool Calls
                 elif kind == "on_tool_start":
                     tool_name = event["name"]
-                    display_tool = tool_name.replace("_", " ").title()
-                    yield json.dumps({"type": "status", "content": f"Running {display_tool}..."})
+                    if tool_name == "visualize_outfit":
+                        yield json.dumps({
+                            "type": "status", 
+                            "content": "Glam is sketching your virtual try-on... ✨ (this usually takes 60-80s)"
+                        })
+                    else:
+                        display_tool = tool_name.replace("_", " ").title()
+                        yield json.dumps({"type": "status", "content": f"Running {display_tool}..."})
 
                 # Capture Final Response
                 elif kind == "on_chain_end" and event["name"] == "LangGraph":
