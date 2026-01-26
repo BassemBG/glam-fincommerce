@@ -28,6 +28,8 @@ class User(SQLModel, table=True):
     clothing_description: Optional[str] = None  # Description of their clothes
     styled_combinations: Optional[str] = None  # Description of past styled combinations
     onboarding_completed: bool = Field(default=False)
+    # Currency used for budgeting and pricing
+    currency: str = Field(default="TND", max_length=10)
     
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
