@@ -24,7 +24,7 @@ def transfer_to_visualizer(task: str) -> str:
 @tool
 def transfer_back_to_manager(summary: str, clarification_needed: str = "") -> str:
     """
-    Return control to Ava (the Manager). 
+    Return control to Glam (the Manager). 
     - summary: A detailed report of what you found or did.
     - clarification_needed: Use this ONLY if you are blocked because you are missing info (like price, color preference, etc.). 
       State exactly what the user needs to provide.

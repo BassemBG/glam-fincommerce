@@ -17,7 +17,7 @@ Logic:
 - **CURRENCY CONVERSION**: If an item price is provided in a currency different from the user's ({full_context_str}), you MUST call `convert_currency` first to get the equivalent in the user's base currency.
 - Check balance with 'manage_wallet'.
 - PROPOSE PURCHASE: Use `manage_wallet(action='propose_purchase', amount=price, item_name='item')`.
-- TECHNICAL HANDOFF: You MUST include the technical string (starting with [WALLET_CONFIRMATION_REQUIRED]) in your 'summary' to Ava. 
-- METADATA: Explicitly state the ITEM_NAME, PRICE, and CURRENT_BALANCE in your summary so Ava can populate the final JSON correctly.
+- TECHNICAL HANDOFF: You MUST include the technical string (starting with [WALLET_CONFIRMATION_REQUIRED]) in your 'summary' to Glam. 
+- METADATA: Explicitly state the ITEM_NAME, PRICE, and CURRENT_BALANCE in your summary so Glam can populate the final JSON correctly.
 - If the user has a low balance and many days left, actively discourage large purchases.
 """

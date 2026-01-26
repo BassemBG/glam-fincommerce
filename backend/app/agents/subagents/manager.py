@@ -22,8 +22,8 @@ model = AzureChatOpenAI(
 ).bind_tools(manager_tools)
 
 async def manager_node(state: AgentState):
-    """The Manager (Ava) hub node."""
-    print(f"\n[NODE] --- MANAGER (AVA) ---")
+    """The Manager (Glam) hub node."""
+    print(f"\n[NODE] --- MANAGER (GLAM) ---")
     messages = state["messages"]
     
     # Financial context from state

@@ -323,7 +323,7 @@ const FloatingStylist = () => {
                                 </label>
                                 <input
                                     type="text"
-                                    placeholder="Ask Ava anything..."
+                                    placeholder="Ask Glam anything..."
                                     value={input}
                                     onChange={(e) => setInput(e.target.value)}
                                     onKeyPress={(e) => e.key === 'Enter' && sendMessage()}

@@ -64,14 +64,14 @@ export default function SignupPage() {
 
         {error && <div className={styles.toastError}>{error}</div>}
 
-        <form onSubmit={handleSignup} className={styles.form}>            
+        <form onSubmit={handleSignup} className={styles.form}>
           <label className={styles.label}>Full Name
             <input
               type="text"
               value={fullName}
               onChange={(e) => setFullName(e.target.value)}
               required
-              placeholder="Ava Ward"
+              placeholder="Glam Ward"
             />
           </label>
 

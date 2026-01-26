@@ -142,7 +142,7 @@ export default function OutfitsPage() {
                         ))
                     ) : (
                         <div className={styles.emptyState}>
-                            <p>No outfits saved yet. Ask Ava for inspiration!</p>
+                            <p>No outfits saved yet. Ask Glam for inspiration!</p>
                         </div>
                     )}
                 </div>

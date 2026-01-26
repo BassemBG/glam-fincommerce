@@ -57,7 +57,7 @@ def route_subagent(state: AgentState):
         return f"{state['active_agent']}_tools"
     
     # If agent returned text WITHOUT calling transfer_back_to_manager, 
-    # we still go to manager but Ava might be confused. 
+    # we still go to manager but Glam might be confused. 
     # The prompt should prevent this.
     return "manager"
 
