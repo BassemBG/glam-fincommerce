@@ -24,6 +24,7 @@ model = AzureChatOpenAI(
 
 async def advisor_node(state: AgentState):
     """Fashion Advisor Node."""
+    print(f"\n[NODE] --- FASHION ADVISOR ---")
     messages = state["messages"]
     filtered_messages = [m for m in messages if not isinstance(m, SystemMessage)]
     messages = [SystemMessage(content=ADVISOR_SYSTEM_PROMPT)] + filtered_messages

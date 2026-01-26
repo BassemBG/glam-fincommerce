@@ -34,10 +34,18 @@ def route_manager_tools(state: AgentState):
     last_msg = state["messages"][-1] # This is the ToolMessage content
     content = last_msg.content
     
-    if "TRANSFER_TO_CLOSET" in content: return "closet"
-    if "TRANSFER_TO_ADVISOR" in content: return "advisor"
-    if "TRANSFER_TO_BUDGET" in content: return "budget"
-    if "TRANSFER_TO_VISUALIZER" in content: return "visualizer"
+    if "TRANSFER_TO_CLOSET" in content: 
+        print(f"🔄 [HANDOFF] Manager -> Closet Assistant")
+        return "closet"
+    if "TRANSFER_TO_ADVISOR" in content: 
+        print(f"🔄 [HANDOFF] Manager -> Fashion Advisor")
+        return "advisor"
+    if "TRANSFER_TO_BUDGET" in content: 
+        print(f"🔄 [HANDOFF] Manager -> Budget Manager")
+        return "budget"
+    if "TRANSFER_TO_VISUALIZER" in content: 
+        print(f"🔄 [HANDOFF] Manager -> Visualizer")
+        return "visualizer"
     
     # If it was just a regular tool like get_user_vitals, go back to manager for next thought
     return "manager"

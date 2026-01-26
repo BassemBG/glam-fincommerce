@@ -24,6 +24,7 @@ model = AzureChatOpenAI(
 
 async def closet_node(state: AgentState):
     """Closet Assistant Node."""
+    print(f"\n[NODE] --- CLOSET ASSISTANT ---")
     messages = state["messages"]
     # We strip previous system messages to keep it focused
     filtered_messages = [m for m in messages if not isinstance(m, SystemMessage)]

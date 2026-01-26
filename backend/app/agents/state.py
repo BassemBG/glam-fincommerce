@@ -20,7 +20,8 @@ class AgentState(TypedDict):
     # Optional image data for multi-modal reasoning
     image_data: Optional[bytes]
     
-    # Tracking which agent is currently in charge (optional but helpful for routing)
+    # Tracking handoffs and execution path
+    handoff_history: Annotated[List[str], add_messages]
     active_agent: str
     
     # Specialized outputs from sub-agents

@@ -18,6 +18,7 @@ model = AzureChatOpenAI(
 
 async def visualizer_node(state: AgentState):
     """Visualizer Node."""
+    print(f"\n[NODE] --- VISUALIZER ---")
     messages = state["messages"]
     filtered_messages = [m for m in messages if not isinstance(m, SystemMessage)]
     messages = [SystemMessage(content=VISUALIZER_SYSTEM_PROMPT)] + filtered_messages

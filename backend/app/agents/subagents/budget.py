@@ -18,6 +18,7 @@ model = AzureChatOpenAI(
 
 async def budget_node(state: AgentState):
     """Budget Manager Node."""
+    print(f"\n[NODE] --- BUDGET MANAGER ---")
     messages = state["messages"]
     filtered_messages = [m for m in messages if not isinstance(m, SystemMessage)]
     messages = [SystemMessage(content=BUDGET_SYSTEM_PROMPT)] + filtered_messages
