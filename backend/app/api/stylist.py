@@ -15,50 +15,36 @@ from app.api.user import get_current_user
 
 router = APIRouter()
 
-class ChatMessage(BaseModel):
-    message: str
-    history: Optional[List[dict]] = []
+from fastapi.responses import StreamingResponse
 
 @router.post("/chat")
 async def chat_with_stylist(
     message: str = Form(...),
-    history: Optional[str] = Form(None), # JSON string of history
+    history: Optional[str] = Form(None), 
     file: Optional[UploadFile] = File(None),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
     user_id = current_user.id
-    db_user = current_user
-    
-    # Parse history if provided
     parsed_history = []
     if history:
-        try:
-            parsed_history = json.loads(history)
-        except:
-            parsed_history = []
+        try: parsed_history = json.loads(history)
+        except: parsed_history = []
 
-    # Get items from Qdrant instead of just SQL DB
-    qdrant_resp = await clip_qdrant_service.get_user_items(user_id=user_id, limit=200)
-    closet_items = qdrant_resp.get("items", [])
-    
-    # Outfits can still come from DB as primary source of metadata, or Qdrant for visual outfits
-    outfits = db.query(Outfit).filter(Outfit.user_id == user_id).all() if db_user else []
-    
-    # Read file content if provided for multi-modal agent reasoning
     image_data = None
     if file:
         image_data = await file.read()
 
-    # The Orchestrator now handles history conversion, temporal context, and agent execution
-    result = await agent_orchestrator.chat(
-        user_id=user_id,
-        message=message,
-        history=parsed_history,
-        image_data=image_data
-    )
-    
-    return result
+    async def sse_generator():
+        async for event in agent_orchestrator.chat_stream(
+            user_id=user_id,
+            message=message,
+            history=parsed_history,
+            image_data=image_data
+        ):
+            yield f"data: {event}\n\n"
+
+    return StreamingResponse(sse_generator(), media_type="text/event-stream")
 
 
 import json
