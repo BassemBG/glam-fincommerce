@@ -1,5 +1,6 @@
 from langchain_core.tools import tool
 from typing import Optional
+import httpx
 import json
 from app.db.session import SessionLocal
 from app.models.models import User
