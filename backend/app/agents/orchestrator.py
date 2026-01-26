@@ -58,6 +58,8 @@ class AgentOrchestrator:
             last_msg = final_result["messages"][-1]
             response_text = last_msg.content
             
+            logger.info(f"Raw agent response: {response_text}")
+            
             return self._parse_agent_response(response_text)
 
         except Exception as e:

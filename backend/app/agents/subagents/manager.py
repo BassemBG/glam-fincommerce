@@ -25,9 +25,39 @@ async def manager_node(state: AgentState):
     """The Manager (Ava) hub node."""
     messages = state["messages"]
     
-    # Simple check for system message
-    if not any(isinstance(m, SystemMessage) for m in messages):
-        messages = [SystemMessage(content=MANAGER_SYSTEM_PROMPT)] + messages
+    # Financial context from state
+    financial_context = []
+    if state.get("budget_limit") is not None:
+        financial_context.append(f"Monthly Budget Limit: {state['budget_limit']} {state['currency']}")
+    if state.get("wallet_balance") is not None:
+        financial_context.append(f"Current Wallet Balance: {state['wallet_balance']} {state['currency']}")
+    
+    time_context = []
+    if state.get("today_date"):
+        time_context.append(f"Today's Date: {state['today_date']}")
+    if state.get("days_remaining") is not None:
+        time_context.append(f"Days left in this month: {state['days_remaining']}")
+
+    full_context_str = "\n".join(financial_context + time_context)
+    
+    # Format the prompt with state data
+    formatted_prompt = MANAGER_SYSTEM_PROMPT.format(
+        user_id=state.get("user_id", "Unknown"),
+        full_context_str=full_context_str
+    )
+    
+    # Ensure system message is present and updated
+    new_messages = []
+    has_system = False
+    for m in messages:
+        if isinstance(m, SystemMessage):
+            new_messages.append(SystemMessage(content=formatted_prompt))
+            has_system = True
+        else:
+            new_messages.append(m)
+            
+    if not has_system:
+        new_messages = [SystemMessage(content=formatted_prompt)] + new_messages
         
-    response = await model.ainvoke(messages)
+    response = await model.ainvoke(new_messages)
     return {"messages": [response], "active_agent": "manager"}
