@@ -55,10 +55,14 @@ async def manager_node(state: AgentState):
             new_messages.append(SystemMessage(content=formatted_prompt))
             has_system = True
         else:
+            # Add sender identification to AI messages in history if possible
             new_messages.append(m)
             
     if not has_system:
         new_messages = [SystemMessage(content=formatted_prompt)] + new_messages
         
+    print(f"   (Active Agent in state: {state.get('active_agent')})")
     response = await model.ainvoke(new_messages)
+    
+    # We don't set a name for the Manager as she is the main interface
     return {"messages": [response], "active_agent": "manager"}

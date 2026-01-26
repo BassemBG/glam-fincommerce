@@ -24,4 +24,5 @@ async def budget_node(state: AgentState):
     messages = [SystemMessage(content=BUDGET_SYSTEM_PROMPT)] + filtered_messages
     
     response = await model.ainvoke(messages)
+    response.name = "budget_manager"
     return {"messages": [response], "active_agent": "budget"}

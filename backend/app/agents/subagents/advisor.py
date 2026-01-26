@@ -30,4 +30,5 @@ async def advisor_node(state: AgentState):
     messages = [SystemMessage(content=ADVISOR_SYSTEM_PROMPT)] + filtered_messages
     
     response = await model.ainvoke(messages)
+    response.name = "fashion_advisor"
     return {"messages": [response], "active_agent": "advisor"}

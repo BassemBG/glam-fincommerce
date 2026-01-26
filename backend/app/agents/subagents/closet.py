@@ -30,5 +30,7 @@ async def closet_node(state: AgentState):
     filtered_messages = [m for m in messages if not isinstance(m, SystemMessage)]
     messages = [SystemMessage(content=CLOSET_SYSTEM_PROMPT)] + filtered_messages
     
+    # Identify as 'closet_assistant'
     response = await model.ainvoke(messages)
+    response.name = "closet_assistant"
     return {"messages": [response], "active_agent": "closet"}

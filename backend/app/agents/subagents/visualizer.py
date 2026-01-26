@@ -24,4 +24,5 @@ async def visualizer_node(state: AgentState):
     messages = [SystemMessage(content=VISUALIZER_SYSTEM_PROMPT)] + filtered_messages
     
     response = await model.ainvoke(messages)
+    response.name = "visualizer"
     return {"messages": [response], "active_agent": "visualizer"}
