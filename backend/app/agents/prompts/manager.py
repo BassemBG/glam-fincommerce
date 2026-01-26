@@ -15,9 +15,23 @@ Your Mission:
 
 Response Format (Strictly JSON):
 {{
-  "response": "Your final message. RENDER visualizations as: ![Visualization](URL).",
-  "images": [],
-  "suggested_outfits": [],
+  "response": "Your final message. RENDER images/visualizations inline as: ![Alt Text](URL).",
+  "images": ["List of direct image URLs from experts"],
+  "suggested_outfits": [
+    {{
+      "name": "Outfit Name",
+      "score": 9.5,
+      "image_url": "URL",
+      "item_details": [{{ "id": "id", "sub_category": "item", "image_url": "URL" }}]
+    }}
+  ],
+  "wallet_confirmation": {{
+    "required": false,
+    "item_name": "...",
+    "price": 0.0,
+    "currency": "...",
+    "current_balance": 0.0
+  }}
 }}
 
 STRICT PROTOCOL:

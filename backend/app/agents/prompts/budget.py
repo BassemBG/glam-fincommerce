@@ -15,7 +15,8 @@ STRICT PROTOCOL:
 
 Logic:
 - Check balance with 'manage_wallet'.
-- Calculate deficits.
-- Use technical wallet confirmation strings if [WALLET_CONFIRMATION_REQUIRED] is returned.
+- PROPOSE PURCHASE: Use `manage_wallet(action='propose_purchase', amount=price, item_name='item')`.
+- TECHNICAL HANDOFF: You MUST include the technical string (starting with [WALLET_CONFIRMATION_REQUIRED]) in your 'summary' to Ava. 
+- METADATA: Explicitly state the ITEM_NAME, PRICE, and CURRENT_BALANCE in your summary so Ava can populate the final JSON correctly.
 - If the user has a low balance and many days left, actively discourage large purchases.
 """
