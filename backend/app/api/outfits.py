@@ -2,9 +2,10 @@ from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from sqlalchemy.orm import Session
 from typing import List
 from app.db.session import get_db
-from app.models.models import Outfit, User, ClothingItem
+from app.models.models import Outfit, User, ClothingItem, ClothingIngestionHistory
 from app.services.shopping_advisor import shopping_advisor
 from app.services.clip_qdrant_service import clip_qdrant_service
+from sqlmodel import select
 import json
 
 from app.api.user import get_current_user
@@ -16,35 +17,48 @@ async def get_user_outfits(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Get all outfits for the current user from Qdrant."""
+    """Get all outfits for the current user from the relational database."""
     user_id = current_user.id
     
-    # Lead with Qdrant for visual outfits
-    qdrant_resp = await clip_qdrant_service.get_user_outfits(user_id=user_id, limit=50)
-    qdrant_outfits = qdrant_resp.get("items", [])
+    # Fetch from SQL as the primary source
+    statement = select(Outfit).where(Outfit.user_id == user_id).order_by(Outfit.created_at.desc())
+    outfits = db.execute(statement).scalars().all()
     
-    if qdrant_outfits:
-        return qdrant_outfits
-        
-    # Fallback to DB if Qdrant is empty (legacy or non-visual outfits)
-    user = current_user
-    
-    if not user:
-        return []
-    
-    outfits = db.query(Outfit).filter(Outfit.user_id == user.id).all()
     result = []
     
     for outfit in outfits:
+        # 1. Parse item IDs
         try:
             item_ids = json.loads(outfit.items) if isinstance(outfit.items, str) else outfit.items
         except:
             item_ids = []
+            
+        # 2. Fetch full item details from ClothingIngestionHistory
+        # This enhances the payload so the frontend can display item previews
+        detailed_items = []
+        if item_ids:
+            item_statement = select(ClothingIngestionHistory).where(
+                ClothingIngestionHistory.id.in_(item_ids)
+            )
+            ingested_items = db.execute(item_statement).scalars().all()
+            
+            # Map items to the format expected by the frontend pieces gallery
+            for it in ingested_items:
+                detailed_items.append({
+                    "id": it.id,
+                    "category": it.category,
+                    "sub_category": it.sub_category,
+                    "body_region": it.body_region,
+                    "image_url": it.image_url,
+                    "mask_url": it.image_url
+                })
         
-        # We can also fetch item details from Qdrant here if needed
-        # but for fallback, let's keep it simple or use the new helper
-        items = await clip_qdrant_service.get_items_by_ids(item_ids)
-        
+        # 3. Parse style tags
+        try:
+            tags = json.loads(outfit.style_tags) if isinstance(outfit.style_tags, str) else (outfit.style_tags or [])
+        except:
+            tags = []
+            
         result.append({
             "id": outfit.id,
             "name": outfit.name,
@@ -53,10 +67,11 @@ async def get_user_outfits(
             "score": outfit.score,
             "reasoning": outfit.reasoning,
             "description": outfit.description,
-            "style_tags": outfit.style_tags,
+            "style_tags": tags,
             "tryon_image_url": outfit.tryon_image_url,
             "created_by": outfit.created_by,
-            "items": items
+            "items": detailed_items,
+            "created_at": outfit.created_at.isoformat() if outfit.created_at else None
         })
     
     return result
@@ -67,30 +82,41 @@ async def get_outfit_detail(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Get a single outfit with full item details."""
-    # 1. Try Qdrant retrieval first as primary source
-    qdrant_outfit = await clip_qdrant_service.get_outfit_by_id(outfit_id)
-    
-    if qdrant_outfit:
-        # Fetch detailed item objects from Qdrant for this outfit
-        item_ids = qdrant_outfit.get("items", [])
-        detailed_items = await clip_qdrant_service.get_items_by_ids(item_ids)
-        qdrant_outfit["items"] = detailed_items
-        return qdrant_outfit
-        
-    # 2. Fallback to DB for legacy/non-visual outfits
+    """Get a single outfit with full item details from SQLite."""
+    # 1. Fetch from SQL primary source
     outfit = db.query(Outfit).filter(Outfit.id == outfit_id, Outfit.user_id == current_user.id).first()
     if not outfit:
         raise HTTPException(status_code=404, detail="Outfit not found")
     
+    # 2. Parse items and fetch details
     try:
         item_ids = json.loads(outfit.items) if isinstance(outfit.items, str) else outfit.items
     except:
         item_ids = []
     
-    # Even for legacy outfits, fetch item details from Qdrant Cloud
-    items = await clip_qdrant_service.get_items_by_ids(item_ids)
+    detailed_items = []
+    if item_ids:
+        item_statement = select(ClothingIngestionHistory).where(
+            ClothingIngestionHistory.id.in_(item_ids)
+        )
+        ingested_items = db.execute(item_statement).scalars().all()
+        
+        for it in ingested_items:
+            detailed_items.append({
+                "id": it.id,
+                "category": it.category,
+                "sub_category": it.sub_category,
+                "body_region": it.body_region,
+                "image_url": it.image_url,
+                "mask_url": it.image_url
+            })
     
+    # 3. Parse style tags
+    try:
+        tags = json.loads(outfit.style_tags) if isinstance(outfit.style_tags, str) else (outfit.style_tags or [])
+    except:
+        tags = []
+        
     return {
         "id": outfit.id,
         "name": outfit.name,
@@ -99,10 +125,11 @@ async def get_outfit_detail(
         "score": outfit.score,
         "reasoning": outfit.reasoning,
         "description": outfit.description,
-        "style_tags": outfit.style_tags,
+        "style_tags": tags,
         "created_by": outfit.created_by,
         "tryon_image_url": outfit.tryon_image_url,
-        "items": items
+        "items": detailed_items,
+        "created_at": outfit.created_at.isoformat() if outfit.created_at else None
     }
 
 @router.post("/compare")

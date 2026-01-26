@@ -66,89 +66,93 @@ export default function OutfitsPage() {
     };
 
     return (
-        <div className={styles.container}>
-            <header className={styles.header}>
-                <h1>Saved Outfits</h1>
-                <p className="text-muted">Personalized looks curated for you.</p>
-            </header>
+        <>
+            <div className={`${styles.container} animate-fade-in`}>
+                <header className={styles.header}>
+                    <h1>Saved Outfits</h1>
+                    <p className="text-muted">Personalized looks curated for you.</p>
+                </header>
 
-            <div className={styles.outfitList}>
-                {loading ? (
-                    // Skeleton Loading State
-                    [1, 2, 3].map((n) => (
-                        <div key={n} className={styles.skeletonCard}>
-                            <div className={styles.outfitHeader}>
-                                <div className={styles.outfitInfo} style={{ width: '100%' }}>
-                                    <div className={`${styles.skeleton} ${styles.skeletonTitle}`}></div>
-                                    <div className={`${styles.skeleton} ${styles.skeletonBadge}`} style={{ marginTop: '8px' }}></div>
-                                </div>
-                            </div>
-                            <div className={styles.previewGrid}>
-                                <div className={`${styles.skeleton} ${styles.skeletonImage}`}></div>
-                            </div>
-                            <div className={styles.actionRow}>
-                                <div className={`${styles.skeleton} ${styles.skeletonBtn}`}></div>
-                            </div>
-                        </div>
-                    ))
-                ) : outfits.length > 0 ? (
-                    outfits.map((outfit) => (
-                        <div key={outfit.id} className={styles.outfitCard}>
-                            <div className={styles.outfitHeader}>
-                                <div className={styles.outfitInfo}>
-                                    <h2>{outfit.name || 'AI Curation'}</h2>
-                                    <span className={styles.vibeTag}>{outfit.vibe} • {outfit.occasion}</span>
-                                </div>
-                                <div className={styles.headerActions}>
-                                    <div className={styles.scoreBadge}>
-                                        <span className={styles.scoreValue}>{outfit.score}</span>
-                                        <span className={styles.scoreLabel}>AI Match</span>
+                <div className={styles.outfitList}>
+                    {loading ? (
+                        // Skeleton Loading State
+                        [1, 2, 3].map((n) => (
+                            <div key={n} className={styles.skeletonCard}>
+                                <div className={styles.outfitHeader}>
+                                    <div className={styles.outfitInfo} style={{ width: '100%' }}>
+                                        <div className={`${styles.skeleton} ${styles.skeletonTitle}`}></div>
+                                        <div className={`${styles.skeleton} ${styles.skeletonBadge}`} style={{ marginTop: '8px' }}></div>
                                     </div>
+                                </div>
+                                <div className={styles.previewGrid}>
+                                    <div className={`${styles.skeleton} ${styles.skeletonImage}`}></div>
+                                </div>
+                                <div className={styles.actionRow}>
+                                    <div className={`${styles.skeleton} ${styles.skeletonBtn}`}></div>
+                                </div>
+                            </div>
+                        ))
+                    ) : outfits.length > 0 ? (
+                        outfits.map((outfit) => (
+                            <div key={outfit.id} className={styles.outfitCard}>
+                                <div className={styles.outfitHeader}>
+                                    <div className={styles.outfitInfo}>
+                                        <h2>{outfit.name || 'AI Curation'}</h2>
+                                        <span className={styles.vibeTag}>{outfit.vibe} • {outfit.occasion}</span>
+                                    </div>
+                                    <div className={styles.headerActions}>
+                                        <div className={styles.scoreBadge}>
+                                            <span className={styles.scoreValue}>{outfit.score}</span>
+                                            <span className={styles.scoreLabel}>AI Match</span>
+                                        </div>
+                                        <button
+                                            className={styles.deleteBtn}
+                                            onClick={(e) => handleDeleteOutfit(e, outfit.id)}
+                                            aria-label="Delete Outfit"
+                                        >
+                                            ✕
+                                        </button>
+                                    </div>
+                                </div>
+                                <div className={styles.previewGrid}>
+                                    {outfit.tryon_image_url ? (
+                                        <img
+                                            src={outfit.tryon_image_url.startsWith('http')
+                                                ? outfit.tryon_image_url
+                                                : `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}${outfit.tryon_image_url}`
+                                            }
+                                            className={styles.cardPreviewImage}
+                                            alt="Outfit Preview"
+                                        />
+                                    ) : (
+                                        <div className={styles.gridPlaceholder}>
+                                            <span>{outfit.items.length} Pieces</span>
+                                        </div>
+                                    )}
+                                </div>
+                                <div className={styles.actionRow}>
                                     <button
-                                        className={styles.deleteBtn}
-                                        onClick={(e) => handleDeleteOutfit(e, outfit.id)}
-                                        aria-label="Delete Outfit"
+                                        className={styles.viewBtn}
+                                        onClick={() => setSelectedOutfit(outfit)}
                                     >
-                                        ✕
+                                        Details
                                     </button>
                                 </div>
                             </div>
-                            <div className={styles.previewGrid}>
-                                {outfit.tryon_image_url ? (
-                                    <img
-                                        src={outfit.tryon_image_url.startsWith('http')
-                                            ? outfit.tryon_image_url
-                                            : `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}${outfit.tryon_image_url}`
-                                        }
-                                        className={styles.cardPreviewImage}
-                                        alt="Outfit Preview"
-                                    />
-                                ) : (
-                                    <div className={styles.gridPlaceholder}>
-                                        <span>{outfit.items.length} Pieces</span>
-                                    </div>
-                                )}
-                            </div>
-                            <div className={styles.actionRow}>
-                                <button
-                                    className={styles.viewBtn}
-                                    onClick={() => setSelectedOutfit(outfit)}
-                                >
-                                    Details
-                                </button>
-                            </div>
+                        ))
+                    ) : (
+                        <div className={styles.emptyState}>
+                            <p>No outfits saved yet. Ask Ava for inspiration!</p>
                         </div>
-                    ))
-                ) : (
-                    <div className={styles.emptyState}>
-                        <p>No outfits saved yet. Ask Ava for inspiration!</p>
-                    </div>
-                )}
+                    )}
+                </div>
             </div>
 
+            {/* Overlays Outside animated container to avoid stacking context issues */}
             {selectedOutfit && !showTryOn && (
                 <div className={styles.overlay} onClick={() => setSelectedOutfit(null)}>
                     <div className={styles.detailCard} onClick={e => e.stopPropagation()}>
+                        <div className={styles.sheetHandle}></div>
                         <button className={styles.closeBtn} onClick={() => setSelectedOutfit(null)}>✕</button>
 
                         <div className={styles.detailHeader}>
@@ -249,6 +253,6 @@ export default function OutfitsPage() {
                     }}
                 />
             )}
-        </div>
+        </>
     );
 }

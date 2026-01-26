@@ -132,7 +132,7 @@ async def ingest_clothing(
         # Use placeholder URL since we are relying on Qdrant
         qdrant_res = result.get("qdrant_result", {})
         point_id = qdrant_res.get("point_id") if isinstance(qdrant_res, dict) else None
-        ingestion_record.image_url = f"qdrant://{point_id}" if point_id else "qdrant://failed"
+        ingestion_record.image_url = qdrant_res.get("image_url")
         ingestion_record.status = "completed"
         
         # Clothing attributes

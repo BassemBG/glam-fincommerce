@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 from app.db.session import get_db
 from app.services.vision_analyzer import vision_analyzer
 from app.services.storage import storage_service
-from app.models.models import ClothingItem, User
+from app.models.models import ClothingItem, User, ClothingIngestionHistory
 import uuid
 import logging
 from app.api.user import get_current_user
@@ -76,57 +76,72 @@ async def get_closet_items(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """Get all clothing items for the current user from Qdrant."""
-    from app.services.clip_qdrant_service import clip_qdrant_service
+    """Get all clothing items for the current user from SQLite ingestion history."""
+    from sqlmodel import select
     
-    target_user_id = current_user.id
-        
-    # Fetch from Qdrant
-    qdrant_result = await clip_qdrant_service.get_user_items(target_user_id, limit=100)
-    items = qdrant_result.get("items", [])
+    user_id = current_user.id
+    
+    # Query SQLite instead of Qdrant
+    statement = select(ClothingIngestionHistory).where(
+        ClothingIngestionHistory.user_id == user_id,
+        ClothingIngestionHistory.status == "completed"
+    ).order_by(ClothingIngestionHistory.ingested_at.desc())
+    
+    results = db.execute(statement).scalars().all()
     
     # Map to frontend format
     mapped_items = []
-    for item in items:
-        clothing = item.get("clothing", {})
-        image_base64 = item.get("image_base64")
-        
-        # Construct image URL (Data URI for base64)
-        image_url = ""
-        if image_base64:
-            image_url = f"data:image/jpeg;base64,{image_base64}"
-            
+    for item in results:
+        # Construct mapped item matching the frontend interface
         mapped_items.append({
-            "id": item.get("id"),
-            "category": clothing.get("category", "clothing"),
-            "sub_category": clothing.get("sub_category", ""),
-            "body_region": clothing.get("body_region", "unknown"),
-            "image_url": image_url,
-            "mask_url": image_url, # Fallback since Qdrant doesn't store mask
+            "id": item.id,
+            "category": item.category or "clothing",
+            "sub_category": item.sub_category or "",
+            "body_region": item.body_region or "unknown",
+            "image_url": item.image_url,
+            "mask_url": item.image_url, # Fallback
             "metadata_json": {
-                "colors": clothing.get("colors", []),
-                "vibe": clothing.get("vibe", ""),
-                "material": clothing.get("material", ""),
-                "description": clothing.get("description", ""),
-                "styling_tips": clothing.get("styling_tips", ""),
-                "season": clothing.get("season", ""),
-                "brand": item.get("brand"),
-                "price": item.get("price")
+                "colors": item.colors or [],
+                "vibe": item.vibe or "",
+                "material": item.material or "",
+                "description": item.description or "",
+                "styling_tips": item.styling_tips or "",
+                "season": item.season or "",
+                "brand": item.detected_brand or "Unknown",
+                "price": item.price
             }
         })
         
     return mapped_items
 
 @router.delete("/items/{item_id}")
-async def delete_closet_item(item_id: str, db: Session = Depends(get_db)):
-    """Delete a clothing item from the closet (Qdrant)."""
+async def delete_closet_item(
+    item_id: str, 
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Delete a clothing item from SQLite and Qdrant."""
     from app.services.clip_qdrant_service import clip_qdrant_service
     
-    # Delete from Qdrant
-    success = await clip_qdrant_service.delete_item(item_id)
+    # 1. Find the record in SQLite
+    record = db.query(ClothingIngestionHistory).filter(
+        ClothingIngestionHistory.id == item_id,
+        ClothingIngestionHistory.user_id == current_user.id
+    ).first()
     
-    if not success:
-        raise HTTPException(status_code=500, detail="Failed to delete item")
+    if not record:
+        raise HTTPException(status_code=404, detail="Item not found")
+        
+    # 2. Delete from Qdrant if we have a point_id
+    if record.qdrant_point_id:
+        try:
+            await clip_qdrant_service.delete_item(record.qdrant_point_id)
+        except Exception as e:
+            logging.warning(f"Failed to delete from Qdrant: {e}")
+            
+    # 3. Delete from SQLite
+    db.delete(record)
+    db.commit()
         
     return {"status": "success", "id": item_id}
 

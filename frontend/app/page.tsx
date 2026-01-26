@@ -35,7 +35,18 @@ export default function Home() {
   const [isAnimating, setIsAnimating] = useState(false);
   const [showSparks, setShowSparks] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [statusMessage, setStatusMessage] = useState("");
+
+  const statusMessages = [
+    "Analyzing garment draping...",
+    "Synthesizing lighting environment...",
+    "Perfecting your virtual fit...",
+    "Rendering AI simulation...",
+    "Finalizing your curated look..."
+  ];
   const [showTryOn, setShowTryOn] = useState(false);
+  const [generatedTryOn, setGeneratedTryOn] = useState<string | null>(null);
   const [userPhoto, setUserPhoto] = useState<string | null>(null);
   const [items, setItems] = useState<ClothingItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -110,6 +121,9 @@ export default function Home() {
 
   const handleCreateOutfit = async () => {
     setIsAnimating(true);
+    setShowSparks(false);
+    setShowSuccess(false);
+    setIsProcessing(false);
 
     // Build outfit data from selected items
     const selectedItems = items.filter(item => selectedForOutfit.includes(item.id));
@@ -120,38 +134,58 @@ export default function Home() {
       vibe: selectedItems[0]?.metadata_json?.vibe || "chic"
     };
 
+    // Step 1: Animation of pieces flying into open doors
+    await new Promise(resolve => setTimeout(resolve, 1800));
+
+    // Step 2: Close doors and start processing
+    setShowSparks(true);
+    setIsProcessing(true);
+
+    // Rotate messages
+    let msgIndex = 0;
+    setStatusMessage(statusMessages[0]);
+    const msgInterval = setInterval(() => {
+      msgIndex = (msgIndex + 1) % statusMessages.length;
+      setStatusMessage(statusMessages[msgIndex]);
+    }, 4000);
+
     try {
-      // Save outfit to backend
+      // Save outfit and generate Try-on
       const response = await authFetch(API.outfits.save, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(outfitData)
       });
 
-      if (!response.ok) {
+      if (response.ok) {
+        const data = await response.json();
+        if (data.tryon_image_url) {
+          setGeneratedTryOn(data.tryon_image_url);
+        }
+      } else {
         console.error('Failed to save outfit');
       }
     } catch (err) {
       console.error('Error saving outfit:', err);
+    } finally {
+      clearInterval(msgInterval);
     }
 
+    // Step 3: Success state!
+    setIsProcessing(false);
+    setShowSuccess(true);
+
     setTimeout(() => {
-      setShowSparks(true);
-      setTimeout(() => {
-        setShowSuccess(true);
-        setTimeout(() => {
-          setIsAnimating(false);
-          setIsSelectionMode(false);
-          if (userPhoto) {
-            setShowTryOn(true);
-          } else {
-            setSelectedForOutfit([]);
-          }
-          setShowSparks(false);
-          setShowSuccess(false);
-        }, 2500);
-      }, 1000);
-    }, 2000);
+      setIsAnimating(false);
+      setIsSelectionMode(false);
+      if (userPhoto) {
+        setShowTryOn(true);
+      } else {
+        setSelectedForOutfit([]);
+      }
+      setShowSparks(false);
+      setShowSuccess(false);
+    }, 2500);
   };
 
   const [isDeleting, setIsDeleting] = useState(false);
@@ -162,7 +196,7 @@ export default function Home() {
 
     setIsDeleting(true);
     try {
-      const res = await fetch(API.closet.delete(id), { method: 'DELETE' });
+      const res = await authFetch(API.closet.delete(id), { method: 'DELETE' });
       if (res.ok) {
         setItems(prev => prev.filter(item => item.id !== id));
         setSelectedItem(null);
@@ -217,87 +251,89 @@ export default function Home() {
   }
 
   return (
-    <div className={`${styles.dashboard} ${isSelectionMode ? styles.selectionActive : ''}`}>
-      <header className={styles.header}>
-        <div className={styles.headerTop}>
-          <h1>{isSelectionMode ? "Select Pieces" : "My Closet"}</h1>
-          {isSelectionMode && (
-            <button className={styles.cancelBtn} onClick={() => {
-              setIsSelectionMode(false);
-              setSelectedForOutfit([]);
-            }}>Done</button>
+    <>
+      <div className={`${styles.dashboard} ${isSelectionMode ? styles.selectionActive : ''} animate-fade-in`}>
+        <header className={styles.header}>
+          <div className={styles.headerTop}>
+            <h1>{isSelectionMode ? "Select Pieces" : "My Closet"}</h1>
+            {isSelectionMode && (
+              <button className={styles.cancelBtn} onClick={() => {
+                setIsSelectionMode(false);
+                setSelectedForOutfit([]);
+              }}>Done</button>
+            )}
+          </div>
+          {!isSelectionMode && (
+            <div className={styles.stats}>
+              <div className={styles.statCard}>
+                <span className={styles.statValue}>{items.length}</span>
+                <span className={styles.statLabel}>Items</span>
+              </div>
+              <div className={styles.statCard}>
+                <span className={styles.statValue}>0</span>
+                <span className={styles.statLabel}>Outfits</span>
+              </div>
+            </div>
           )}
-        </div>
+        </header>
+
         {!isSelectionMode && (
-          <div className={styles.stats}>
-            <div className={styles.statCard}>
-              <span className={styles.statValue}>{items.length}</span>
-              <span className={styles.statLabel}>Items</span>
-            </div>
-            <div className={styles.statCard}>
-              <span className={styles.statValue}>0</span>
-              <span className={styles.statLabel}>Outfits</span>
-            </div>
+          <div className={styles.filters}>
+            <button className={`${styles.filterBtn} ${styles.active}`}>All</button>
+            <button className={styles.filterBtn}>Tops</button>
+            <button className={styles.filterBtn}>Bottoms</button>
+            <button className={styles.filterBtn}>Dresses</button>
+            <button className={styles.filterBtn}>Shoes</button>
           </div>
         )}
-      </header>
 
-      {!isSelectionMode && (
-        <div className={styles.filters}>
-          <button className={`${styles.filterBtn} ${styles.active}`}>All</button>
-          <button className={styles.filterBtn}>Tops</button>
-          <button className={styles.filterBtn}>Bottoms</button>
-          <button className={styles.filterBtn}>Dresses</button>
-          <button className={styles.filterBtn}>Shoes</button>
-        </div>
-      )}
-
-      {loading ? (
-        <div className={styles.loadingState}>
-          <div className={styles.spinner}></div>
-          <p>Loading your wardrobe...</p>
-        </div>
-      ) : (
-        <div className={styles.grid}>
-          {items.map((item) => (
-            <div
-              key={item.id}
-              className={`${styles.card} ${isSelectionMode ? styles.jiggle : ''} ${selectedForOutfit.includes(item.id) ? styles.selected : ''}`}
-              onMouseDown={() => handleTouchStart(item.id)}
-              onMouseUp={handleTouchEnd}
-              onMouseLeave={handleTouchEnd}
-              onTouchStart={() => handleTouchStart(item.id)}
-              onTouchEnd={handleTouchEnd}
-              onClick={() => {
-                if (isSelectionMode) {
-                  toggleItemSelection(item.id);
-                } else {
-                  setSelectedItem(item);
-                }
-              }}
-            >
-              <div className={styles.imageWrapper}>
-                <img src={item.mask_url || item.image_url} alt={item.sub_category || 'Clothing'} className={styles.image} />
-                {isSelectionMode && (
-                  <div className={styles.selectionIndicator}>
-                    {selectedForOutfit.includes(item.id) ? "✓" : ""}
-                  </div>
-                )}
+        {loading ? (
+          <div className={styles.loadingState}>
+            <div className={styles.spinner}></div>
+            <p>Loading your wardrobe...</p>
+          </div>
+        ) : (
+          <div className={styles.grid}>
+            {items.map((item) => (
+              <div
+                key={item.id}
+                className={`${styles.card} ${isSelectionMode ? styles.jiggle : ''} ${selectedForOutfit.includes(item.id) ? styles.selected : ''}`}
+                onMouseDown={() => handleTouchStart(item.id)}
+                onMouseUp={handleTouchEnd}
+                onMouseLeave={handleTouchEnd}
+                onTouchStart={() => handleTouchStart(item.id)}
+                onTouchEnd={handleTouchEnd}
+                onClick={() => {
+                  if (isSelectionMode) {
+                    toggleItemSelection(item.id);
+                  } else {
+                    setSelectedItem(item);
+                  }
+                }}
+              >
+                <div className={styles.imageWrapper}>
+                  <img src={item.mask_url || item.image_url} alt={item.sub_category || 'Clothing'} className={styles.image} />
+                  {isSelectionMode && (
+                    <div className={styles.selectionIndicator}>
+                      {selectedForOutfit.includes(item.id) ? "✓" : ""}
+                    </div>
+                  )}
+                </div>
+                <div className={styles.itemInfo}>
+                  <span className={styles.itemSub}>{item.sub_category || item.category}</span>
+                  <span className={styles.itemCategory}>{item.body_region.replace('_', ' ')}</span>
+                </div>
               </div>
-              <div className={styles.itemInfo}>
-                <span className={styles.itemSub}>{item.sub_category || item.category}</span>
-                <span className={styles.itemCategory}>{item.body_region.replace('_', ' ')}</span>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
+            ))}
+          </div>
+        )}
 
-      {isSelectionMode && selectedForOutfit.length > 0 && (
-        <button className={styles.floatingActionBtn} onClick={handleCreateOutfit}>
-          Create Outfit ({selectedForOutfit.length})
-        </button>
-      )}
+        {isSelectionMode && selectedForOutfit.length > 0 && (
+          <button className={styles.floatingActionBtn} onClick={handleCreateOutfit}>
+            Create Outfit ({selectedForOutfit.length})
+          </button>
+        )}
+      </div>
 
       {/* Animation Magic */}
       {isAnimating && (
@@ -305,9 +341,18 @@ export default function Home() {
           {!showSuccess ? (
             <div className={styles.magicContainer}>
               <div className={`${styles.closetDoor} ${showSparks ? styles.closed : styles.open}`}>
+                {isProcessing && <div className={styles.aiAura}></div>}
                 <div className={styles.doorLeft}></div>
                 <div className={styles.doorRight}></div>
               </div>
+
+              {isProcessing && (
+                <div className={styles.processingInfo}>
+                  <div className={styles.processingPulse}></div>
+                  <p className={styles.processingText}>{statusMessage}</p>
+                </div>
+              )}
+
               <div className={styles.flyingPieces}>
                 {selectedForOutfit.map((id, idx) => {
                   const item = items.find(i => i.id === id);
@@ -339,6 +384,7 @@ export default function Home() {
       {selectedItem && !isSelectionMode && (
         <div className={styles.overlay} onClick={() => setSelectedItem(null)}>
           <div className={styles.detailCard} onClick={e => e.stopPropagation()}>
+            <div className={styles.sheetHandle}></div>
             <button className={styles.closeBtn} onClick={() => setSelectedItem(null)}>✕</button>
 
             <div className={styles.detailHeader}>
@@ -411,16 +457,18 @@ export default function Home() {
       {showTryOn && userPhoto && selectedForOutfit.length > 0 && (
         <TryOnVisualizer
           bodyImage={userPhoto}
+          tryonImageUrl={generatedTryOn || undefined}
           items={selectedForOutfit.map(id => {
             const item = items.find(i => i.id === id);
             return { image_url: item?.image_url || '', body_region: item?.body_region || 'top' };
           })}
           onClose={() => {
             setShowTryOn(false);
+            setGeneratedTryOn(null);
             setSelectedForOutfit([]);
           }}
         />
       )}
-    </div>
+    </>
   );
 }
