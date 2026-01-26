@@ -31,40 +31,46 @@ def route_manager(state: AgentState):
 
 def route_manager_tools(state: AgentState):
     """Decides which specialized agent to go to based on handoff tool result."""
-    last_msg = state["messages"][-1] # This is the ToolMessage content
-    content = last_msg.content
+    last_msg = state["messages"][-1]
+    content = str(last_msg.content).upper()
     
     if "TRANSFER_TO_CLOSET" in content: 
-        print(f"🔄 [HANDOFF] Manager -> Closet Assistant")
+        print(f"🔄 [ROUTING] -> Closet Assistant")
         return "closet"
     if "TRANSFER_TO_ADVISOR" in content: 
-        print(f"🔄 [HANDOFF] Manager -> Fashion Advisor")
+        print(f"🔄 [ROUTING] -> Fashion Advisor")
         return "advisor"
     if "TRANSFER_TO_BUDGET" in content: 
-        print(f"🔄 [HANDOFF] Manager -> Budget Manager")
+        print(f"🔄 [ROUTING] -> Budget Manager")
         return "budget"
     if "TRANSFER_TO_VISUALIZER" in content: 
-        print(f"🔄 [HANDOFF] Manager -> Visualizer")
+        print(f"🔄 [ROUTING] -> Visualizer")
         return "visualizer"
     
-    # If it was just a regular tool like get_user_vitals, go back to manager for next thought
+    # Generic tools like get_user_vitals return to manager
     return "manager"
 
 def route_subagent(state: AgentState):
     """Routes after a specialized agent node."""
     last_msg = state["messages"][-1]
     if isinstance(last_msg, AIMessage) and last_msg.tool_calls:
-        # Specialized agent might want to call its own tools
-        active = state.get("active_agent")
-        return f"{active}_tools"
-    return "manager" # Default: return to manager
+        return f"{state['active_agent']}_tools"
+    
+    # If agent returned text WITHOUT calling transfer_back_to_manager, 
+    # we still go to manager but Ava might be confused. 
+    # The prompt should prevent this.
+    return "manager"
 
 def route_subagent_tools(state: AgentState):
     """Routes after a specialized tool is called."""
     last_msg = state["messages"][-1]
-    if "TRANSFER_BACK_TO_MANAGER" in last_msg.content:
+    content = str(last_msg.content).upper()
+    
+    if "TRANSFER_BACK_TO_MANAGER" in content:
+        print(f"⬅️ [ROUTING] {state['active_agent']} -> Manager")
         return "manager"
-    # Otherwise, go back to the subagent to see if it has more to do
+    
+    # Otherwise, go back to the subagent to see if it has more tools to call
     return state.get("active_agent")
 
 # --- Graph Assembly ---
