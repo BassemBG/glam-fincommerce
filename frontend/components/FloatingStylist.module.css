@@ -178,6 +178,9 @@
     border-radius: 20px;
     font-size: 0.95rem;
     line-height: 1.5;
+    max-width: 100%;
+    width: fit-content;
+    overflow: hidden;
 }
 
 .assistant .bubble {
@@ -213,11 +216,26 @@
 
 .imageGrid {
     display: flex;
-    gap: 8px;
+    gap: 12px;
     margin-top: 12px;
     overflow-x: auto;
-    padding-bottom: 4px;
-    scrollbar-width: none;
+    padding-bottom: 8px;
+    width: 100%;
+    max-width: 100%;
+    -webkit-overflow-scrolling: touch;
+}
+
+.imageGrid::-webkit-scrollbar {
+    height: 4px;
+}
+
+.imageGrid::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.imageGrid::-webkit-scrollbar-thumb {
+    background: #e2e8f0;
+    border-radius: 10px;
 }
 
 .chatImg {
@@ -384,7 +402,7 @@
 .renderedImageContainer {
     margin: 10px 0;
     width: 100%;
-    max-width: 260px;
+    max-width: 280px;
     border-radius: 16px;
     overflow: hidden;
     border: 1px solid #f1f5f9;
