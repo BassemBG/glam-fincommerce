@@ -22,6 +22,13 @@ def transfer_to_visualizer(task: str) -> str:
     return f"TRANSFER_TO_VISUALIZER: {task}"
 
 @tool
-def transfer_back_to_manager() -> str:
-    """Return control to the Manager (Ava) once your specialized task is complete."""
-    return "TRANSFER_BACK_TO_MANAGER"
+def transfer_back_to_manager(summary: str, clarification_needed: str = "") -> str:
+    """
+    Return control to Ava (the Manager). 
+    - summary: A detailed report of what you found or did.
+    - clarification_needed: Use this ONLY if you are blocked because you are missing info (like price, color preference, etc.). 
+      State exactly what the user needs to provide.
+    """
+    if clarification_needed:
+        return f"TRANSFER_BACK_TO_MANAGER | BLOCKED: {clarification_needed} | SUMMARY: {summary}"
+    return f"TRANSFER_BACK_TO_MANAGER | SUMMARY: {summary}"
