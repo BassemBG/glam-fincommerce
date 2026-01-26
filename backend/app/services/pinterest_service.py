@@ -6,6 +6,7 @@ from urllib.parse import urlencode
 from sqlalchemy.orm import Session
 from app.core.config import settings
 from app.models.models import User, PinterestToken
+from app.services.storage import storage_service
 
 logger = logging.getLogger(__name__)
 
@@ -43,6 +44,11 @@ try:
 except ImportError:
     def get_embedding(*args, **kwargs):
         return None
+
+try:
+    from app.services.embedding_service import embedding_service
+except ImportError:
+    embedding_service = None
 
 class PinterestOAuthService:
     """Handles Pinterest OAuth flow"""
@@ -211,7 +217,7 @@ class PinterestPersonaService:
     def __init__(self, db: Session):
         self.db = db
     
-    def sync_user_pinterest_data(self, user_id: str, access_token: str) -> Dict:
+    async def sync_user_pinterest_data(self, user_id: str, access_token: str) -> Dict:
         """
         Sync all Pinterest data for user:
         1. Fetch boards
@@ -345,14 +351,273 @@ class PinterestPersonaService:
                 logger.warning(f"[Pinterest Sync] Skipping {len(pins_without_images)} pins without images: {[p.get('id') for p in pins_without_images]}")
             
             # FILTERING STEP: Filter pins with images to keep only outfit/fashion-related content
+            print("="*80)
+            print(f"🔍 [PINTEREST FILTER] Starting VLM filtering for {len(pins_with_images)} pins")
+            print("="*80)
             logger.info(f"[Pinterest Sync] ****FILTERING_PINS**** Starting outfit filtering for {len(pins_with_images)} pins with images")
             
             filter_result = filter_pinterest_pins(pins_with_images)
             filtered_pins = filter_result["accepted"]
             filter_stats = filter_result["stats"]
             
+            print("="*80)
+            print(f"✅ [FILTER COMPLETE] Accepted: {len(filtered_pins)} | Rejected: {filter_stats.get('rejected', 0)}")
+            print(f"📊 Filter Stats: {filter_stats}")
+            print("="*80)
             logger.info(f"[Pinterest Sync] ****FILTER_RESULTS**** {filter_stats}")
             
+            if len(filtered_pins) == 0:
+                print("⚠️  [WARNING] NO PINS PASSED FILTER - NOTHING WILL BE STORED OR INDEXED")
+                logger.warning("[Pinterest Sync] No pins passed filter - skipping storage and indexing")
+            
+            # STEP 1: DOWNLOAD & STORE FILTERED PIN IMAGES
+            # ================================================
+            stored_pins = []
+            print("\n" + "="*80)
+            print(f"💾 [STORAGE] Downloading and storing {len(filtered_pins)} filtered pin images")
+            print("="*80)
+            logger.info(f"[Pinterest Sync] ****STORING_IMAGES**** Downloading and storing {len(filtered_pins)} filtered pin images")
+            
+            for pin in filtered_pins:
+                pin_id = pin.get("id")
+                image_url = pin.get("image_url")
+                
+                if not image_url:
+                    logger.warning(f"[Pinterest Sync] Skipping pin {pin_id}: no image URL")
+                    continue
+                
+                try:
+                    # Download image bytes from Pinterest
+                    print(f"  📥 Downloading pin {pin_id}...")
+                    logger.info(f"[Pinterest Sync] Downloading image for pin {pin_id}")
+                    response = requests.get(image_url, timeout=10)
+                    response.raise_for_status()
+                    image_content = response.content
+                    print(f"     ✓ Downloaded {len(image_content)} bytes")
+                    
+                    # Generate storage filename
+                    file_name = f"pinterest_{pin_id}.jpg"
+                    
+                    # Upload via storage_service (S3 or local)
+                    print(f"  ☁️  Uploading to storage...")
+                    stored_url = await storage_service.upload_file(
+                        image_content,
+                        file_name,
+                        "image/jpeg"
+                    )
+                    print(f"     ✓ Stored at: {stored_url}")
+                    
+                    # Prepare metadata for storage and indexing
+                    metadata = {
+                        "source": "pinterest",
+                        "pin_id": pin_id,
+                        "board_name": pin.get("board_name"),
+                        "description": pin.get("description"),
+                        "colors": pin.get("colors", []),
+                        "style_tags": pin.get("style_tags", []),
+                        "created_at": pin.get("created_at"),
+                        "original_url": image_url,
+                        "stored_url": stored_url
+                    }
+                    
+                    stored_pins.append({
+                        "pin_id": pin_id,
+                        "stored_url": stored_url,
+                        "metadata": metadata,
+                        "colors": pin.get("colors", []),
+                        "style_tags": pin.get("style_tags", []),
+                        "board_name": pin.get("board_name")
+                    })
+                    
+                    logger.info(f"[Pinterest Sync] ✓ Stored pin {pin_id} at {stored_url}")
+                
+                except Exception as e:
+                    print(f"  ❌ FAILED to store pin {pin_id}: {e}")
+                    logger.warning(f"[Pinterest Sync] ✗ Failed to store pin {pin_id}: {e}")
+                    continue
+            
+            print("="*80)
+            print(f"✅ [STORAGE COMPLETE] Successfully stored {len(stored_pins)}/{len(filtered_pins)} pin images")
+            print("="*80)
+            logger.info(f"[Pinterest Sync] ****STORED_IMAGES**** Successfully stored {len(stored_pins)} pin images")
+            
+            if len(stored_pins) == 0:
+                print("⚠️  [WARNING] NO IMAGES STORED - NOTHING WILL BE INDEXED IN QDRANT")
+                logger.warning("[Pinterest Sync] No images stored - skipping Qdrant indexing")
+            
+            # STEP 2: INDEX STORED PINS IN QDRANT (separate collection)
+            # ========================================================
+            print("\n" + "="*80)
+            print(f"🔵 [QDRANT] Indexing {len(stored_pins)} pins in Qdrant collection 'pinterest_pins'")
+            print(f"🔵 [QDRANT] URL: {settings.QDRANT_URL}")
+            print(f"🔵 [QDRANT] API Key: {'✓ SET' if settings.QDRANT_API_KEY else '❌ MISSING'}")
+            print("="*80)
+            logger.info(f"[Pinterest Sync] ****INDEXING_QDRANT**** Indexing {len(stored_pins)} pins in Qdrant collection 'pinterest_pins'")
+            
+            try:
+                from qdrant_client import QdrantClient
+                from qdrant_client.models import VectorParams, Distance, PointStruct
+                import uuid as uuid_module
+                
+                # Initialize Qdrant client with API key
+                print("  🔌 Connecting to Qdrant...")
+                qdrant_client = QdrantClient(
+                    url=settings.QDRANT_URL,
+                    api_key=settings.QDRANT_API_KEY
+                )
+                print("     ✓ Connected to Qdrant")
+                
+                # Ensure collection exists
+                print("  📦 Checking collection 'pinterest_pins'...")
+                collection_exists = False
+                vector_size_correct = False
+                
+                try:
+                    collection_info = qdrant_client.get_collection("pinterest_pins")
+                    collection_exists = True
+                    
+                    # Get vector size - try different attribute paths
+                    try:
+                        vector_size = collection_info.config.params.vectors.size
+                    except:
+                        try:
+                            vector_size = collection_info.config.vectors.size
+                        except:
+                            vector_size = 768  # Default to wrong size if we can't read
+                    
+                    print(f"     ✓ Collection exists | Points count: {collection_info.points_count} | Vector size: {vector_size}")
+                    
+                    # Check if vector size is correct (should be 384 for Gemini embeddings)
+                    if vector_size == 384:
+                        vector_size_correct = True
+                        logger.info("[Pinterest Sync] Collection 'pinterest_pins' exists with correct vector size")
+                    else:
+                        print(f"     ⚠️  Vector size mismatch! Expected 384-dim, got {vector_size}-dim")
+                except Exception as e:
+                    collection_exists = False
+                    print(f"     ℹ️  Collection not found")
+                
+                # Delete and recreate if needed
+                if collection_exists and not vector_size_correct:
+                    print("     🗑️  Deleting old collection...")
+                    try:
+                        qdrant_client.delete_collection("pinterest_pins")
+                        print("     ✓ Old collection deleted")
+                    except Exception as e:
+                        print(f"     ⚠️  Error deleting collection: {str(e)}")
+                
+                # Create collection if it doesn't exist or was deleted
+                if not collection_exists or not vector_size_correct:
+                    print(f"     📝 Creating collection with 384-dim vectors...")
+                    try:
+                        qdrant_client.create_collection(
+                            collection_name="pinterest_pins",
+                            vectors_config=VectorParams(size=384, distance=Distance.COSINE)
+                        )
+                        print("     ✓ Collection 'pinterest_pins' created with 384-dim vectors")
+                        logger.info("[Pinterest Sync] Created collection 'pinterest_pins' with 384-dim vectors")
+                    except Exception as e:
+                        print(f"     ⚠️  Error creating collection: {str(e)}")
+                        logger.error(f"[Pinterest Sync] Error creating collection: {str(e)}")
+                
+                indexed_count = 0
+                print(f"\n  📝 Indexing {len(stored_pins)} pins...")
+                for idx, stored_pin in enumerate(stored_pins, 1):
+                    pin_id = stored_pin["pin_id"]
+                    print(f"\n  [{idx}/{len(stored_pins)}] Processing pin {pin_id}")
+                    try:
+                        # Generate embedding for pin metadata
+                        metadata_text = f"{stored_pin['metadata'].get('description', '')} {' '.join(stored_pin.get('style_tags', []))}"
+                        print(f"     🧠 Generating embedding (text: {len(metadata_text)} chars)...")
+                        
+                        # Get embedding
+                        embedding = await embedding_service.get_text_embedding(metadata_text)
+                        print(f"     ✓ Embedding generated (dim: {len(embedding) if embedding else 0})")
+                        
+                        # Prepare Qdrant point
+                        point_id = str(uuid_module.uuid4())
+                        payload = {
+                            "type": "pinterest_pin",
+                            "user_id": user_id,
+                            "pin_id": pin_id,
+                            "image_url": stored_pin["stored_url"],
+                            "board_name": stored_pin.get("board_name"),
+                            "colors": stored_pin.get("colors", []),
+                            "style_tags": stored_pin.get("style_tags", []),
+                            "description": stored_pin['metadata'].get('description'),
+                            "created_at": stored_pin['metadata'].get('created_at'),
+                            "metadata": stored_pin["metadata"]
+                        }
+                        print(f"     📤 Upserting to Qdrant (point_id: {point_id[:8]}...)")
+                        
+                        # Upsert to Qdrant (separate collection for Pinterest)
+                        qdrant_client.upsert(
+                            collection_name="pinterest_pins",
+                            points=[
+                                PointStruct(
+                                    id=uuid_module.UUID(point_id).int % (2**63),  # Convert UUID to valid positive int ID
+                                    vector=embedding,
+                                    payload=payload
+                                )
+                            ]
+                        )
+                        print(f"     ✓ Upserted to Qdrant successfully")
+                        
+                        # Save to database
+                        print(f"     💾 Saving to local database...")
+                        from app.models.models import PinterestPin
+                        pinterest_pin_record = PinterestPin(
+                            user_id=user_id,
+                            pin_id=pin_id,
+                            board_name=stored_pin.get("board_name", ""),
+                            description=stored_pin['metadata'].get('description'),
+                            original_url=stored_pin['metadata'].get('original_url'),
+                            stored_url=stored_pin["stored_url"],
+                            colors=stored_pin.get("colors", []),
+                            style_tags=stored_pin.get("style_tags", []),
+                            qdrant_point_id=point_id,
+                            qdrant_vector=embedding,
+                            metadata_json=stored_pin["metadata"]
+                        )
+                        self.db.add(pinterest_pin_record)
+                        print(f"     ✓ Saved to database")
+                        
+                        indexed_count += 1
+                        print(f"  ✅ [{idx}/{len(stored_pins)}] Successfully indexed pin {pin_id}")
+                        logger.info(f"[Pinterest Sync] ✓ Indexed pin {pin_id} in Qdrant (point_id={point_id})")
+                    
+                    except Exception as e:
+                        print(f"  ❌ [{idx}/{len(stored_pins)}] FAILED to index pin {pin_id}: {str(e)}")
+                        logger.warning(f"[Pinterest Sync] ✗ Failed to index pin {pin_id}: {e}", exc_info=True)
+                        continue
+                
+                self.db.commit()
+                print("\n" + "="*80)
+                if indexed_count == len(stored_pins):
+                    print(f"✅✅✅ [QDRANT SUCCESS] ALL {indexed_count} PINS INDEXED SUCCESSFULLY ✅✅✅")
+                elif indexed_count > 0:
+                    print(f"⚠️  [QDRANT PARTIAL] {indexed_count}/{len(stored_pins)} pins indexed (some failed)")
+                else:
+                    print(f"❌❌❌ [QDRANT FAILURE] NO PINS INDEXED - ALL FAILED ❌❌❌")
+                print("="*80)
+                logger.info(f"[Pinterest Sync] ****INDEXED_SUCCESS**** Indexed {indexed_count}/{len(stored_pins)} pins in Qdrant")
+                
+                # Verify by checking collection count
+                try:
+                    final_count = qdrant_client.get_collection("pinterest_pins")
+                    print(f"🔵 [QDRANT VERIFY] Collection now has {final_count.points_count} total points")
+                except Exception as verify_e:
+                    print(f"⚠️  Could not verify collection count: {verify_e}")
+            
+            except Exception as e:
+                print("\n" + "="*80)
+                print(f"❌❌❌ [QDRANT ERROR] CRITICAL FAILURE - NO DATA INDEXED ❌❌❌")
+                print(f"Error: {str(e)}")
+                print("="*80)
+                logger.error(f"[Pinterest Sync] ****QDRANT_ERROR**** Failed to index pins in Qdrant: {e}", exc_info=True)
+            
+            # STEP 3: SUMMARIZE OUTFITS & UPDATE ZEP PERSONA
+            # ================================================
             # Summarize outfits from accepted pins (image-only analysis)
             outfit_summaries = []
             for pin in filtered_pins:

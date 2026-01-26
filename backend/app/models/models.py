@@ -130,6 +130,30 @@ class ClothingIngestionHistory(SQLModel, table=True):
     error_message: Optional[str] = Field(default=None, sa_column=Column(Text))
     ingested_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
+class PinterestPin(SQLModel, table=True):
+    """Stores Pinterest pins that have been filtered and indexed"""
+    __tablename__ = "pinterest_pins"
+    
+    id: str = Field(default_factory=lambda: str(uuid4()), primary_key=True)
+    user_id: str = Field(foreign_key="users.id", index=True)
+    pin_id: str = Field(index=True)  # Pinterest pin ID
+    board_name: str = Field(max_length=255)
+    description: Optional[str] = Field(default=None, sa_column=Column(Text))
+    original_url: str  # Original Pinterest URL
+    stored_url: str  # Our storage (S3/local) URL
+    colors: List[str] = Field(default=[], sa_column=Column(JSON))
+    style_tags: List[str] = Field(default=[], sa_column=Column(JSON))
+    
+    # Qdrant integration
+    qdrant_point_id: Optional[str] = Field(default=None, index=True)
+    qdrant_vector: Optional[List[float]] = Field(default=None, sa_column=Column(JSON))
+    
+    # Metadata
+    metadata_json: Dict = Field(default={}, sa_column=Column(JSON))
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
+
+
 class PinterestToken(SQLModel, table=True):
     __tablename__ = "pinterest_tokens"
     

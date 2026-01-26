@@ -21,6 +21,11 @@ class Settings(BaseSettings):
     
     # Zep API Key
     ZEP_API_KEY: str = ""
+    
+    # Qdrant Vector DB
+    QDRANT_URL: str = "https://86d64e8e-85e3-4573-8605-c55a200e11dc.europe-west3-0.gcp.cloud.qdrant.io"
+    QDRANT_API_KEY: str = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhY2Nlc3MiOiJtIn0.r8hipkRAT0JK8W7ZQfsAvCplnQEd8sJla62Beigmaoc"
+    QDRANT_COLLECTION_NAME: str = "clothing_embeddings"
 
     # Pinterest OAuth
     PINTEREST_APP_ID: str = "1543846"

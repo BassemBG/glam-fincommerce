@@ -127,7 +127,7 @@ def pinterest_status(
     }
 
 @router.get("/pinterest/callback")
-def pinterest_callback(
+async def pinterest_callback(
     code: str,
     state: str = None,
     user_id: str = None,
@@ -193,7 +193,7 @@ def pinterest_callback(
         print(f"DEBUG: [Pinterest] PinterestPersonaService created")
         logger.info(f"[Pinterest] PinterestPersonaService created")
         
-        sync_result = persona_service.sync_user_pinterest_data(
+        sync_result = await persona_service.sync_user_pinterest_data(
             user_id=user_id,
             access_token=token_data.get("access_token")
         )
@@ -221,7 +221,7 @@ def pinterest_callback(
 
 
 @router.post("/pinterest/sync")
-def sync_pinterest_data(user_id: str, db: Session = Depends(get_db)):
+async def sync_pinterest_data(user_id: str, db: Session = Depends(get_db)):
     """
     Sync Pinterest boards and pins for authenticated user.
     This should be called after user has authorized Pinterest.
@@ -255,7 +255,7 @@ def sync_pinterest_data(user_id: str, db: Session = Depends(get_db)):
         
         # Sync Pinterest data
         persona_service = PinterestPersonaService(db)
-        result = persona_service.sync_user_pinterest_data(
+        result = await persona_service.sync_user_pinterest_data(
             user_id=user_id,
             access_token=pinterest_token.access_token
         )
