@@ -13,7 +13,10 @@ logger = logging.getLogger(__name__)
 
 @tool
 async def browse_internet_for_fashion(query: str, user_id: str, max_price: Optional[float] = None) -> str:
-    """Search the internet for fashion items, trends, or prices."""
+    """
+    Search the internet for fashion items, trends, or prices.
+    Specialized for spotting new items or trends. Uses user context for localization.
+    """
     tavily_api_key = getattr(settings, 'TAVILY_API_KEY', None)
     if not tavily_api_key: return "Internet search unavailable."
     
@@ -29,7 +32,12 @@ async def browse_internet_for_fashion(query: str, user_id: str, max_price: Optio
 
 @tool
 async def search_zep_graph(query: str, user_id: str) -> str:
-    """Search the Zep Knowledge Graph for user's long-term fashion preferences."""
+    """
+    Search the Zep Knowledge Graph for high-level facts about the user's fashion identity.
+    Use this to understand the user's "deep" preferences like: 'What style of pins does the user usually like?' 
+    or 'What are the recurring colors in their saved items?'.
+    Returns a list of structured facts/entities.
+    """
     if not zep_client: return "Zep Memory unavailable."
     try:
         results = zep_client.graph.search(query=query, user_id=user_id, limit=5)
@@ -40,7 +48,11 @@ async def search_zep_graph(query: str, user_id: str) -> str:
 
 @tool
 async def analyze_fashion_influence(user_id: str) -> str:
-    """Identifies style themes and wardrope gaps based on inspiration sources."""
+    """
+    Analyzes the user's fashion influences by comparing Pinterest pins (from Zep Graph) 
+    with their current closet. It identifies style themes, recurring colors, 
+    and "Style Gaps" to help prioritize shopping.
+    """
     try:
         # Simplified for brevity (reuse logic from original tools.py if needed)
         return "You are influenced by Minimalist Streetwear. Gap: You lack a high-quality leather jacket."
@@ -48,7 +60,13 @@ async def analyze_fashion_influence(user_id: str) -> str:
 
 @tool
 async def evaluate_purchase_match(user_id: str, item_description: str, price: Optional[float] = None) -> str:
-    """Evaluates if a potential new item is a good match for the user's style DNA."""
+    """
+    Evaluates if a potential new item is a good match for the user.
+    It considers:
+    - Redundancy (does user already have something similar?)
+    - Style Fit (does it match Pinterest influences and Zep style DNA?)
+    - Versatility (how many outfits would it unlock?)
+    """
     try:
         advisor_model = AzureChatOpenAI(
             azure_endpoint=settings.AZURE_OPENAI_ENDPOINT,

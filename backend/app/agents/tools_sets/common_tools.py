@@ -5,7 +5,10 @@ from app.models.models import User
 
 @tool
 def get_user_vitals(user_id: str) -> str:
-    """Retrieve user preferences, budget constraints, and current style profile."""
+    """
+    Retrieve user preferences, budget constraints, and current style profile.
+    Always call this when a user asks for recommendations to ensure budget/style constraints are met.
+    """
     db = SessionLocal()
     try:
         user = db.query(User).filter(User.id == user_id).first()

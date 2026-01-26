@@ -6,7 +6,12 @@ from app.models.models import User, ClothingItem
 
 @tool
 async def visualize_outfit(user_id: str, item_ids: Optional[List[str]] = None, image_urls: Optional[List[str]] = None) -> str:
-    """Generate a photorealistic try-on image for the user."""
+    """
+    Generate a photorealistic image showing the user wearing a specific set of items.
+    You can provide 'item_ids' for items in the user's closet, 
+    or 'image_urls' for items found on the internet.
+    Returns the URL of the generated image.
+    """
     db = SessionLocal()
     try:
         user = db.query(User).filter(User.id == user_id).first()

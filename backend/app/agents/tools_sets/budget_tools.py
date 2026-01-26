@@ -7,9 +7,10 @@ from app.models.models import User
 @tool
 def manage_wallet(user_id: str, action: str, amount: Optional[float] = None, item_name: Optional[str] = None) -> str:
     """
-    Manage the user's fashion wallet. 
-    - action='check': Current balance.
-    - action='propose_purchase': Marks an item for purchase confirmation.
+    Manage the user's fashion wallet.
+    - action='check': Check the current balance.
+    - action='propose_purchase': Suggest buying an item. This WILL NOT subtract money, 
+      but will trigger a confirmation modal on the frontend.
     """
     db = SessionLocal()
     try:
