@@ -4,7 +4,7 @@ import re
 from typing import List, Dict, Any, Optional
 from app.db.session import SessionLocal
 from app.models.models import User
-from app.agents.stylist_graph import stylist_agent
+from app.agents.graph import stylist_graph
 from app.core.utils import get_temporal_context, convert_history_to_langchain
 
 logger = logging.getLogger(__name__)
@@ -51,8 +51,8 @@ class AgentOrchestrator:
 
         try:
             # 2. Invoke Agent
-            logger.info(f"Invoking stylist_agent for user_id: {user_id}")
-            final_result = await stylist_agent.ainvoke(initial_state)
+            logger.info(f"Invoking stylist_graph for user_id: {user_id}")
+            final_result = await stylist_graph.ainvoke(initial_state)
             
             # 3. Extract final answer
             last_msg = final_result["messages"][-1]

@@ -10,7 +10,7 @@ from app.services.clip_qdrant_service import clip_qdrant_service
 from app.services.tryon_generator import tryon_generator
 from app.services.vision_analyzer import vision_analyzer
 from app.services.azure_openai_service import azure_openai_service
-from app.agents.prompts import OUTFIT_METADATA_PROMPT
+from app.agents.legacy_prompts import OUTFIT_METADATA_PROMPT
 
 logger = logging.getLogger(__name__)
 
