@@ -23,11 +23,27 @@ async def browse_internet_for_fashion(query: str, user_id: str, max_price: Optio
     try:
         async with httpx.AsyncClient(timeout=20.0) as client:
             response = await client.post("https://api.tavily.com/search", json={
-                "api_key": tavily_api_key, "query": query, "search_depth": "advanced", "max_results": 5
+                "api_key": tavily_api_key, 
+                "query": query, 
+                "search_depth": "advanced", 
+                "max_results": 5,
+                "include_images": True
             })
             if response.status_code != 200: return f"Error: {response.status_code}"
             results = response.json()
-            return "\n\n".join([f"Title: {i['title']}\nURL: {i['url']}\nContent: {i['content'][:200]}..." for i in results.get("results", [])])
+            
+            output = []
+            output.append("--- Search Results ---")
+            for i in results.get("results", []):
+                output.append(f"Title: {i['title']}\nURL: {i['url']}\nContent: {i['content'][:200]}...")
+            
+            images = results.get("images", [])
+            if images:
+                output.append("\n--- Found Image Assets ---")
+                for img in images:
+                    output.append(f"Direct Image URL: {img}")
+            
+            return "\n\n".join(output)
     except Exception as e: return f"Error: {str(e)}"
 
 @tool
