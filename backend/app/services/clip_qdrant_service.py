@@ -32,16 +32,14 @@ class CLIPQdrantService:
                 api_key=settings.QDRANT_API_KEY
             )
             self.collection_name = "clothing_clip_embeddings"  # New collection name
+            self.outfits_collection_name = "outfits_clip_embeddings"
             logger.info(f"Connected to Qdrant at {settings.QDRANT_URL}")
             
             # Initialize CLIP model
             self._initialize_clip_model()
             
-            # Initialize collection if it doesn't exist
+            # Initialize collections if they don't exist
             self._initialize_collection()
-            
-            # Initialize outfits collection if it doesn't exist
-            self.outfits_collection_name = "outfits_clip_embeddings"
             self._initialize_outfits_collection()
             
         except Exception as e:

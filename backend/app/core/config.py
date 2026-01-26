@@ -38,6 +38,12 @@ class Settings(BaseSettings):
     AZURE_OPENAI_CHAT_DEPLOYMENT: str = "gpt-4o"
     AZURE_OPENAI_IMAGE_DEPLOYMENT: str = "gpt-image-1.5"
 
+    # Langsmith API Key
+    LANGCHAIN_API_KEY: str = ""
+    LANGCHAIN_PROJECT: str = ""
+    LANGSMITH_ENDPOINT: str = ""
+    
+
     # AWS S3 (optional - for image storage, deprecated in favor of Azure)
     S3_BUCKET: str = "virtual-closet-assets"
     AWS_ACCESS_KEY_ID: str = ""

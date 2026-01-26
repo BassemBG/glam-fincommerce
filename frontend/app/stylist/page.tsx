@@ -7,7 +7,7 @@ import { useAuthGuard } from '../../lib/useAuthGuard';
 export default function StylistChat() {
     useAuthGuard();
     const [messages, setMessages] = useState([
-        { role: 'assistant', text: "Hi! I'm Ava, your personal stylist. What are we planning for today? A date, work, or just a chic casual look?" },
+        { role: 'assistant', text: "Hi! I'm Glam, your personal stylist. What are we planning for today? A date, work, or just a chic casual look?" },
     ]);
     const [input, setInput] = useState('');
     const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -35,7 +35,7 @@ export default function StylistChat() {
     return (
         <div className={styles.chatContainer}>
             <header className={styles.header}>
-                <h1>Stylist Ava</h1>
+                <h1>Stylist Glam</h1>
             </header>
 
             <div className={styles.messageList}>
@@ -52,7 +52,7 @@ export default function StylistChat() {
             <div className={styles.inputArea}>
                 <input
                     type="text"
-                    placeholder="Ask Ava anything..."
+                    placeholder="Ask Glam anything..."
                     value={input}
                     onChange={(e) => setInput(e.target.value)}
                     onKeyPress={(e) => e.key === 'Enter' && handleSend()}

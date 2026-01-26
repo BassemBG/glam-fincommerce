@@ -185,38 +185,80 @@ const FloatingStylist = () => {
                 body: formData
             });
 
-            if (res.ok) {
-                const botResponse = await res.json();
-                setMessages(prev => [...prev, {
-                    role: 'assistant',
-                    text: botResponse.response,
-                    images: botResponse.images,
-                    suggested_outfits: botResponse.suggested_outfits
-                }]);
+            if (res.ok && res.body) {
+                const reader = res.body.getReader();
+                const decoder = new TextDecoder();
+                let buffer = '';
 
-                // Check for wallet confirmation signal
-                // 1. Structured JSON (Preferred)
-                if (botResponse.wallet_confirmation?.required) {
-                    const wc = botResponse.wallet_confirmation;
-                    setWalletModalData({
-                        isOpen: true,
-                        itemName: wc.item_name,
-                        price: wc.price,
-                        currency: wc.currency,
-                        balance: wc.current_balance
-                    });
-                }
-                // 2. Regex Fallback (Legacy)
-                else {
-                    const walletSignal = botResponse.response.match(/\[WALLET_CONFIRMATION_REQUIRED\] item='([^']+)' price=([\d.]+) currency='([^']+)' balance=([\d.]+)/);
-                    if (walletSignal) {
-                        setWalletModalData({
-                            isOpen: true,
-                            itemName: walletSignal[1],
-                            price: parseFloat(walletSignal[2]),
-                            currency: walletSignal[3],
-                            balance: parseFloat(walletSignal[4])
-                        });
+                // Add an initial placeholder message for the assistant
+                setMessages(prev => [...prev, { role: 'assistant', text: '', status: 'Starting...' }]);
+
+                while (true) {
+                    const { value, done } = await reader.read();
+                    if (done) break;
+
+                    buffer += decoder.decode(value, { stream: true });
+                    const lines = buffer.split('\n\n');
+                    buffer = lines.pop() || '';
+
+                    for (const line of lines) {
+                        if (line.startsWith('data: ')) {
+                            const event = JSON.parse(line.slice(6));
+
+                            if (event.type === 'status') {
+                                setMessages(prev => {
+                                    const next = [...prev];
+                                    next[next.length - 1].status = event.content;
+                                    return next;
+                                });
+                            } else if (event.type === 'chunk') {
+                                setMessages(prev => {
+                                    const next = [...prev];
+                                    const last = next[next.length - 1];
+                                    last.text = (last.text || '') + event.content;
+                                    return next;
+                                });
+                            } else if (event.type === 'final') {
+                                const botResponse = event.content;
+                                setMessages(prev => {
+                                    const next = [...prev];
+                                    next[next.length - 1] = {
+                                        role: 'assistant',
+                                        text: botResponse.response,
+                                        images: botResponse.images,
+                                        suggested_outfits: botResponse.suggested_outfits,
+                                        status: undefined // Clear status when done
+                                    };
+                                    return next;
+                                });
+
+                                // Wallet Confirmation Logic
+                                if (botResponse.wallet_confirmation?.required) {
+                                    const wc = botResponse.wallet_confirmation;
+                                    setWalletModalData({
+                                        isOpen: true,
+                                        itemName: wc.item_name,
+                                        price: wc.price,
+                                        currency: wc.currency,
+                                        balance: wc.current_balance
+                                    });
+                                }
+                                // Regex Fallback (in case Glam forgot to populate the object but included the text)
+                                else {
+                                    const walletRegex = /\[WALLET_CONFIRMATION_REQUIRED\] item='([^']+)' price=([\d.]+) currency='([^']+)'(?: balance=([\d.]+))?/;
+                                    const match = botResponse.response.match(walletRegex);
+                                    if (match) {
+                                        setWalletModalData({
+                                            isOpen: true,
+                                            itemName: match[1],
+                                            price: parseFloat(match[2]),
+                                            currency: match[3],
+                                            balance: match[4] ? parseFloat(match[4]) : (user?.wallet_balance || 0)
+                                        });
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
             } else {
@@ -276,6 +318,13 @@ const FloatingStylist = () => {
                                             {renderMarkdown(msg.text)}
                                         </div>
 
+                                        {msg.status && (
+                                            <div className={`${styles.streamingStatus} ${msg.status.toLowerCase().includes('sketching') ? styles.visualizingStatus : ''}`}>
+                                                <span className={styles.statusPulse}></span>
+                                                {msg.status}
+                                            </div>
+                                        )}
+
                                         {msg.images && (
                                             <div className={styles.imageGrid}>
                                                 {msg.images.map((img: string, idx: number) => (
@@ -300,7 +349,7 @@ const FloatingStylist = () => {
                                     </div>
                                 </div>
                             ))}
-                            {isLoading && (
+                            {isLoading && (!messages.length || !messages[messages.length - 1].status) && (
                                 <div className={`${styles.message} ${styles.assistant}`}>
                                     <div className={styles.typing}>•••</div>
                                 </div>
@@ -323,7 +372,7 @@ const FloatingStylist = () => {
                                 </label>
                                 <input
                                     type="text"
-                                    placeholder="Ask Ava anything..."
+                                    placeholder="Ask Glam anything..."
                                     value={input}
                                     onChange={(e) => setInput(e.target.value)}
                                     onKeyPress={(e) => e.key === 'Enter' && sendMessage()}

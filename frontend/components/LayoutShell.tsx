@@ -11,7 +11,7 @@ export default function LayoutShell({ children }: { children: React.ReactNode })
 
   return (
     <>
-      <main className="container animate-fade-in" style={(isAuth || isOnboarding) ? { padding: 0, maxWidth: "100%" } : {}}>
+      <main className="container" style={(isAuth || isOnboarding) ? { padding: 0, maxWidth: "100%" } : {}}>
         {children}
       </main>
       {!isAuth && !isOnboarding && (
