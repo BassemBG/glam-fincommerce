@@ -34,17 +34,24 @@ async def browse_internet_for_fashion(query: str, user_id: str, max_price: Optio
             
             output = []
             output.append("--- Search Results ---")
-            for i in results.get("results", []):
-                output.append(f"Title: {i['title']}\nURL: {i['url']}\nContent: {i['content'][:200]}...")
+            for idx, i in enumerate(results.get("results", []), 1):
+                item_data = [
+                    f"Result #{idx}:",
+                    f"  Title: {i['title']}",
+                    f"  Source: {i['url']}",
+                    f"  Description: {i['content']}"
+                ]
+                output.append("\n".join(item_data))
             
             images = results.get("images", [])
             if images:
-                output.append("\n--- Found Image Assets ---")
+                output.append("\n--- Direct Image Assets ---")
+                output.append("Use these for rendering. Match them to the results above if possible.")
                 for img in images:
-                    output.append(f"Direct Image URL: {img}")
+                    output.append(f"Asset URL: {img}")
             
             return "\n\n".join(output)
-    except Exception as e: return f"Error: {str(e)}"
+    except Exception as e: return f"Error during internet search: {str(e)}"
 
 @tool
 async def search_zep_graph(query: str, user_id: str) -> str:
