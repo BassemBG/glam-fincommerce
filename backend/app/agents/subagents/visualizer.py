@@ -21,7 +21,8 @@ async def visualizer_node(state: AgentState):
     print(f"\n[NODE] --- VISUALIZER ---")
     messages = state["messages"]
     filtered_messages = [m for m in messages if not isinstance(m, SystemMessage)]
-    messages = [SystemMessage(content=VISUALIZER_SYSTEM_PROMPT)] + filtered_messages
+    formatted_prompt = VISUALIZER_SYSTEM_PROMPT.format(user_id=state["user_id"])
+    messages = [SystemMessage(content=formatted_prompt)] + filtered_messages
     
     response = await model.ainvoke(messages)
     response.name = "visualizer"

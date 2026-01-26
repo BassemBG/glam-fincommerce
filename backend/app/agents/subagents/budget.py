@@ -21,7 +21,8 @@ async def budget_node(state: AgentState):
     print(f"\n[NODE] --- BUDGET MANAGER ---")
     messages = state["messages"]
     filtered_messages = [m for m in messages if not isinstance(m, SystemMessage)]
-    messages = [SystemMessage(content=BUDGET_SYSTEM_PROMPT)] + filtered_messages
+    formatted_prompt = BUDGET_SYSTEM_PROMPT.format(user_id=state["user_id"])
+    messages = [SystemMessage(content=formatted_prompt)] + filtered_messages
     
     response = await model.ainvoke(messages)
     response.name = "budget_manager"

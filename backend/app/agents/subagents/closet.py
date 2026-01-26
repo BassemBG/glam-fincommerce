@@ -28,7 +28,8 @@ async def closet_node(state: AgentState):
     messages = state["messages"]
     # We strip previous system messages to keep it focused
     filtered_messages = [m for m in messages if not isinstance(m, SystemMessage)]
-    messages = [SystemMessage(content=CLOSET_SYSTEM_PROMPT)] + filtered_messages
+    formatted_prompt = CLOSET_SYSTEM_PROMPT.format(user_id=state["user_id"])
+    messages = [SystemMessage(content=formatted_prompt)] + filtered_messages
     
     # Identify as 'closet_assistant'
     response = await model.ainvoke(messages)
