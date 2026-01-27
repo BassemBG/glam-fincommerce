@@ -142,3 +142,15 @@ class PinterestToken(SQLModel, table=True):
     
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
+class ProfileBrand(SQLModel, table=True):
+    __tablename__ = "profile_brands"
+    
+    id: str = Field(default_factory=lambda: str(uuid4()), primary_key=True)
+    brand_name: str = Field(index=True, unique=True, nullable=False, max_length=255)
+    brand_website: Optional[str] = Field(default=None, max_length=500)
+    instagram_link: Optional[str] = Field(default=None, max_length=500)
+    brand_logo_url: Optional[str] = None
+    description: Optional[str] = None
+    brand_metadata: Dict = Field(default={}, sa_column=Column("metadata", JSON))
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)

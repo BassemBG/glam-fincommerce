@@ -24,6 +24,7 @@ class StorageService:
             from app.core.config import settings
             
             if settings.AZURE_STORAGE_CONNECTION_STRING:
+                logging.info("Initializing Azure Blob Storage...")
                 self.blob_service_client = BlobServiceClient.from_connection_string(
                     settings.AZURE_STORAGE_CONNECTION_STRING
                 )
@@ -34,15 +35,23 @@ class StorageService:
                     container_client = self.blob_service_client.get_container_client(self.container_name)
                     if not container_client.exists():
                         container_client.create_container(public_access="blob")
-                        logging.info(f"Created Azure blob container: {self.container_name}")
+                        logging.info(f"✓ Created Azure blob container: {self.container_name}")
+                    else:
+                        logging.info(f"✓ Using existing Azure container: {self.container_name}")
                 except Exception as e:
-                    logging.warning(f"Could not verify/create container: {e}")
+                    logging.error(f"❌ Could not verify/create container: {e}")
+                    self.blob_service_client = None
+                    return
                 
-                logging.info("Azure Blob Storage configured successfully")
+                logging.info("✓ Azure Blob Storage configured successfully")
+            else:
+                logging.warning("AZURE_STORAGE_CONNECTION_STRING not set in environment")
         except ImportError:
             logging.warning("azure-storage-blob not installed")
         except Exception as e:
-            logging.warning(f"Azure Blob Storage not configured: {e}")
+            logging.error(f"❌ Azure Blob Storage initialization failed: {e}")
+            import traceback
+            traceback.print_exc()
     
     def _init_s3(self):
         """Initialize S3 client (deprecated fallback)."""

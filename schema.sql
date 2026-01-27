@@ -53,6 +53,7 @@ CREATE TABLE body_profiles (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
+<<<<<<< HEAD
 -- Pinterest Tokens Table
 CREATE TABLE pinterest_tokens (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -61,6 +62,18 @@ CREATE TABLE pinterest_tokens (
     refresh_token TEXT,
     expires_at TIMESTAMP WITH TIME ZONE,
     synced_at TIMESTAMP WITH TIME ZONE,
+=======
+-- Profile Brands Table (User-curated brand profiles)
+CREATE TABLE profile_brands (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    brand_name VARCHAR(255) NOT NULL UNIQUE,
+    brand_website VARCHAR(500),
+    instagram_link VARCHAR(500),
+    brand_logo_url TEXT,
+    description TEXT,
+    description_embedding vector(384),  -- For semantic search
+    metadata JSONB DEFAULT '{}',
+>>>>>>> sabaa
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
@@ -69,4 +82,9 @@ CREATE TABLE pinterest_tokens (
 CREATE INDEX idx_clothing_items_user_id ON clothing_items(user_id);
 CREATE INDEX idx_outfits_user_id ON outfits(user_id);
 CREATE INDEX idx_clothing_items_embedding ON clothing_items USING ivfflat (embedding vector_cosine_ops) WITH (lists = 100);
+<<<<<<< HEAD
 CREATE INDEX idx_pinterest_tokens_user_id ON pinterest_tokens(user_id);
+=======
+CREATE INDEX idx_profile_brands_name ON profile_brands(brand_name);
+CREATE INDEX idx_profile_brands_embedding ON profile_brands USING ivfflat (description_embedding vector_cosine_ops) WITH (lists = 100);
+>>>>>>> sabaa
