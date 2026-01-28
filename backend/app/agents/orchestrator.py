@@ -89,6 +89,30 @@ class AgentOrchestrator:
 
         temporal = get_temporal_context()
         langchain_history = convert_history_to_langchain(history)
+        
+        # 2. Vision Analysis (If Image Provided)
+        # If the user uploads a file in the chat, we analyze it so the agent "sees" it.
+        if image_data:
+            try:
+                from app.services.vision_analyzer import vision_analyzer
+                from app.services.storage import storage_service
+                import uuid
+                
+                # 1. Upload for persistent URL
+                file_id = str(uuid.uuid4())
+                img_url = await storage_service.upload_file(image_data, f"chat_{file_id}.jpg", "image/jpeg")
+                
+                # 2. Analyze
+                analysis = await vision_analyzer.analyze_clothing(image_data)
+                analysis["id"] = "potential_purchase" 
+                analysis["image_url"] = img_url
+                
+                analysis_note = f"[SYSTEM NOTE: User uploaded an image of a potential purchase. Vision Analysis: {json.dumps(analysis)}]"
+                from langchain_core.messages import SystemMessage
+                langchain_history.append(SystemMessage(content=analysis_note))
+            except Exception as e:
+                logger.error(f"Failed to analyze/upload image in orchestrator: {e}")
+
         from langchain_core.messages import HumanMessage
         langchain_history.append(HumanMessage(content=message))
 

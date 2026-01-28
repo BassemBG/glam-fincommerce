@@ -1,10 +1,12 @@
 "use client";
 
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import styles from './page.module.css';
 import { API } from '../../lib/api';
 import { authFetch } from '../../lib/auth';
 import { useAuthGuard } from '../../lib/useAuthGuard';
+import TryOnVisualizer from '../../components/TryOnVisualizer';
+import { WalletConfirmationModal } from '../../components/WalletConfirmationModal';
 
 export default function AdvisorPage() {
     useAuthGuard();
@@ -13,6 +15,44 @@ export default function AdvisorPage() {
     const [status, setStatus] = useState<'idle' | 'analyzing' | 'chatting'>('idle');
     const [messages, setMessages] = useState<any[]>([]);
     const [input, setInput] = useState('');
+    const [analysisData, setAnalysisData] = useState<any>(null);
+    const [userPhoto, setUserPhoto] = useState<string | null>(null);
+    const [user, setUser] = useState<any>(null);
+    const [tryOnData, setTryOnData] = useState<any>(null);
+
+    const [walletModalData, setWalletModalData] = useState<{
+        isOpen: boolean;
+        itemName: string;
+        price: number;
+        currency: string;
+        balance: number;
+    }>({
+        isOpen: false,
+        itemName: '',
+        price: 0,
+        currency: 'TND',
+        balance: 0
+    });
+
+    const messagesEndRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }, [messages]);
+
+    useEffect(() => {
+        const fetchUser = async () => {
+            try {
+                const res = await authFetch(API.users.me);
+                if (res.ok) {
+                    const data = await res.json();
+                    setUser(data);
+                    setUserPhoto(data.full_body_image);
+                }
+            } catch (err) { console.error(err); }
+        };
+        fetchUser();
+    }, []);
 
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files && e.target.files[0]) {
@@ -20,6 +60,7 @@ export default function AdvisorPage() {
             setFile(selected);
             setPreview(URL.createObjectURL(selected));
             setStatus('idle');
+            setAnalysisData(null);
         }
     };
 
@@ -31,171 +72,316 @@ export default function AdvisorPage() {
         formData.append('file', file);
 
         try {
-            const res = await authFetch(API.stylist.advisor, {
-                method: 'POST',
-                body: formData
-            });
-
+            const res = await authFetch(API.stylist.advisor, { method: 'POST', body: formData });
             if (res.ok) {
                 const data = await res.json();
-
-                // Create a nice AI response based on the results
+                setAnalysisData(data);
+                const targetInfo = data.target_analysis || {};
                 const matchCount = data.matches?.length || 0;
-                const analysis = data.target_analysis;
+                const req = `I'm considering buying this ${targetInfo.sub_category || targetInfo.category || 'item'}. It has colors like ${targetInfo.colors?.join(', ') || 'unknown'}. Can you evaluate it against my closet? I have ${matchCount} similar items already. (Glam, please transfer this to the Fashion Advisor).`;
 
-                let followUpText = `I've analyzed this ${analysis.sub_category || analysis.category}. `;
-
-                if (matchCount > 0) {
-                    const topMatch = data.matches[0];
-                    const similarity = Math.round(topMatch.score * 100);
-                    followUpText += `I found some similar items in your closet! Your ${topMatch.clothing?.sub_category || 'existing item'} is a ${similarity}% visual match. `;
-
-                    if (similarity > 80) {
-                        followUpText += "Since you already have something very similar, you might want to consider if this purchase adds enough value to your wardrobe.";
-                    } else {
-                        followUpText += "It complement's your existing pieces nicely without being a direct duplicate.";
-                    }
-                } else {
-                    followUpText += "This looks like a unique addition to your wardrobe! I didn't find anything too similar in your current collection.";
-                }
-
-                const initialAnalysis = {
-                    role: 'assistant',
-                    text: followUpText,
-                    data: {
-                        score: matchCount > 0 ? Math.round(data.matches[0].score * 100) : 0,
-                        similarity: matchCount > 0 ? (data.matches[0].clothing?.sub_category || "Visual match") : "No direct matches",
-                        matches: data.matches
-                    }
-                };
-
-                setMessages([initialAnalysis]);
                 setStatus('chatting');
+                await sendToAI(req, file);
             } else {
-                alert("Analysis failed. Please try again.");
+                alert("Analysis failed.");
                 setStatus('idle');
             }
         } catch (err) {
             console.error(err);
-            alert("An error occurred.");
             setStatus('idle');
         }
     };
 
-    const handleSend = () => {
-        if (!input.trim()) return;
-        setMessages([...messages, { role: 'user', text: input }]);
-        setInput('');
+    const sendToAI = async (text: string, currentFile?: File | null) => {
+        if (!text.trim() && !currentFile) return;
+        if (status === 'chatting') setMessages(prev => [...prev, { role: 'user', text }]);
 
-        // Mock follow-up
-        setTimeout(() => {
-            setMessages(prev => [...prev, {
-                role: 'assistant',
-                text: "Great question! This would work perfectly with your high-waisted beige shorts for a transition look, or under your navy wool coat for the winter."
-            }]);
-        }, 1200);
+        const formData = new FormData();
+
+        let enrichedText = text;
+        if (analysisData && !currentFile && !text.includes("[Context")) {
+            const item = analysisData.target_analysis?.sub_category || "this item";
+            enrichedText = `[Context: Regarding the potential ${item}] ${text}`;
+        }
+
+        formData.append('message', enrichedText);
+        if (currentFile) formData.append('file', currentFile);
+
+        // Filter out incomplete/status messages
+        const history = messages
+            .filter(m => m.text && m.text.length > 0)
+            .map(m => ({ role: m.role, content: m.text }));
+
+        formData.append('history', JSON.stringify(history));
+
+        try {
+            const res = await authFetch(API.stylist.chat, { method: 'POST', body: formData });
+            if (res.ok && res.body) {
+                const reader = res.body.getReader();
+                const decoder = new TextDecoder();
+                let buffer = '';
+                setMessages(prev => [...prev, { role: 'assistant', text: '', status: 'Thinking...' }]);
+
+                while (true) {
+                    const { value, done } = await reader.read();
+                    if (done) break;
+                    buffer += decoder.decode(value, { stream: true });
+                    const lines = buffer.split('\n\n');
+                    buffer = lines.pop() || '';
+
+                    for (const line of lines) {
+                        if (line.startsWith('data: ')) {
+                            try {
+                                const event = JSON.parse(line.slice(6));
+                                if (event.type === 'status') {
+                                    setMessages(prev => {
+                                        const next = [...prev];
+                                        next[next.length - 1].status = event.content;
+                                        return next;
+                                    });
+                                } else if (event.type === 'chunk') {
+                                    setMessages(prev => {
+                                        const next = [...prev];
+                                        const last = next[next.length - 1];
+                                        last.text = (last.text || '') + event.content;
+                                        return next;
+                                    });
+                                } else if (event.type === 'final') {
+                                    const botResponse = event.content;
+                                    setMessages(prev => {
+                                        const next = [...prev];
+                                        next[next.length - 1] = {
+                                            role: 'assistant',
+                                            text: botResponse.response,
+                                            images: botResponse.images,
+                                            suggested_outfits: botResponse.suggested_outfits,
+                                            status: undefined
+                                        };
+                                        return next;
+                                    });
+
+                                    if (botResponse.wallet_confirmation?.required) {
+                                        const wc = botResponse.wallet_confirmation;
+                                        setWalletModalData({
+                                            isOpen: true,
+                                            itemName: wc.item_name,
+                                            price: wc.price,
+                                            currency: wc.currency,
+                                            balance: user?.wallet_balance || wc.current_balance
+                                        });
+                                    }
+                                }
+                            } catch (e) { }
+                        }
+                    }
+                }
+            }
+        } catch (err) {
+            setMessages(prev => [...prev, { role: 'assistant', text: "Error connecting to stylist server." }]);
+        }
+    };
+
+    const handlePurchaseSuccess = async (newBalance: number) => {
+        setUser((prev: any) => ({ ...prev, wallet_balance: newBalance }));
+        setMessages(prev => [...prev, { role: 'assistant', text: `Confirmed! Deducted **${walletModalData.price} ${walletModalData.currency}**. Item added to closet.` }]);
+        if (file) {
+            const formData = new FormData();
+            formData.append('file', file);
+            formData.append('price', walletModalData.price.toString());
+            await authFetch(API.clothing.ingest, { method: 'POST', body: formData });
+        }
+    };
+
+    const renderMarkdown = (content: string) => {
+        if (!content) return null;
+        const imageRegex = /!\[([^\]]*)\]\(([^)]+)\)/g;
+        const boldRegex = /\*\*([^*]+)\*\*/g;
+        let parts: (string | React.ReactNode)[] = [content];
+
+        parts = parts.flatMap(part => {
+            if (typeof part !== 'string') return [part];
+            return part.split(boldRegex).map((bit, i) => i % 2 === 1 ? <strong key={i}>{bit}</strong> : bit);
+        });
+
+        parts = parts.flatMap(part => {
+            if (typeof part !== 'string') return [part];
+            const bits = part.split(imageRegex);
+            const elements = [];
+            for (let i = 0; i < bits.length; i += 3) {
+                elements.push(bits[i]);
+                if (bits[i + 1] !== undefined) elements.push(<img key={i} src={bits[i + 2]} alt={bits[i + 1]} className={styles.renderedImage} />);
+            }
+            return elements;
+        });
+        return parts;
     };
 
     return (
         <div className={styles.container}>
             <header className={styles.header}>
-                <h1>Shopping Advisor</h1>
-                <p className="text-muted">Brainstorm potential additions to your closet.</p>
+                <div>
+                    <h1>Shopping Advisor</h1>
+                    <p>Get instant feedback on potential purchases.</p>
+                </div>
+                {user && (
+                    <div className={styles.budgetBadge}>
+                        {user.wallet_balance.toLocaleString()} {user.currency || 'TND'}
+                    </div>
+                )}
             </header>
 
             {status === 'idle' && !preview && (
-                <label className={styles.dropzone}>
-                    <input type="file" accept="image/*" onChange={handleFileChange} hidden />
-                    <div className={styles.dropzoneContent}>
-                        <div className={styles.icon}>
-                            <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" /></svg>
+                <div className={styles.dropzoneContainer}>
+                    <label className={styles.dropzone}>
+                        <input type="file" accept="image/*" onChange={handleFileChange} hidden />
+                        <div className={styles.iconWrapper}>
+                            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="17 8 12 3 7 8" /><line x1="12" y1="3" x2="12" y2="15" /></svg>
                         </div>
-                        <span>Upload a Potential Buy</span>
-                        <p>Get AI advice before you spend</p>
-                    </div>
-                </label>
+                        <h3>Upload Image</h3>
+                        <p>Analyze clothing before you buy</p>
+                    </label>
+                </div>
             )}
 
             {preview && status === 'idle' && (
                 <div className={styles.previewStep}>
-                    <div className={styles.previewBox}>
-                        <img src={preview} alt="Shopping Preview" />
+                    <div className={styles.previewCard}>
+                        <div className={styles.previewImageWrapper}>
+                            <img src={preview} alt="item" />
+                        </div>
+                        <div className={styles.previewInfo}>
+                            <h2>Analyze this?</h2>
+                            <p>Glam will check versatility and your budget.</p>
+                            <div className={styles.actionButtons}>
+                                <button className={styles.primaryBtn} onClick={startAnalysis}>Start Analysis</button>
+                                <button className={styles.ghostBtn} onClick={() => { setPreview(null); setFile(null); }}>Cancel</button>
+                            </div>
+                        </div>
                     </div>
-                    <button className={styles.primaryBtn} onClick={startAnalysis}>
-                        Consult AI Advisor
-                    </button>
-                    <button className={styles.ghostBtn} onClick={() => { setPreview(null); setFile(null); }}>
-                        Choose Different Item
-                    </button>
                 </div>
             )}
 
             {status === 'analyzing' && (
                 <div className={styles.analyzingBox}>
                     <div className={styles.spinner} />
-                    <h3>Consulting Wardrobe...</h3>
-                    <p>AI is comparing this piece with your existing 45 items.</p>
+                    <p>Comparing with your wardrobe...</p>
                 </div>
             )}
 
             {status === 'chatting' && (
-                <div className={styles.chatInterface}>
-                    <div className={styles.itemRef}>
-                        <img src={preview!} alt="" className={styles.miniRef} />
-                        <div>
-                            <h4>Target Item</h4>
-                            <span>Potential Purchase</span>
-                        </div>
-                    </div>
-
-                    <div className={styles.messages}>
-                        {messages.map((msg, i) => (
-                            <div key={i} className={`${styles.message} ${styles[msg.role]}`}>
-                                <div className={styles.bubble}>
-                                    {msg.text}
-                                    {msg.data && (
-                                        <div className={styles.dataCard}>
-                                            <div className={styles.scoreRow}>
-                                                <span>Value Score: <strong>{msg.data.score}%</strong></span>
-                                            </div>
-                                            <div className={styles.simRow}>
-                                                <span>Similar Item: {msg.data.similarity}</span>
-                                            </div>
-
-                                            {msg.data.matches && msg.data.matches.length > 0 && (
-                                                <div className={styles.matchesScroll}>
-                                                    <p className={styles.matchPrompt}>Items in your closet:</p>
-                                                    <div className={styles.matchesList}>
-                                                        {msg.data.matches.map((m: any, idx: number) => (
-                                                            <div key={idx} className={styles.matchItem}>
-                                                                <img src={m.image_url} alt="Match" title={`${m.clothing?.sub_category} (${Math.round(m.score * 100)}% match)`} />
-                                                                <span className={styles.matchScore}>{Math.round(m.score * 100)}%</span>
-                                                            </div>
-                                                        ))}
-                                                    </div>
-                                                </div>
-                                            )}
-                                        </div>
-                                    )}
+                <div className={styles.chatContainer}>
+                    <div className={styles.chatMain}>
+                        <div className={styles.insightPanel}>
+                            <img src={preview!} className={styles.insightThumb} />
+                            <div className={styles.insightStats}>
+                                <div>
+                                    <small>Item</small>
+                                    <div><strong>{analysisData?.target_analysis?.sub_category || "Detected"}</strong></div>
+                                </div>
+                                <div>
+                                    <small>Similarity</small>
+                                    <div><strong>{analysisData?.matches?.[0] ? Math.round(analysisData.matches[0].score * 100) : 0}%</strong></div>
+                                </div>
+                                <div>
+                                    <small>Closet Matches</small>
+                                    <div className={styles.matchMiniList}>
+                                        {analysisData?.matches?.slice(0, 3).map((m: any, idx: number) => (
+                                            <img key={idx} src={m.image_url} className={styles.matchMiniImg} />
+                                        ))}
+                                    </div>
                                 </div>
                             </div>
-                        ))}
-                    </div>
+                        </div>
 
-                    <div className={styles.chatInput}>
-                        <input
-                            type="text"
-                            placeholder="Ask about versatility, outfits..."
-                            value={input}
-                            onChange={(e) => setInput(e.target.value)}
-                            onKeyPress={(e) => e.key === 'Enter' && handleSend()}
-                        />
-                        <button onClick={handleSend} className={styles.sendBtn}>
-                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="22" y1="2" x2="11" y2="13" /><polygon points="22 2 15 22 11 13 2 9 22 2" /></svg>
-                        </button>
+                        <div className={styles.chatMessages}>
+                            {messages.map((msg, i) => (
+                                <div key={i} className={`${styles.message} ${styles[msg.role]}`}>
+                                    <div className={styles.bubble}>
+                                        <div className={styles.textContent}>{renderMarkdown(msg.text)}</div>
+                                        {msg.status && <div className={styles.streamingStatus}>{msg.status}</div>}
+                                        {msg.suggested_outfits && (
+                                            <div className={styles.outfitStack}>
+                                                {msg.suggested_outfits.map((fit: any, idx: number) => (
+                                                    <button
+                                                        key={idx}
+                                                        className={styles.fitBadge}
+                                                        onClick={async () => {
+                                                            if (!userPhoto || !fit.item_details) return;
+
+                                                            // Set immediate status
+                                                            setMessages(prev => {
+                                                                const next = [...prev];
+                                                                const last = next[next.length - 1];
+                                                                last.status = "Glam is sketching your virtual try-on... ✨ (60-80s)";
+                                                                return next;
+                                                            });
+
+                                                            try {
+                                                                // Prepare items for backend
+                                                                const itemsForBackend = fit.item_details.map((item: any) => {
+                                                                    // Use the cloud-stored URL for potential purchase (if available)
+                                                                    let url = item.image_url;
+                                                                    if (item.id === 'potential_purchase') {
+                                                                        url = analysisData?.image_url || preview;
+                                                                    }
+                                                                    return {
+                                                                        id: item.id,
+                                                                        image_url: url,
+                                                                        body_region: item.body_region || 'top'
+                                                                    };
+                                                                });
+
+                                                                const res = await authFetch(API.stylist.tryon, {
+                                                                    method: 'POST',
+                                                                    headers: { 'Content-Type': 'application/json' },
+                                                                    body: JSON.stringify({ items: itemsForBackend })
+                                                                });
+
+                                                                if (res.ok) {
+                                                                    const data = await res.json();
+                                                                    setTryOnData({
+                                                                        items: itemsForBackend,
+                                                                        tryonImageUrl: data.url,
+                                                                        name: fit.name
+                                                                    });
+                                                                } else {
+                                                                    // Fallback to layering
+                                                                    setTryOnData({ items: itemsForBackend, tryonImageUrl: undefined });
+                                                                }
+                                                            } catch (err) {
+                                                                console.error("Tryon error:", err);
+                                                            } finally {
+                                                                setMessages(prev => {
+                                                                    const next = [...prev];
+                                                                    next[next.length - 1].status = undefined;
+                                                                    return next;
+                                                                });
+                                                            }
+                                                        }}
+                                                    >
+                                                        ✨ {fit.name} ({fit.score}/10)
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            ))}
+                            <div ref={messagesEndRef} />
+                        </div>
+
+                        <div className={styles.chatInputArea}>
+                            <div className={styles.inputWrapper}>
+                                <input placeholder="Ask about this item..." value={input} onChange={(e) => setInput(e.target.value)} onKeyPress={(e) => e.key === 'Enter' && (setInput(''), sendToAI(input))} />
+                            </div>
+                            <button onClick={() => (setInput(''), sendToAI(input))} className={styles.sendBtn}>Send</button>
+                        </div>
                     </div>
                 </div>
             )}
+
+            {tryOnData && userPhoto && <TryOnVisualizer bodyImage={userPhoto} items={tryOnData.items} tryonImageUrl={tryOnData.tryonImageUrl} onClose={() => setTryOnData(null)} />}
+            <WalletConfirmationModal {...walletModalData} onClose={() => setWalletModalData(prev => ({ ...prev, isOpen: false }))} onSuccess={handlePurchaseSuccess} />
         </div>
     );
 }

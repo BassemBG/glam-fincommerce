@@ -9,9 +9,9 @@ class OutfitComposer:
     def __init__(self):
         self.groq_service = groq_vision_service
 
-    async def compose_outfits(self, items: List[ClothingItem], occasion: str, vibe: str) -> List[Dict[str, Any]]:
+    async def compose_outfits(self, items: List[ClothingItem], occasion: str, vibe: str, required_item_id: str = None) -> List[Dict[str, Any]]:
         """Combines items into outfits and scores them."""
-        logging.info(f"[OUTFIT_COMPOSER] Starting outfit composition for occasion='{occasion}', vibe='{vibe}'")
+        logging.info(f"[OUTFIT_COMPOSER] Starting outfit composition for occasion='{occasion}', vibe='{vibe}', required='{required_item_id}'")
         logging.info(f"[OUTFIT_COMPOSER] Number of items received: {len(items)}")
         
         if not self.groq_service.client:
@@ -39,21 +39,25 @@ class OutfitComposer:
         prompt = f"""You are a high-end fashion stylist.
 Target Occasion: {occasion}
 Target Vibe: {vibe}
+{f"CRITICAL REQUIREMENT: Every outfit generated MUST include the item with ID: '{required_item_id}'. If an outfit does not include this item, it is considered a FAILURE." if required_item_id else ""}
 
 Available Items in Closet:
 {json.dumps(items_data, indent=2)}
 
 Task: 
 1. Select EXACTLY 2 different outfits from the available items (your BEST 2 combinations).
-2. COMPOSITION RULES:
+2. {f"MANDATORY: Both outfits MUST include item '{required_item_id}'." if required_item_id else "Ensure variety."}
+3. COMPOSITION RULES:
    - A complete outfit MUST have garments covering the body effectively.
    - Rule A: 1 Top + 1 Bottom + 1 Shoes.
    - Rule B: 1 FullBody (Dress/Jumpsuit) + 1 Shoes.
    - Optional extras: Outerwear (Coats), Accessories, Headwear.
    - DO NOT mix a FullBody with a Bottom unless it's a specific stylistic choice.
-3. Score each outfit (0-10) based on how well it fits the occasion and vibe.
-4. Provide a stylist reasoning for each outfit.
-5. Return ONLY your top 2 highest-scoring combinations.
+4. Score each outfit (0-10) based on how well it fits the occasion and vibe.
+5. Provide a stylist reasoning for each outfit.
+6. Return ONLY your top 2 highest-scoring combinations.
+
+{f"REMINDER: You are building these outfits AROUND the item '{required_item_id}'. It must be part of both results." if required_item_id else ""}
 
 Return the result in JSON format (no markdown, no code blocks):
 {{
@@ -69,6 +73,7 @@ Return the result in JSON format (no markdown, no code blocks):
 }}
 
 Aim for high scores (8.5 or higher). Only return the absolute best 1 or 2 outfits that truly match the vibe and occasion.
+{f"CHECKPOINT: Did you include item '{required_item_id}' in all outfits? If not, fix it now." if required_item_id else ""}
 """
 
         try:

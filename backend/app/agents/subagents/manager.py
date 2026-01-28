@@ -47,18 +47,23 @@ async def manager_node(state: AgentState):
         full_context_str=full_context_str
     )
     
-    # Ensure system message is present and updated
+    # Preserve system messages that are "System Notes" (e.g. from orchestrator)
     new_messages = []
-    has_system = False
+    has_main_system = False
+    
     for m in messages:
         if isinstance(m, SystemMessage):
-            new_messages.append(SystemMessage(content=formatted_prompt))
-            has_system = True
+            if "[SYSTEM NOTE:" in str(m.content):
+                # Keep technical notes
+                new_messages.append(m)
+            else:
+                # Replace the primary persona prompt
+                new_messages.append(SystemMessage(content=formatted_prompt))
+                has_main_system = True
         else:
-            # Add sender identification to AI messages in history if possible
             new_messages.append(m)
             
-    if not has_system:
+    if not has_main_system:
         new_messages = [SystemMessage(content=formatted_prompt)] + new_messages
         
     print(f"   (Active Agent in state: {state.get('active_agent')})")

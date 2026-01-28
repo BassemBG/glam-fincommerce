@@ -7,7 +7,9 @@ from langchain_openai import AzureChatOpenAI
 from app.core.config import settings
 from app.services.zep_service import zep_client
 from app.services.clip_qdrant_service import clip_qdrant_service
-from langchain_core.messages import HumanMessage
+from app.services.outfit_composer import outfit_composer
+from app.models.models import ClothingItem
+from langchain_core.messages import HumanMessage, SystemMessage
 
 logger = logging.getLogger(__name__)
 
@@ -82,9 +84,12 @@ async def analyze_fashion_influence(user_id: str) -> str:
     except Exception as e: return f"Error: {str(e)}"
 
 @tool
-async def evaluate_purchase_match(user_id: str, item_description: str, price: Optional[float] = None) -> str:
+async def evaluate_purchase_match(user_id: str, item_description: str, price: Optional[float] = None, closet_context: Optional[str] = None, zep_context: Optional[str] = None) -> str:
     """
     Evaluates if a potential new item is a good match for the user.
+    Required arguments: user_id, item_description.
+    Optional: price, closet_context (from search_closet), zep_context (from search_zep_graph).
+    
     It considers:
     - Redundancy (does user already have something similar?)
     - Style Fit (does it match Pinterest influences and Zep style DNA?)
@@ -97,7 +102,83 @@ async def evaluate_purchase_match(user_id: str, item_description: str, price: Op
             openai_api_key=settings.AZURE_OPENAI_API_KEY,
             api_version="2024-08-01-preview"
         )
-        eval_prompt = f"Evaluate if '{item_description}' (Price: {price}) matches the user's style."
-        result = await advisor_model.ainvoke([HumanMessage(content=eval_prompt)])
+        
+        system_msg = "You are a senior fashion consultant. Analyze if the item is a smart purchase."
+        prompt = f"""
+        User ID: {user_id}
+        Item to Evaluate: {item_description}
+        Price: {price if price else "Unknown"}
+        
+        Context from Closet:
+        {closet_context if closet_context else "No direct closet matches found."}
+        
+        User Persona (Zep):
+        {zep_context if zep_context else "No persona data found."}
+        
+        Task:
+        1. Check for REDUNDANCY. If similarity > 80%, recommend skipping.
+        2. Check for STYLE FIT. Does it match the user's "DNA"?
+        3. Evaluate VERSATILITY.
+        
+        Return a detailed reasoning and a final recommendation (Buy, Skip, or Reconsider).
+        """
+        
+        result = await advisor_model.ainvoke([
+            SystemMessage(content=system_msg),
+            HumanMessage(content=prompt)
+        ])
         return result.content
-    except Exception as e: return f"Error: {str(e)}"
+    except Exception as e: return f"Error during evaluation: {str(e)}"
+
+@tool
+async def brainstorm_outfits_with_potential_buy(user_id: str, potential_item_details: Dict[str, Any], occasion: str = "daily", vibe: str = "chic") -> str:
+    """
+    Generate outfit ideas that combine the potential purchase with the user's current closet.
+    Args:
+        user_id: User ID
+        potential_item_details: Dict with 'sub_category', 'category', 'body_region', 'colors', 'image_url' (if known).
+        occasion: Target occasion.
+        vibe: Target vibe.
+    """
+    logger.info(f"[TOOL] brainstorm_outfits_with_potential_buy: user_id={user_id}")
+    try:
+        # 1. Fetch current closet
+        qdrant_resp = await clip_qdrant_service.get_user_items(user_id=user_id, limit=30)
+        closet_items = qdrant_resp.get("items", [])
+        
+        # 2. Convert closet items to ClothingItem objects
+        pseudo_items = []
+        for i in closet_items:
+            c = i.get("clothing", {})
+            pseudo_items.append(ClothingItem(
+                id=i["id"], user_id=user_id, category=c.get("category", "clothing"),
+                sub_category=c.get("sub_category"), body_region=c.get("body_region", "top"),
+                image_url=i.get("image_url", ""), metadata_json=c
+            ))
+            
+        # 3. Add the potential new item as a pseudo-item
+        potential_item_id = potential_item_details.get("id", "potential_purchase")
+        potential_item = ClothingItem(
+            id=potential_item_id,
+            user_id=user_id,
+            category=potential_item_details.get("category", "clothing"),
+            sub_category=potential_item_details.get("sub_category", "Potential Item"),
+            body_region=potential_item_details.get("body_region", "top"),
+            image_url=potential_item_details.get("image_url", ""), 
+            metadata_json=potential_item_details
+        )
+        pseudo_items.append(potential_item)
+        
+        # 4. Compose outfits - ENSURING the potential purchase is ALWAYS included
+        outfits = await outfit_composer.compose_outfits(pseudo_items, occasion, vibe, required_item_id=potential_item_id)
+        
+        if not outfits:
+            return "I couldn't create any high-scoring outfit combinations with this item and your current closet."
+            
+        import json
+        result = {"success": True, "outfits": outfits, "count": len(outfits)}
+        return f"OUTFIT_DATA: {json.dumps(result)}"
+        
+    except Exception as e:
+        logger.error(f"Error in brainstorm_outfits: {e}", exc_info=True)
+        return f"Error generating outfits: {str(e)}"

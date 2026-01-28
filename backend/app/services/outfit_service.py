@@ -10,6 +10,7 @@ from app.services.clip_qdrant_service import clip_qdrant_service
 from app.services.tryon_generator import tryon_generator
 from app.services.vision_analyzer import vision_analyzer
 from app.services.azure_openai_service import azure_openai_service
+from app.services.storage import storage_service
 from app.agents.legacy_prompts import OUTFIT_METADATA_PROMPT
 
 logger = logging.getLogger(__name__)
@@ -205,8 +206,14 @@ class OutfitService:
     async def advisor_compare(user_id: str, image_content: bytes) -> Dict[str, Any]:
         """Analyzes a target piece and compares it with the user's closet."""
         try:
-            # Step 1: Analyze the target piece
+            # Step 1: Analyze & Upload the target piece
+            # We must upload it so it has a real URL for subsequent try-on calls (blobs don't work backend-to-backend)
+            file_id = str(uuid.uuid4())
+            image_url = await storage_service.upload_file(image_content, f"temp_{file_id}.jpg", "image/jpeg")
+            
             analysis = await vision_analyzer.analyze_clothing(image_content)
+            analysis["image_url"] = image_url # Store it in the analysis so frontend can use it
+            
             category = analysis.get("category")
             sub_category = analysis.get("sub_category")
             colors = analysis.get("colors", [])
@@ -259,6 +266,7 @@ class OutfitService:
             return {
                 "status": "success",
                 "target_analysis": analysis,
+                "image_url": image_url,
                 "matches": matches[:10],
                 "summary": f"Unified analysis complete. Found {len(matches)} relevant matches."
             }

@@ -5,13 +5,18 @@ from app.agents.state import AgentState
 from app.agents.prompts.advisor import ADVISOR_SYSTEM_PROMPT
 from app.agents.tools_sets.advisor_tools import (
     browse_internet_for_fashion, search_zep_graph, 
-    analyze_fashion_influence, evaluate_purchase_match
+    analyze_fashion_influence, evaluate_purchase_match,
+    brainstorm_outfits_with_potential_buy
 )
+from app.agents.tools_sets.closet_tools import search_closet, generate_new_outfit_ideas
 from app.agents.tools_sets.handoff_tools import transfer_back_to_manager
 
 advisor_tools = [
     browse_internet_for_fashion, search_zep_graph, 
-    analyze_fashion_influence, evaluate_purchase_match, transfer_back_to_manager
+    analyze_fashion_influence, evaluate_purchase_match,
+    brainstorm_outfits_with_potential_buy,
+    search_closet, generate_new_outfit_ideas,
+    transfer_back_to_manager
 ]
 
 model = AzureChatOpenAI(
@@ -42,7 +47,15 @@ async def advisor_node(state: AgentState):
 
     full_context_str = "\n".join(financial_context + time_context)
     
-    filtered_messages = [m for m in messages if not isinstance(m, SystemMessage)]
+    # Keep HUMAN messages and SYSTEM NOTES, but replace the primary persona prompt
+    filtered_messages = []
+    for m in messages:
+        if isinstance(m, SystemMessage):
+            if "[SYSTEM NOTE:" in str(m.content):
+                filtered_messages.append(m)
+        else:
+            filtered_messages.append(m)
+
     formatted_prompt = ADVISOR_SYSTEM_PROMPT.format(
         user_id=state.get("user_id", "Unknown"),
         full_context_str=full_context_str

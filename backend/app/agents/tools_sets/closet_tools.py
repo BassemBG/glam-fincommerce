@@ -152,11 +152,10 @@ async def filter_saved_outfits(user_id: str, tag: Optional[str] = None, min_scor
 
 
 @tool
-async def generate_new_outfit_ideas(user_id: str, occasion: str, vibe: str = "chic") -> str:
+async def generate_new_outfit_ideas(user_id: str, occasion: str, vibe: str = "chic", required_item_id: str = None) -> str:
     """
     Compose new outfit ideas based on the user's current closet items.
-    Use this when a user asks "What should I wear today?" or "Give me some outfit ideas".
-    Returns JSON-formatted outfit suggestions that can be parsed by the Manager.
+    'required_item_id' (Optional): Force the inclusion of a specific item ID in all suggestions.
     """
     logger.info(f"[TOOL] generate_new_outfit_ideas called: user_id={user_id}, occasion={occasion}, vibe={vibe}")
     try:
@@ -189,7 +188,7 @@ async def generate_new_outfit_ideas(user_id: str, occasion: str, vibe: str = "ch
         
         logger.info(f"[TOOL] Created {len(pseudo_items)} ClothingItem objects")
         
-        outfits = await outfit_composer.compose_outfits(pseudo_items, occasion, vibe)
+        outfits = await outfit_composer.compose_outfits(pseudo_items, occasion, vibe, required_item_id=required_item_id)
         
         if not outfits:
             return "I couldn't create any outfit combinations from your current items. Try uploading more diverse pieces!"
