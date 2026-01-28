@@ -7,7 +7,7 @@ psycopg2-binary
 pgvector
 python-jose[cryptography]
 passlib[bcrypt]
-bcrypt==3.1.7
+bcrypt>=4.0.0
 python-multipart
 python-dotenv
 boto3
@@ -35,3 +35,4 @@ langchain
 langchain-openai
 langchain-community
 langchain-groq
+sentence-transformers

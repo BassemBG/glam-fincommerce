@@ -3,9 +3,9 @@ import logging
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from app.api import auth, closet, outfits, stylist, user, clothing_ingestion
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
+from app.api import auth, closet, outfits, stylist, user, clothing_ingestion, brands, profile_brands, profile_qdrant
 from app.core.config import settings
 
 logger = logging.getLogger(__name__)
@@ -55,6 +55,11 @@ app.include_router(clothing_ingestion.router)
 app.include_router(outfits.router, prefix=f"{settings.API_V1_STR}/outfits", tags=["outfits"])
 app.include_router(stylist.router, prefix=f"{settings.API_V1_STR}/stylist", tags=["stylist"])
 app.include_router(user.router, prefix=f"{settings.API_V1_STR}/users", tags=["users"])
+app.include_router(brands.router, prefix=f"{settings.API_V1_STR}/brands", tags=["brands"])
+app.include_router(profile_brands.router, prefix=f"{settings.API_V1_STR}", tags=["profile-brands"])
+app.include_router(profile_qdrant.router, prefix=f"{settings.API_V1_STR}", tags=["brands-profile"])
+
+
 
 @app.get("/")
 def root():

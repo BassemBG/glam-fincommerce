@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 ﻿# Dependencies
 node_modules/
 venv/
@@ -40,3 +41,31 @@ Thumbs.db
 *.png
 !frontend/public/
 !frontend/assets/
+=======
+﻿# --- Frontend (Next.js) ---
+node_modules/
+.next/
+
+# Local environment variables (sensitive)
+.env.local
+
+# --- Backend (FastAPI / Python) ---
+# Python virtual environment
+venv/
+.venv/
+
+# Compiled Python files
+__pycache__/
+*.pyc
+
+# SQLite database
+*.db
+
+# Uploads
+uploads/
+
+# Environment files (secrets)
+.env
+.env.*
+!.env.example
+>>>>>>> sabaa

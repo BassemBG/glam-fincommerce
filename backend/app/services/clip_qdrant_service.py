@@ -58,7 +58,8 @@ class CLIPQdrantService:
             model_name = "openai/clip-vit-base-patch32"
             logger.info(f"Loading CLIP model: {model_name}")
             
-            self.clip_model = CLIPModel.from_pretrained(model_name)
+            # Disable weights_only for faster loading
+            self.clip_model = CLIPModel.from_pretrained(model_name, torch_dtype=torch.float32)
             self.clip_processor = CLIPProcessor.from_pretrained(model_name)
             self.device = "cuda" if torch.cuda.is_available() else "cpu"
             self.clip_model.to(self.device)
@@ -204,6 +205,9 @@ class CLIPQdrantService:
             # Generate embedding
             with torch.no_grad():
                 image_features = self.clip_model.get_image_features(**inputs)
+                # Handle BaseModelOutputWithPooling - extract pooler_output if needed
+                if hasattr(image_features, 'pooler_output'):
+                    image_features = image_features.pooler_output
                 # Normalize the features
                 image_features = image_features / image_features.norm(dim=-1, keepdim=True)
             
@@ -241,6 +245,9 @@ class CLIPQdrantService:
             # Generate embedding
             with torch.no_grad():
                 text_features = self.clip_model.get_text_features(**inputs)
+                # Handle BaseModelOutputWithPooling - extract pooler_output if needed
+                if hasattr(text_features, 'pooler_output'):
+                    text_features = text_features.pooler_output
                 # Normalize the features
                 text_features = text_features / text_features.norm(dim=-1, keepdim=True)
             
@@ -977,5 +984,16 @@ class CLIPQdrantService:
             logger.error(f"Failed to retrieve outfit by ID: {e}")
             return None
 
-# Global instance
-clip_qdrant_service = CLIPQdrantService()
+
+# Lazy-load global instance to avoid blocking module imports
+_clip_qdrant_service = None
+
+def get_clip_qdrant_service():
+    """Get or create the global CLIPQdrantService instance"""
+    global _clip_qdrant_service
+    if _clip_qdrant_service is None:
+        _clip_qdrant_service = CLIPQdrantService()
+    return _clip_qdrant_service
+
+# Default global instance for backward compatibility with existing imports
+clip_qdrant_service = get_clip_qdrant_service()
