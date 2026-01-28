@@ -8,9 +8,10 @@ interface TryOnVisualizerProps {
     items: { image_url: string; body_region: string }[];
     onClose: () => void;
     tryonImageUrl?: string;
+    onSave?: () => void;
 }
 
-const TryOnVisualizer = ({ bodyImage, items, onClose, tryonImageUrl }: TryOnVisualizerProps) => {
+const TryOnVisualizer = ({ bodyImage, items, onClose, tryonImageUrl, onSave }: TryOnVisualizerProps) => {
     const [step, setStep] = useState<'scanning' | 'ready'>('scanning');
 
     useEffect(() => {
@@ -86,6 +87,11 @@ const TryOnVisualizer = ({ bodyImage, items, onClose, tryonImageUrl }: TryOnVisu
                                 ? 'Your personalized AI look is ready. Save it to your gallery!'
                                 : 'This is an AI-assisted visualization of the proposed outfit.'}
                     </p>
+                    {step === 'ready' && tryonImageUrl && onSave && (
+                        <button className={styles.saveBtn} onClick={onSave}>
+                            Save to Outfits
+                        </button>
+                    )}
                 </div>
             </div>
         </div>

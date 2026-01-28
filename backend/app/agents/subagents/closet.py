@@ -31,7 +31,16 @@ async def closet_node(state: AgentState):
     formatted_prompt = CLOSET_SYSTEM_PROMPT.format(user_id=state["user_id"])
     messages = [SystemMessage(content=formatted_prompt)] + filtered_messages
     
+    print(f"[CLOSET] Last user message: {filtered_messages[-1].content if filtered_messages else 'None'}")
+    
     # Identify as 'closet_assistant'
     response = await model.ainvoke(messages)
     response.name = "closet_assistant"
+    
+    # Log what tools the assistant is calling
+    if hasattr(response, 'tool_calls') and response.tool_calls:
+        print(f"[CLOSET] Tool calls: {[tc['name'] for tc in response.tool_calls]}")
+    else:
+        print(f"[CLOSET] No tool calls, response: {response.content[:100] if response.content else 'Empty'}")
+    
     return {"messages": [response], "active_agent": "closet"}

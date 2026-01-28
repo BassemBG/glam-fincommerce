@@ -79,6 +79,7 @@ class Settings(BaseSettings):
     QDRANT_API_KEY: str = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhY2Nlc3MiOiJtIn0.r8hipkRAT0JK8W7ZQfsAvCplnQEd8sJla62Beigmaoc"
     QDRANT_COLLECTION_NAME: str = "clothing_embeddings"
     QDRANT_COLLECTION_NAME_CLIP: str = "clothing_clip_embeddings"
+    QDRANT_COLLECTION_NAME_OUTFITS: str = "outfits_clip_embeddings"
 
     # ===========================
     # BRAND INGESTION EMBEDDINGS

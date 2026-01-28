@@ -10,28 +10,29 @@ logger = logging.getLogger(__name__)
 @tool
 async def search_closet(query: str, user_id: str) -> str:
     """
-    Search for clothing items in the user's closet using natural language.
-    Example: 'Find me some blue jeans' or 'something minimalist for summer'.
-    Returns a list of matching items with descriptions and image URLs.
+    Search for clothing items in the user's closet using Visual/Semantic Search (Text-to-Image CLIP).
+    Use this for aesthetic queries like 'Find a pink t-shirt', 'something minimalist', or 'blue shades'.
+    It is much more robust for colors and styles than exact database filters.
     """
     try:
-        results = await clip_qdrant_service.search_by_text(query, user_id, limit=5)
+        results = await clip_qdrant_service.search_by_text(query, user_id, limit=10)
         if not results:
-            return f"No items found in your closet for '{query}'."
+            return f"No items found in your closet for '{query}' using visual search."
         
         items_summary = []
         for item in results:
             clothing = item.get("clothing", {})
             summary = (
-                f"- ID: {item['id']}\n"
+                f"- ID: {item['id']} (Match Score: {item['score']:.2f})\n"
                 f"  Category: {clothing.get('category')} ({clothing.get('sub_category')})\n"
-                f"  Vibe: {clothing.get('vibe')}, Description: {clothing.get('description')}\n"
+                f"  Vibe: {clothing.get('vibe')}, Colors: {clothing.get('colors', [])}\n"
+                f"  Brand: {item.get('brand', 'Unknown')}\n"
                 f"  Image URL: {item.get('image_url')}"
             )
             items_summary.append(summary)
-        return "\n\n".join(items_summary)
+        return "Visual Search Results:\n\n" + "\n\n".join(items_summary)
     except Exception as e:
-        return f"Error searching closet: {str(e)}"
+        return f"Error in visual search: {str(e)}"
 
 @tool
 async def filter_closet_items(
@@ -62,7 +63,10 @@ async def filter_closet_items(
         items = results.get("items", [])
         if not items: return "No matching items found."
         
-        summary = [f"- {i['clothing'].get('sub_category')}: {i['clothing'].get('color')}. ID: {i['id']}" for i in items]
+        summary = [
+            f"- {i['clothing'].get('sub_category')}: {i['clothing'].get('colors', [])} ({i.get('brand', 'Unknown')}). ID: {i['id']}" 
+            for i in items
+        ]
         return "\n".join(summary)
     except Exception as e:
         return f"Filter error: {str(e)}"
@@ -152,16 +156,55 @@ async def generate_new_outfit_ideas(user_id: str, occasion: str, vibe: str = "ch
     """
     Compose new outfit ideas based on the user's current closet items.
     Use this when a user asks "What should I wear today?" or "Give me some outfit ideas".
+    Returns JSON-formatted outfit suggestions that can be parsed by the Manager.
     """
+    logger.info(f"[TOOL] generate_new_outfit_ideas called: user_id={user_id}, occasion={occasion}, vibe={vibe}")
     try:
         qdrant_resp = await clip_qdrant_service.get_user_items(user_id=user_id, limit=50)
         closet_items = qdrant_resp.get("items", [])
-        pseudo_items = [ClothingItem(id=i["id"], sub_category=i["clothing"].get("sub_category"),
-                                    body_region=i["clothing"].get("body_region"),
-                                    metadata_json=i["clothing"]) for i in closet_items]
+        
+        logger.info(f"[TOOL] Retrieved {len(closet_items)} items from Qdrant")
+        
+        if not closet_items:
+            return "Your closet appears to be empty. Please upload some clothing items first!"
+        
+        # Create ClothingItem objects with all required fields
+        pseudo_items = []
+        for i in closet_items:
+            clothing_data = i.get("clothing", {})
+            try:
+                item = ClothingItem(
+                    id=i["id"],
+                    user_id=user_id,  # Required field
+                    category=clothing_data.get("category", "clothing"),  # Required field with default
+                    sub_category=clothing_data.get("sub_category"),
+                    body_region=clothing_data.get("body_region", "top"),
+                    image_url=i.get("image_url", ""),  # Required field
+                    metadata_json=clothing_data
+                )
+                pseudo_items.append(item)
+            except Exception as e:
+                logger.warning(f"[TOOL] Skipping item {i.get('id')}: {e}")
+                continue
+        
+        logger.info(f"[TOOL] Created {len(pseudo_items)} ClothingItem objects")
+        
         outfits = await outfit_composer.compose_outfits(pseudo_items, occasion, vibe)
-        if not outfits: return "No good combinations found right now."
-        ideas = [f"- {fit['name']}: {fit['description']}. Score: {fit['score']}/10" for fit in outfits]
-        return "\n\n".join(ideas)
+        
+        if not outfits:
+            return "I couldn't create any outfit combinations from your current items. Try uploading more diverse pieces!"
+        
+        # Return structured JSON that the Manager can parse
+        import json
+        result = {
+            "success": True,
+            "outfits": outfits,
+            "count": len(outfits)
+        }
+        
+        logger.info(f"[TOOL] Generated {len(outfits)} outfit ideas")
+        return f"OUTFIT_DATA: {json.dumps(result)}"
+        
     except Exception as e:
-        return f"Error: {str(e)}"
+        logger.error(f"[TOOL] Error in generate_new_outfit_ideas: {e}", exc_info=True)
+        return f"Error generating outfits: {str(e)}"

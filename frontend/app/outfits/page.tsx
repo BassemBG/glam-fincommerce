@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import styles from './page.module.css';
 import TryOnVisualizer from '../../components/TryOnVisualizer';
+import OutfitCreator from '../../components/OutfitCreator';
 import { API } from '../../lib/api';
 import { authFetch } from '../../lib/auth';
 import { useAuthGuard } from '../../lib/useAuthGuard';
@@ -13,6 +14,7 @@ export default function OutfitsPage() {
     const [userPhoto, setUserPhoto] = useState<string | null>(null);
     const [loading, setLoading] = useState(true);
     const [showTryOn, setShowTryOn] = useState(false);
+    const [assistantOpen, setAssistantOpen] = useState(false);
     const token = useAuthGuard();
 
     useEffect(() => {
@@ -69,8 +71,16 @@ export default function OutfitsPage() {
         <>
             <div className={`${styles.container} animate-fade-in`}>
                 <header className={styles.header}>
-                    <h1>Saved Outfits</h1>
-                    <p className="text-muted">Personalized looks curated for you.</p>
+                    <div className={styles.headerTop}>
+                        <div>
+                            <h1>Saved Outfits</h1>
+                            <p className="text-muted">Personalized looks curated for you.</p>
+                        </div>
+                        <button className={styles.aiAssistBtn} onClick={() => setAssistantOpen(true)}>
+                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                            Add Outfit
+                        </button>
+                    </div>
                 </header>
 
                 <div className={styles.outfitList}>
@@ -253,6 +263,11 @@ export default function OutfitsPage() {
                     }}
                 />
             )}
+
+            <OutfitCreator
+                isOpen={assistantOpen}
+                onClose={() => setAssistantOpen(false)}
+            />
         </>
     );
 }

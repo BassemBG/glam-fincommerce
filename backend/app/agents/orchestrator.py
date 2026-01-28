@@ -149,11 +149,15 @@ class AgentOrchestrator:
                     last_msg = final_state["messages"][-1]
                     response_text = last_msg.content
                     
+                    logger.info(f"[STREAM] Final response received: {response_text[:200]}...")
                     parsed = self._parse_agent_response(response_text)
+                    logger.info(f"[STREAM] Parsed response: {parsed}")
                     yield json.dumps({"type": "final", "content": parsed})
 
         except Exception as e:
-            logger.error(f"Streaming error: {e}", exc_info=True)
+            logger.error(f"[STREAM] Streaming error: {e}", exc_info=True)
+            logger.error(f"[STREAM] Error type: {type(e).__name__}")
+            logger.error(f"[STREAM] Error details: {str(e)}")
             yield json.dumps({
                 "type": "error", 
                 "content": f"Styling brain error: {str(e)}"

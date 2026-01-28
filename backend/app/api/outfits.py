@@ -12,7 +12,7 @@ from app.api.user import get_current_user
 
 router = APIRouter()
 
-@router.get("/")
+@router.get("")
 async def get_user_outfits(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)

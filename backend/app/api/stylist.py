@@ -9,8 +9,10 @@ from app.services.vision_analyzer import vision_analyzer
 from app.services.clip_qdrant_service import clip_qdrant_service
 from app.services.zep_service import add_outfit_summary_to_graph
 from app.models.models import ClothingItem, User, Outfit
+from app.services.tryon_generator import tryon_generator
 import uuid
 import json
+import logging
 
 from app.api.user import get_current_user
 
@@ -48,34 +50,85 @@ async def chat_with_stylist(
     return StreamingResponse(sse_generator(), media_type="text/event-stream")
 
 
-import json
-import logging
+class TryOnRequest(BaseModel):
+    items: List[Dict[str, Any]]
+
+@router.post("/tryon")
+async def tryon_preview(
+    request: TryOnRequest,
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Generate an AI try-on preview.
+    Does not save the outfit.
+    """
+    logging.info(f"[TRYON] Request received from user {current_user.id}")
+    logging.info(f"[TRYON] Number of items: {len(request.items)}")
+    logging.info(f"[TRYON] Items data: {request.items}")
+    
+    if not current_user.full_body_image:
+        logging.warning(f"[TRYON] User {current_user.id} has no body photo")
+        raise HTTPException(status_code=400, detail="User must upload a body photo first")
+
+    # The request.items should contain image_url and body_region
+    try:
+        logging.info(f"[TRYON] Calling tryon_generator with body image: {current_user.full_body_image[:50]}...")
+        result = await tryon_generator.generate_tryon_image(
+            body_image_url=current_user.full_body_image,
+            clothing_items=request.items
+        )
+        if result:
+            logging.info(f"[TRYON] Success! Generated URL: {result.get('url')}")
+            return {"url": result.get("url")}
+        else:
+            # Fallback to collage if AI generation fails
+            logging.warning(f"[TRYON] AI generation returned None, trying collage fallback")
+            collage = await tryon_generator.generate_outfit_collage(request.items)
+            if collage:
+                logging.info(f"[TRYON] Collage fallback success: {collage.get('url')}")
+                return {"url": collage.get("url")}
+            logging.error(f"[TRYON] Both AI and collage generation failed")
+            raise HTTPException(status_code=500, detail="Failed to generate try-on")
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.error(f"[TRYON] Unexpected error: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
 
 @router.post("/outfits/save")
 async def save_outfit(
-    outfit_data: dict,
+    outfit_data: Dict[str, Any],
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    user_id = current_user.id
-    db_user = current_user
+    """
+    Save a curated outfit to the database and Qdrant gallery.
+    """
+    logging.info(f"[SAVE] Request from user {current_user.id}: {outfit_data}")
+    print(f"[DEBUG] Full outfit_data received: {json.dumps(outfit_data, indent=2)}")
     
-    user_id_to_save = user_id
+    user_id_to_save = current_user.id
+    db_user = current_user
     
     # 1. Get item IDs and fetch actual items from QDRANT
     item_ids = outfit_data.get("items", [])
+    print(f"[DEBUG] Received item_ids: {item_ids} (Type: {type(item_ids)})")
+    
     if isinstance(item_ids, str):
         try:
             item_ids = json.loads(item_ids)
         except:
             item_ids = []
     
+    print(f"[DEBUG] Processed item_ids: {item_ids}")
+    
     # Fetch item details from Qdrant Cloud
     qdrant_items = await clip_qdrant_service.get_items_by_ids(item_ids)
     
     # 2. Generate global description and tags
     # We need to adapt this to work with Qdrant items (which have different structure than SQL models)
-    # But stylist_chat.generate_outfit_metadata was recently updated to handle ClothingItem list
+    # But outfit_service.generate_outfit_metadata was recently updated to handle ClothingItem list
     # Let's ensure it can handle dicts or adapt the call
     from app.models.models import ClothingItem
     pseudo_items = [
@@ -88,7 +141,7 @@ async def save_outfit(
         ) for item in qdrant_items
     ]
     
-    meta = await stylist_chat.generate_outfit_metadata(pseudo_items)
+    meta = await outfit_service.generate_outfit_metadata(pseudo_items)
     description = meta.get("description", "")
     style_tags = json.dumps(meta.get("style_tags", []))
     
@@ -99,7 +152,12 @@ async def save_outfit(
     print(f"[DEBUG] Body image: {db_user.full_body_image if db_user else 'None'}")
     print(f"[DEBUG] Number of items for try-on: {len(qdrant_items)}")
 
-    if db_user and db_user.full_body_image and qdrant_items:
+    # Check if a custom try-on URL was already provided (e.g., from manual selection)
+    provided_tryon_url = outfit_data.get("tryon_image_url")
+    if provided_tryon_url:
+        print(f"[DEBUG] Using provided try-on URL: {provided_tryon_url}")
+        tryon_image_url = provided_tryon_url
+    elif db_user and db_user.full_body_image and qdrant_items:
         clothing_items_for_tryon = [
             {
                 "image_url": item["image_url"],
@@ -224,6 +282,20 @@ async def save_outfit(
     
     # 6. Save to Qdrant (CLIP Visual Storage for Outfits)
     # This is now the PRIMARY way we'll load outfits in the /outfits page
+    
+    # If we have a URL but no bytes (e.g. from a previous front-end call), fetch the bytes to generate CLIP embeddings
+    if not tryon_image_bytes and tryon_image_url:
+        try:
+            import httpx
+            print(f"[DEBUG] Fetching image bytes from URL for Qdrant storage: {tryon_image_url}")
+            async with httpx.AsyncClient() as client:
+                img_res = await client.get(tryon_image_url)
+                if img_res.status_code == 200:
+                    tryon_image_bytes = img_res.content
+                    print(f"[DEBUG] Successfully fetched {len(tryon_image_bytes)} bytes")
+        except Exception as e:
+            print(f"[DEBUG] Failed to fetch image bytes for Qdrant: {e}")
+
     if tryon_image_bytes:
         outfit_metadata = {
             "name": final_name,
@@ -234,6 +306,7 @@ async def save_outfit(
             "style_tags": meta.get("style_tags", []),
             "item_images": [item.get("image_url") for item in qdrant_items if item.get("image_url")]
         }
+        print(f"[DEBUG] Sending to Qdrant collection: {clip_qdrant_service.outfits_collection_name}")
         await clip_qdrant_service.store_outfit_with_image(
             outfit_id=str(db_outfit.id),
             image_data=tryon_image_bytes,
@@ -241,8 +314,24 @@ async def save_outfit(
             user_id=user_id_to_save,
             image_url=tryon_image_url
         )
+    else:
+        print(f"[DEBUG] Skipping Qdrant storage: no image bytes available")
 
     return db_outfit
+    
+@router.get("/search")
+async def search_closet_visual(
+    query: str,
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Direct visual search in the closet using CLIP (text-to-image).
+    """
+    try:
+        results = await clip_qdrant_service.search_by_text(query, current_user.id, limit=20)
+        return results
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/advisor/compare")
 async def advisor_compare(

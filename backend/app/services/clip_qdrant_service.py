@@ -31,8 +31,8 @@ class CLIPQdrantService:
                 url=settings.QDRANT_URL,
                 api_key=settings.QDRANT_API_KEY
             )
-            self.collection_name = "clothing_clip_embeddings"  # New collection name
-            self.outfits_collection_name = "outfits_clip_embeddings"
+            self.collection_name = settings.QDRANT_COLLECTION_NAME_CLIP
+            self.outfits_collection_name = settings.QDRANT_COLLECTION_NAME_OUTFITS
             logger.info(f"Connected to Qdrant at {settings.QDRANT_URL}")
             
             # Initialize CLIP model
@@ -426,7 +426,7 @@ class CLIPQdrantService:
         category: Optional[str] = None,
         color: Optional[str] = None,
         limit: int = 10,
-        min_score: float = 0.05  # Text-to-image similarity is typically lower (0.1-0.3)
+        min_score: float = 0.22  # High threshold for precision (text-to-image usually 0.2-0.35)
     ) -> List[Dict[str, Any]]:
         """
         Search clothing items using text query (CLIP text-to-image)
@@ -472,6 +472,7 @@ class CLIPQdrantService:
             # Convert results
             items = []
             for result in results:
+                logger.debug(f"Search match: {result.id} score={result.score}")
                 item = {
                     "id": result.id,
                     "score": result.score,
@@ -635,7 +636,11 @@ class CLIPQdrantService:
                 items.append({
                     "id": str(point.id),
                     "clothing": payload.get("clothing", {}),
-                    "image_url": image_url
+                    "brand": payload.get("brand"),
+                    "price": payload.get("price"),
+                    "image_base64": payload.get("image_base64"),
+                    "image_url": image_url,
+                    "ingested_at": payload.get("ingested_at")
                 })
 
             return {"items": items, "next_page": next_offset}
