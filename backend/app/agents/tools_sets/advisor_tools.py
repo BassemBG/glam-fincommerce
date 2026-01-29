@@ -7,6 +7,7 @@ from langchain_openai import AzureChatOpenAI
 from app.core.config import settings
 from app.services.zep_service import zep_client
 from app.services.clip_qdrant_service import clip_qdrant_service
+from app.services.ragas_service import ragas_service
 from app.services.outfit_composer import outfit_composer
 from app.models.models import ClothingItem
 from langchain_core.messages import HumanMessage, SystemMessage
@@ -66,9 +67,18 @@ async def search_zep_graph(query: str, user_id: str) -> str:
     if not zep_client: return "Zep Memory unavailable."
     try:
         results = zep_client.graph.search(query=query, user_id=user_id, limit=5)
-        if not results: return "No style insights found."
+        if not results:
+            return "No style insights found."
         facts = [res.fact if hasattr(res, 'fact') else str(res) for res in results]
-        return "Based on your style history:\n" + "\n".join(facts)
+        answer = "Based on your style history:\n" + "\n".join(facts)
+        await ragas_service.record_sample(
+            pipeline="search_zep_graph",
+            question=query,
+            contexts=facts,
+            answer=answer,
+            metadata={"user_id": user_id},
+        )
+        return answer
     except Exception as e: return f"Error: {str(e)}"
 
 @tool
@@ -214,16 +224,29 @@ async def search_brand_catalog(query: str, brand_name: Optional[str] = None, lim
         
         if not results:
             return f"No results found in the brand catalog for '{query}'."
-            
+
         output = ["--- Brand Catalog Recommendations ---"]
+        contexts = []
         for i, p in enumerate(results, 1):
             output.append(f"{i}. {p['product_name']} by {p['brand_name']}")
             output.append(f"   Description: {p['product_description']}")
             output.append(f"   Image URL: {p['azure_image_url'] or 'Not available'}")
             output.append(f"   Product ID: {p['id']}")
             output.append("")
-            
-        return "\n".join(output)
+            contexts.append(
+                f"Product: {p.get('product_name')} | Brand: {p.get('brand_name')} | "
+                f"Description: {p.get('product_description')} | Image: {p.get('azure_image_url')}"
+            )
+
+        answer = "\n".join(output)
+        await ragas_service.record_sample(
+            pipeline="search_brand_catalog",
+            question=query,
+            contexts=contexts,
+            answer=answer,
+            metadata={"brand_name": brand_name},
+        )
+        return answer
     except Exception as e:
         logger.error(f"Error searching brand catalog: {e}")
         return f"Error searching brand catalog: {str(e)}"
@@ -290,14 +313,28 @@ async def recommend_brand_items_dna(user_id: str, query: Optional[str] = None, l
         scored_results = sorted(scored_results, key=lambda x: x["personal_match_score"], reverse=True)[:limit]
             
         output = [f"--- Personalized Recommendations (Based on {top_vibe} DNA) ---"]
+        contexts = []
         for i, p in enumerate(scored_results, 1):
             output.append(f"{i}. {p['product_name']} by {p['brand_name']}")
             output.append(f"   Match Level: {round(p['personal_match_score'] * 100)}%")
             output.append(f"   Vibe: {top_vibe}")
             output.append(f"   Image: {p['azure_image_url'] or 'Not available'}")
             output.append("")
-            
-        return "\n".join(output)
+            contexts.append(
+                f"Product: {p.get('product_name')} | Brand: {p.get('brand_name')} | "
+                f"Vibe: {top_vibe} | Description: {p.get('product_description')} | "
+                f"Match: {p.get('personal_match_score'):.2f}"
+            )
+
+        answer = "\n".join(output)
+        await ragas_service.record_sample(
+            pipeline="recommend_brand_items_dna",
+            question=query or "personalized brand recommendations",
+            contexts=contexts,
+            answer=answer,
+            metadata={"user_id": user_id, "top_vibe": top_vibe, "top_colors": top_colors},
+        )
+        return answer
     except Exception as e:
         logger.error(f"Error in DNA recommendations: {e}")
         return f"Recommendation error: {str(e)}"

@@ -5,7 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
-from app.api import auth, closet, outfits, stylist, user, clothing_ingestion, brands, profile_brands, profile_qdrant
+from app.api import auth, closet, outfits, stylist, user, clothing_ingestion, brands, profile_brands, profile_qdrant, ragas_analytics
 from app.core.config import settings
 
 logger = logging.getLogger(__name__)
@@ -58,6 +58,7 @@ app.include_router(user.router, prefix=f"{settings.API_V1_STR}/users", tags=["us
 app.include_router(brands.router, prefix=f"{settings.API_V1_STR}/brands", tags=["brands"])
 app.include_router(profile_brands.router, prefix=f"{settings.API_V1_STR}", tags=["profile-brands"])
 app.include_router(profile_qdrant.router, prefix=f"{settings.API_V1_STR}", tags=["brands-profile"])
+app.include_router(ragas_analytics.router, prefix=f"{settings.API_V1_STR}", tags=["ragas-analytics"])
 
 
 

@@ -2,6 +2,7 @@ from langchain_core.tools import tool
 from typing import List, Optional
 import logging
 from app.services.clip_qdrant_service import clip_qdrant_service
+from app.services.ragas_service import ragas_service
 from app.services.outfit_composer import outfit_composer
 from app.models.models import ClothingItem
 
@@ -20,6 +21,7 @@ async def search_closet(query: str, user_id: str) -> str:
             return f"No items found in your closet for '{query}' using visual search."
         
         items_summary = []
+        contexts = []
         for item in results:
             clothing = item.get("clothing", {})
             summary = (
@@ -30,7 +32,20 @@ async def search_closet(query: str, user_id: str) -> str:
                 f"  Image URL: {item.get('image_url')}"
             )
             items_summary.append(summary)
-        return "Visual Search Results:\n\n" + "\n\n".join(items_summary)
+            contexts.append(
+                f"ID: {item.get('id')} | Category: {clothing.get('category')} | "
+                f"Sub: {clothing.get('sub_category')} | Vibe: {clothing.get('vibe')} | "
+                f"Colors: {clothing.get('colors', [])} | Brand: {item.get('brand')}"
+            )
+        answer = "Visual Search Results:\n\n" + "\n\n".join(items_summary)
+        await ragas_service.record_sample(
+            pipeline="search_closet",
+            question=query,
+            contexts=contexts,
+            answer=answer,
+            metadata={"user_id": user_id},
+        )
+        return answer
     except Exception as e:
         return f"Error in visual search: {str(e)}"
 
@@ -67,7 +82,21 @@ async def filter_closet_items(
             f"- {i['clothing'].get('sub_category')}: {i['clothing'].get('colors', [])} ({i.get('brand', 'Unknown')}). ID: {i['id']}" 
             for i in items
         ]
-        return "\n".join(summary)
+        contexts = [
+            f"ID: {i.get('id')} | Category: {i.get('clothing', {}).get('category')} | "
+            f"Sub: {i.get('clothing', {}).get('sub_category')} | Colors: {i.get('clothing', {}).get('colors', [])} | "
+            f"Vibe: {i.get('clothing', {}).get('vibe')} | Brand: {i.get('brand')}"
+            for i in items
+        ]
+        answer = "\n".join(summary)
+        await ragas_service.record_sample(
+            pipeline="filter_closet_items",
+            question=f"filter closet items (category={category}, sub_category={sub_category}, region={region}, color={color}, vibe={vibe})",
+            contexts=contexts,
+            answer=answer,
+            metadata={"user_id": user_id},
+        )
+        return answer
     except Exception as e:
         return f"Filter error: {str(e)}"
 
@@ -82,7 +111,20 @@ async def list_all_outfits(user_id: str) -> str:
         outfits = results.get("items", [])
         if not outfits: return "No saved outfits yet."
         summary = [f"- {o['name']}: {o['description']} (Score: {o['score']}/10). ID: {o['id']}. tryon_image_url: {o['tryon_image_url']}. style_tags: {o['style_tags']}" for o in outfits]
-        return "Your collection:\n" + "\n".join(summary)
+        contexts = [
+            f"Outfit: {o.get('name')} | Description: {o.get('description')} | "
+            f"Score: {o.get('score')} | Tags: {o.get('style_tags')}"
+            for o in outfits
+        ]
+        answer = "Your collection:\n" + "\n".join(summary)
+        await ragas_service.record_sample(
+            pipeline="list_all_outfits",
+            question="list all outfits",
+            contexts=contexts,
+            answer=answer,
+            metadata={"user_id": user_id},
+        )
+        return answer
     except Exception as e:
         return f"Error listing outfits: {str(e)}"
 
@@ -114,6 +156,7 @@ async def search_saved_outfits(query: str, user_id: str) -> str:
             return f"No outfits found for '{query}'."
             
         outfits_summary = []
+        contexts = []
         for outfit in results:
             # item_images and style_tags are often in the payload from Qdrant
             summary = (
@@ -125,8 +168,20 @@ async def search_saved_outfits(query: str, user_id: str) -> str:
                 f"  Item Images: {', '.join(outfit.get('item_images', []))}"
             )
             outfits_summary.append(summary)
+            contexts.append(
+                f"Outfit: {outfit.get('name')} | Description: {outfit.get('description')} | "
+                f"Score: {outfit.get('score')} | Tags: {', '.join(outfit.get('style_tags', []))}"
+            )
             
-        return "\n\n".join(outfits_summary)
+        answer = "\n\n".join(outfits_summary)
+        await ragas_service.record_sample(
+            pipeline="search_saved_outfits",
+            question=query,
+            contexts=contexts,
+            answer=answer,
+            metadata={"user_id": user_id},
+        )
+        return answer
     except Exception as e:
         logger.error(f"Error in search_saved_outfits tool: {e}")
         return f"Error searching outfits: {str(e)}"
@@ -146,7 +201,20 @@ async def filter_saved_outfits(user_id: str, tag: Optional[str] = None, min_scor
             return "No outfits found matching those criteria."
         
         summary = [f"- {o['name']} (Score: {o['score']}/10): {o['description']}. ID: {o['id']}" for o in outfits]
-        return "Matching outfits:\n" + "\n".join(summary)
+        contexts = [
+            f"Outfit: {o.get('name')} | Description: {o.get('description')} | "
+            f"Score: {o.get('score')} | Tags: {o.get('style_tags')}"
+            for o in outfits
+        ]
+        answer = "Matching outfits:\n" + "\n".join(summary)
+        await ragas_service.record_sample(
+            pipeline="filter_saved_outfits",
+            question=f"filter outfits (tag={tag}, min_score={min_score})",
+            contexts=contexts,
+            answer=answer,
+            metadata={"user_id": user_id},
+        )
+        return answer
     except Exception as e:
         return f"Error filtering outfits: {str(e)}"
 

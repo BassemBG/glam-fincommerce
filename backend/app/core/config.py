@@ -93,6 +93,15 @@ class Settings(BaseSettings):
     OPENAI_API_KEY: Optional[str] = None
     SERPER_API_KEY: Optional[str] = None
 
+    # ===========================
+    # RAGAS EVALUATION
+    # ===========================
+    RAGAS_ENABLED: bool = False
+    RAGAS_AUTO_EVAL: bool = False
+    RAGAS_OUTPUT_DIR: str = "ragas_outputs"
+    RAGAS_MAX_SAMPLES: int = 200
+    RAGAS_GROUND_TRUTH_FALLBACK: str = "answer"
+
     model_config = SettingsConfigDict(
         env_file=".env",
         case_sensitive=True,

@@ -92,6 +92,8 @@ class AgentOrchestrator:
         
         # 2. Vision Analysis (If Image Provided)
         # If the user uploads a file in the chat, we analyze it so the agent "sees" it.
+        from langchain_core.messages import SystemMessage
+
         if image_data:
             try:
                 from app.services.vision_analyzer import vision_analyzer
@@ -108,7 +110,6 @@ class AgentOrchestrator:
                 analysis["image_url"] = img_url
                 
                 analysis_note = f"[SYSTEM NOTE: User uploaded an image of a potential purchase. Vision Analysis: {json.dumps(analysis)}]"
-                from langchain_core.messages import SystemMessage
                 langchain_history.append(SystemMessage(content=analysis_note))
             except Exception as e:
                 logger.error(f"Failed to analyze/upload image in orchestrator: {e}")

@@ -37,3 +37,5 @@ langchain-community
 langchain-groq
 sentence-transformers
 beautifulsoup4
+ragas
+datasets
