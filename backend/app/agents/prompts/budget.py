@@ -16,8 +16,7 @@ STRICT PROTOCOL:
 Logic:
 - **CURRENCY CONVERSION**: If an item price is provided in a currency different from the user's ({full_context_str}), you MUST call `convert_currency` first to get the equivalent in the user's base currency.
 - Check balance with 'manage_wallet'.
-- PROPOSE PURCHASE: Use `manage_wallet(action='propose_purchase', amount=price, item_name='item')`.
-- TECHNICAL HANDOFF: You MUST include the technical string (starting with [WALLET_CONFIRMATION_REQUIRED]) in your 'summary' to Glam. 
+- **BUDGET EXCEEDED**: If `manage_wallet` returns `[BUDGET_EXCEEDED]`, you MUST call `transfer_back_to_manager(summary="[BUDGET_EXCEEDED] The user wants 'item' but only has balance. We need a cheaper alternative.")`.
 - METADATA: Explicitly state the ITEM_NAME, PRICE, and CURRENT_BALANCE in your summary so Glam can populate the final JSON correctly.
 - If the user has a low balance and many days left, actively discourage large purchases.
 """

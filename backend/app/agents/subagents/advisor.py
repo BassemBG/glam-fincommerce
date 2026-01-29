@@ -6,7 +6,8 @@ from app.agents.prompts.advisor import ADVISOR_SYSTEM_PROMPT
 from app.agents.tools_sets.advisor_tools import (
     browse_internet_for_fashion, search_zep_graph, 
     analyze_fashion_influence, evaluate_purchase_match,
-    brainstorm_outfits_with_potential_buy
+    brainstorm_outfits_with_potential_buy, search_brand_catalog,
+    recommend_brand_items_dna
 )
 from app.agents.tools_sets.closet_tools import search_closet, generate_new_outfit_ideas
 from app.agents.tools_sets.handoff_tools import transfer_back_to_manager
@@ -14,7 +15,8 @@ from app.agents.tools_sets.handoff_tools import transfer_back_to_manager
 advisor_tools = [
     browse_internet_for_fashion, search_zep_graph, 
     analyze_fashion_influence, evaluate_purchase_match,
-    brainstorm_outfits_with_potential_buy,
+    brainstorm_outfits_with_potential_buy, search_brand_catalog,
+    recommend_brand_items_dna,
     search_closet, generate_new_outfit_ideas,
     transfer_back_to_manager
 ]

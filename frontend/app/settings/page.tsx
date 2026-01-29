@@ -6,6 +6,7 @@ import styles from './page.module.css';
 import { API } from '../../lib/api';
 import { authFetch, clearToken } from '../../lib/auth';
 import { useAuthGuard } from '../../lib/useAuthGuard';
+import StyleDNA from '../../components/StyleDNA';
 
 function SettingsContent() {
     const [user, setUser] = useState<any>(null);
@@ -281,6 +282,11 @@ function SettingsContent() {
                         {pinterestConnected ? "✓ Connected" : pinterestLoading ? "Connecting..." : "Connect"}
                     </button>
                 </div>
+
+                <div className={styles.dnaSection}>
+                    <StyleDNA />
+                </div>
+
                 <div className={styles.settingItem}>
                     <div className={styles.settingInfo}>
                         <h3>Style Profile</h3>

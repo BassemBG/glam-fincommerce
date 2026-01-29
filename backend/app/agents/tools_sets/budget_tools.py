@@ -20,7 +20,8 @@ def manage_wallet(user_id: str, action: str, amount: Optional[float] = None, ite
         if action == "check": return f"Balance: {user.wallet_balance} {user.currency}."
         if action == "propose_purchase":
             if amount is None or item_name is None: return "Missing amount/item."
-            if user.wallet_balance < amount: return "Insufficient funds."
+            if user.wallet_balance < amount: 
+                return f"[BUDGET_EXCEEDED] item='{item_name}' price={amount} balance={user.wallet_balance} currency='{user.currency}'"
             return f"[WALLET_CONFIRMATION_REQUIRED] item='{item_name}' price={amount} currency='{user.currency}'"
         return "Invalid action."
     finally: db.close()

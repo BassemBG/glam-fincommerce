@@ -389,3 +389,86 @@ class BrandCLIPService:
         
         logger.info(f"✅ Successfully stored {len(point_ids)} products ({skipped} skipped)")
         return point_ids
+
+    async def search_products(
+        self,
+        query: str,
+        brand_name: Optional[str] = None,
+        limit: int = 10,
+        score_threshold: float = 0.25
+    ) -> List[Dict[str, Any]]:
+        """
+        Search for products in the BrandEmbedding collection using CLIP text-to-image similarity.
+        
+        Args:
+            query: The search query (e.g., "blue silk dress", "minimalist sneakers")
+            brand_name: Optional filter for a specific brand
+            limit: Maximum number of results
+            score_threshold: Minimum similarity score (0.0 to 1.0)
+            
+        Returns:
+            List of matching product payloads with scores
+        """
+        if not self.client:
+            logger.error("Qdrant client not initialized in BrandCLIPService")
+            return []
+            
+        try:
+            # 1. Generate text embedding for the query
+            query_embedding = self.generate_text_embedding(query)
+            if not query_embedding:
+                logger.error(f"Could not generate embedding for query: {query}")
+                return []
+                
+            # 2. Build filter if brand_name is specified
+            query_filter = None
+            if brand_name:
+                import qdrant_client.models as models
+                query_filter = models.Filter(
+                    must=[
+                        models.FieldCondition(
+                            key="brand_name",
+                            match=models.MatchValue(value=brand_name)
+                        )
+                    ]
+                )
+            
+            # 3. Perform vector search
+            logger.info(f"🔍 Searching BrandEmbedding for: '{query}' (brand: {brand_name or 'any'})")
+            results = self.client.search(
+                collection_name=self.collection_name,
+                query_vector=query_embedding,
+                query_filter=query_filter,
+                limit=limit,
+                score_threshold=score_threshold
+            )
+            
+            # 4. Format results
+            products = []
+            for res in results:
+                payload = res.payload or {}
+                
+                # Resilient image selection: Azure -> Original URL -> Base64 fallback
+                display_image = payload.get("azure_image_url") or payload.get("image_url")
+                if not display_image and payload.get("image_base64"):
+                    display_image = f"data:image/jpeg;base64,{payload.get('image_base64')}"
+                
+                product = {
+                    "id": res.id,
+                    "score": res.score,
+                    "brand_name": payload.get("brand_name"),
+                    "product_name": payload.get("product_name"),
+                    "product_description": payload.get("product_description"),
+                    "azure_image_url": display_image, # Use the best available image
+                    "source": payload.get("source"),
+                }
+                products.append(product)
+            
+            logger.info(f"✅ Found {len(products)} products in brand catalog")
+            return products
+            
+        except Exception as e:
+            logger.error(f"Failed to search brand products: {e}")
+            import traceback
+            traceback.print_exc()
+            return []

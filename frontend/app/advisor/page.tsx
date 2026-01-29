@@ -198,18 +198,20 @@ export default function AdvisorPage() {
         const boldRegex = /\*\*([^*]+)\*\*/g;
         let parts: (string | React.ReactNode)[] = [content];
 
-        parts = parts.flatMap(part => {
+        parts = parts.flatMap((part): (string | React.ReactNode)[] => {
             if (typeof part !== 'string') return [part];
-            return part.split(boldRegex).map((bit, i) => i % 2 === 1 ? <strong key={i}>{bit}</strong> : bit);
+            return part.split(boldRegex).map((bit, i): string | React.ReactNode => i % 2 === 1 ? <strong key={i}>{bit}</strong> : bit);
         });
 
-        parts = parts.flatMap(part => {
+        parts = parts.flatMap((part): (string | React.ReactNode)[] => {
             if (typeof part !== 'string') return [part];
             const bits = part.split(imageRegex);
-            const elements = [];
+            const elements: (string | React.ReactNode)[] = [];
             for (let i = 0; i < bits.length; i += 3) {
-                elements.push(bits[i]);
-                if (bits[i + 1] !== undefined) elements.push(<img key={i} src={bits[i + 2]} alt={bits[i + 1]} className={styles.renderedImage} />);
+                elements.push(bits[i] as string);
+                if (bits[i + 1] !== undefined) {
+                    elements.push(<img key={i} src={bits[i + 2]} alt={bits[i + 1]} className={styles.renderedImage} />);
+                }
             }
             return elements;
         });

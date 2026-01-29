@@ -10,6 +10,7 @@ from app.services.clip_qdrant_service import clip_qdrant_service
 from app.services.zep_service import add_outfit_summary_to_graph
 from app.models.models import ClothingItem, User, Outfit
 from app.services.tryon_generator import tryon_generator
+from app.services.style_dna_service import style_dna_service
 import uuid
 import json
 import logging
@@ -342,5 +343,17 @@ async def advisor_compare(
     content = await file.read()
     try:
         return await outfit_service.advisor_compare(current_user.id, content)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/style-dna")
+async def get_style_dna(
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Retrieve user style DNA including vibes radar and top colors.
+    """
+    try:
+        return await style_dna_service.get_user_style_dna(current_user.id)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

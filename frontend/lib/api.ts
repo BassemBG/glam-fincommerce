@@ -36,6 +36,7 @@ export const API = {
     chat: `${API_URL}/api/v1/stylist/chat`,
     tryon: `${API_URL}/api/v1/stylist/tryon`,
     advisor: `${API_URL}/api/v1/stylist/advisor/compare`,
+    styleDna: `${API_URL}/api/v1/stylist/style-dna`,
     search: (q: string) => `${API_URL}/api/v1/stylist/search?query=${encodeURIComponent(q)}`
   },
   pinterest: {

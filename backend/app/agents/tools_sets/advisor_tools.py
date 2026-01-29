@@ -157,14 +157,25 @@ async def brainstorm_outfits_with_potential_buy(user_id: str, potential_item_det
             ))
             
         # 3. Add the potential new item as a pseudo-item
-        potential_item_id = potential_item_details.get("id", "potential_purchase")
+        potential_item_id = potential_item_details.get("id") or potential_item_details.get("Product ID") or "potential_purchase"
+        
+        # Handle different naming conventions from tools (catalog search vs vision)
+        name = (potential_item_details.get("sub_category") or 
+                potential_item_details.get("product_name") or 
+                potential_item_details.get("name") or 
+                "Potential Item")
+        
+        img_url = (potential_item_details.get("image_url") or 
+                   potential_item_details.get("azure_image_url") or 
+                   "")
+
         potential_item = ClothingItem(
-            id=potential_item_id,
+            id=str(potential_item_id),
             user_id=user_id,
             category=potential_item_details.get("category", "clothing"),
-            sub_category=potential_item_details.get("sub_category", "Potential Item"),
+            sub_category=name,
             body_region=potential_item_details.get("body_region", "top"),
-            image_url=potential_item_details.get("image_url", ""), 
+            image_url=img_url, 
             metadata_json=potential_item_details
         )
         pseudo_items.append(potential_item)
@@ -182,3 +193,111 @@ async def brainstorm_outfits_with_potential_buy(user_id: str, potential_item_det
     except Exception as e:
         logger.error(f"Error in brainstorm_outfits: {e}", exc_info=True)
         return f"Error generating outfits: {str(e)}"
+
+@tool
+async def search_brand_catalog(query: str, brand_name: Optional[str] = None, limit: int = 5) -> str:
+    """
+    Search the global Brand Catalog for fashion items to recommend to the user.
+    Use this when the user is looking for something new, or when you want to suggest 
+    additions to their closet from partner brands.
+    
+    Args:
+        query: Semantic search query (e.g. "oversized black blazer", "vegan leather boots")
+        brand_name: Optional brand name to filter by.
+        limit: Max products to return (default 5).
+    """
+    from app.services.brand_ingestion.brand_clip_service import BrandCLIPService
+    
+    try:
+        service = BrandCLIPService()
+        results = await service.search_products(query=query, brand_name=brand_name, limit=limit)
+        
+        if not results:
+            return f"No results found in the brand catalog for '{query}'."
+            
+        output = ["--- Brand Catalog Recommendations ---"]
+        for i, p in enumerate(results, 1):
+            output.append(f"{i}. {p['product_name']} by {p['brand_name']}")
+            output.append(f"   Description: {p['product_description']}")
+            output.append(f"   Image URL: {p['azure_image_url'] or 'Not available'}")
+            output.append(f"   Product ID: {p['id']}")
+            output.append("")
+            
+        return "\n".join(output)
+    except Exception as e:
+        logger.error(f"Error searching brand catalog: {e}")
+        return f"Error searching brand catalog: {str(e)}"
+
+@tool
+async def recommend_brand_items_dna(user_id: str, query: Optional[str] = None, limit: int = 5) -> str:
+    """
+    Personalized brand recommendation engine.
+    It uses the user's 'Style DNA' (favorite colors, vibes) to find the best matches 
+    in the brand catalog.
+    
+    Args:
+        user_id: The ID of the user.
+        query: Optional specific search (e.g. "shoes"), otherwise it finds general matches.
+    """
+    from app.services.style_dna_service import style_dna_service
+    from app.services.brand_ingestion.brand_clip_service import BrandCLIPService
+    
+    try:
+        # 1. Get User Style DNA
+        dna = await style_dna_service.get_user_style_dna(user_id)
+        if "error" in dna:
+            return f"Could not personalized recommendations: {dna['error']}"
+            
+        vibes = dna.get("vibes", {})
+        top_vibe = max(vibes, key=vibes.get) if vibes else "Casual"
+        top_colors = dna.get("colors", [])[:3]
+        
+        # 2. Build personalized search query
+        search_query = query if query else f"{top_vibe} fashion"
+        if top_colors:
+            search_query += f" in {', '.join(top_colors)}"
+            
+        logger.info(f"DNA-Powered Match Query: {search_query}")
+        
+        # 3. Search Catalog
+        service = BrandCLIPService()
+        # Fetch more to allow for filtering
+        raw_results = await service.search_products(query=search_query, limit=limit * 2)
+        
+        if not raw_results:
+            return "Even with your style DNA, I couldn't find exact matches in the current catalog."
+            
+        # 4. Score results against DNA (Heuristic matching)
+        scored_results = []
+        for p in raw_results:
+            match_score = p.get("score", 0)
+            desc = (p.get("product_description") or "").lower()
+            name = (p.get("product_name") or "").lower()
+            
+            # Boost for vibe match
+            if top_vibe.lower() in desc or top_vibe.lower() in name:
+                match_score += 0.1
+                
+            # Boost for color match
+            for color in top_colors:
+                if color.lower() in desc or color.lower() in name:
+                    match_score += 0.05
+            
+            p["personal_match_score"] = match_score
+            scored_results.append(p)
+            
+        # Sort by personal match
+        scored_results = sorted(scored_results, key=lambda x: x["personal_match_score"], reverse=True)[:limit]
+            
+        output = [f"--- Personalized Recommendations (Based on {top_vibe} DNA) ---"]
+        for i, p in enumerate(scored_results, 1):
+            output.append(f"{i}. {p['product_name']} by {p['brand_name']}")
+            output.append(f"   Match Level: {round(p['personal_match_score'] * 100)}%")
+            output.append(f"   Vibe: {top_vibe}")
+            output.append(f"   Image: {p['azure_image_url'] or 'Not available'}")
+            output.append("")
+            
+        return "\n".join(output)
+    except Exception as e:
+        logger.error(f"Error in DNA recommendations: {e}")
+        return f"Recommendation error: {str(e)}"

@@ -113,6 +113,19 @@ class AgentOrchestrator:
             except Exception as e:
                 logger.error(f"Failed to analyze/upload image in orchestrator: {e}")
 
+        # 3. Weather Proactivity (New)
+        # Only add weather if it's the start of a conversation or specifically asked
+        weather_context = None
+        if len(history) <= 1:
+            try:
+                from app.services.weather_service import weather_service
+                w = await weather_service.get_weather("Tunis") # Default to Tunis as per user request
+                if w:
+                    weather_context = f"[SYSTEM NOTE: Current environment: {w['temp_c']}°C, {w['description']}. Rainy: {w['is_rainy']}]. Act proactively and mention if clothes are weather-appropriate."
+                    langchain_history.append(SystemMessage(content=weather_context))
+            except Exception as e:
+                logger.error(f"Weather injection failed: {e}")
+
         from langchain_core.messages import HumanMessage
         langchain_history.append(HumanMessage(content=message))
 
