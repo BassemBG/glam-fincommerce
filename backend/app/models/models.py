@@ -41,6 +41,21 @@ class User(SQLModel, table=True):
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
 
+
+class Brand(SQLModel, table=True):
+    __tablename__ = "brands"
+
+    id: str = Field(default_factory=lambda: str(uuid4()), primary_key=True)
+    brand_name: str = Field(index=True, unique=True, nullable=False, max_length=255)
+    office_email: str = Field(index=True, unique=True, nullable=False, max_length=255)
+    brand_type: str = Field(nullable=False, max_length=50)  # local | international
+    hashed_password: str = Field(nullable=False)
+    website_url: Optional[str] = Field(default=None, max_length=500)
+    logo_url: Optional[str] = Field(default=None, max_length=500)
+
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
+
 class ClothingItem(SQLModel, table=True):
     __tablename__ = "clothing_items"
     
@@ -170,11 +185,14 @@ class ProfileBrand(SQLModel, table=True):
     __tablename__ = "profile_brands"
     
     id: str = Field(default_factory=lambda: str(uuid4()), primary_key=True)
-    brand_name: str = Field(index=True, unique=True, nullable=False, max_length=255)
+    brand_id: str = Field(foreign_key="brands.id", index=True, unique=True, nullable=False)
+    brand_name: str = Field(index=True, nullable=False, max_length=255)
+    office_email: Optional[str] = Field(default=None, max_length=255)
+    brand_type: Optional[str] = Field(default=None, max_length=50)  # local | international (read-only)
     brand_website: Optional[str] = Field(default=None, max_length=500)
     instagram_link: Optional[str] = Field(default=None, max_length=500)
     brand_logo_url: Optional[str] = None
-    description: Optional[str] = None
+    description: Optional[str] = None  # Bio/short description
     brand_metadata: Dict = Field(default={}, sa_column=Column("metadata", JSON))
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)

@@ -37,7 +37,7 @@ export default function SignupPage() {
       }
 
       const data = await res.json();
-      saveToken(data.access_token);
+      saveToken(data.access_token, "user");
       // Mark that this brand-new account should go through onboarding once
       if (typeof window !== 'undefined') {
         localStorage.setItem('needsOnboarding', '1');

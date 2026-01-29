@@ -6,6 +6,8 @@ import styles from "./page.module.css";
 import { API } from "@/lib/api";
 import { BrandUploadForm, BrandSubmitPayload } from "./components/BrandUploadForm";
 import { BrandPreview, BrandProfile } from "./components/BrandPreview";
+import { useAuthGuard } from "@/lib/useAuthGuard";
+import { authFetch } from "@/lib/auth";
 
 interface Product {
   id: string;
@@ -17,6 +19,7 @@ interface Product {
 }
 
 export default function BrandAdvisorPage() {
+  useAuthGuard({ role: "brand", redirectTo: "/auth/brand/login" });
   const [selectedBrand, setSelectedBrand] = useState<BrandProfile | null>(null);
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(false);
@@ -55,7 +58,7 @@ export default function BrandAdvisorPage() {
       if (url) formData.append("url", url);
       if (brandName) formData.append("brand_name", brandName);
 
-      const res = await fetch(API.brandIngestion.ingest, {
+      const res = await authFetch(API.brandIngestion.ingest, {
         method: "POST",
         body: formData,
       });

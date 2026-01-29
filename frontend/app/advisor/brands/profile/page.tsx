@@ -1,25 +1,72 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { API } from "@/lib/api";
 import styles from "./page.module.css";
+import { useAuthGuard } from "@/lib/useAuthGuard";
+import { authFetch, clearToken } from "@/lib/auth";
 
 type ProfileForm = {
   brandName: string;
   description: string;
   websiteUrl: string;
   instagramUrl: string;
+  officeEmail: string;  // read-only
+  brandType: string;    // read-only
 };
 
 export default function BrandProfilePage() {
+  useAuthGuard({ role: "brand", redirectTo: "/auth/brand/login" });
+
+  const router = useRouter();
+  
   const [form, setForm] = useState<ProfileForm>({
     brandName: "",
     description: "",
     websiteUrl: "",
     instagramUrl: "",
+    officeEmail: "",
+    brandType: "",
   });
+  const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [status, setStatus] = useState<{ type: "success" | "error"; message: string } | null>(null);
+
+  // Load profile data on mount
+  useEffect(() => {
+    const loadProfile = async () => {
+      try {
+        const response = await authFetch(API.profileBrands.me, {
+          method: "GET",
+        });
+
+        if (!response.ok) {
+          const error = await response.text();
+          console.error("Profile API error:", response.status, error);
+          throw new Error(`${response.status}: ${error || "Failed to load profile"}`);
+        }
+
+        const profile = await response.json();
+        console.log("Profile loaded:", profile);
+        setForm({
+          brandName: profile.brand_name || "",
+          description: profile.description || "",
+          websiteUrl: profile.brand_website || "",
+          instagramUrl: profile.instagram_link || "",
+          officeEmail: profile.office_email || "",
+          brandType: profile.brand_type || "",
+        });
+      } catch (err: any) {
+        console.error("Error loading profile:", err);
+        setStatus({ type: "error", message: `Failed to load profile: ${err?.message || "Unknown error"}` });
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadProfile();
+  }, []);
 
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
@@ -31,18 +78,16 @@ export default function BrandProfilePage() {
         throw new Error("Brand name is required.");
       }
 
-      // Call backend to upsert profile brand
-      const response = await fetch(API.profileBrands.upsert, {
-        method: "POST",
+      // Call backend to update profile brand
+      const response = await authFetch(API.profileBrands.meUpdate, {
+        method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           brand_name: form.brandName.trim(),
           description: form.description.trim() || null,
           brand_website: form.websiteUrl.trim() || null,
           instagram_link: form.instagramUrl.trim() || null,
-          brand_logo_url: null,
         }),
-        credentials: "include",
       });
 
       if (!response.ok) {
@@ -50,16 +95,17 @@ export default function BrandProfilePage() {
         throw new Error(error || "Failed to save profile");
       }
 
-      setStatus({ type: "success", message: "Brand profile saved successfully!" });
-      // Clear form after success
-      setTimeout(() => {
-        setForm({
-          brandName: "",
-          description: "",
-          websiteUrl: "",
-          instagramUrl: "",
-        });
-      }, 1500);
+      const updated = await response.json();
+      setForm({
+        brandName: updated.brand_name || "",
+        description: updated.description || "",
+        websiteUrl: updated.brand_website || "",
+        instagramUrl: updated.instagram_link || "",
+        officeEmail: updated.office_email || "",
+        brandType: updated.brand_type || "",
+      });
+
+      setStatus({ type: "success", message: "Brand profile updated successfully!" });
     } catch (err: any) {
       setStatus({ type: "error", message: err?.message || "Unable to save profile." });
     } finally {
@@ -67,17 +113,62 @@ export default function BrandProfilePage() {
     }
   };
 
+  if (loading) {
+    return (
+      <div className={styles.page}>
+        <div className={styles.loadingContainer}>
+          <p>Loading your brand profile...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className={styles.page}>
       <header className={styles.header}>
-        <h1>Brand Profile</h1>
-        <p>Keep the brand bio, links, and avatar consistent across your advisor flows.</p>
+        <div className={styles.headerRow}>
+          <div>
+            <h1>Brand Profile</h1>
+            <p>Keep the brand bio, links, and avatar consistent across your advisor flows.</p>
+          </div>
+          <div className={styles.headerActions}>
+            <button
+              type="button"
+              className={styles.backButton}
+              onClick={() => router.push("/advisor/brands")}
+            >
+              Back
+            </button>
+            <button
+              type="button"
+              className={styles.signOutButton}
+              onClick={() => {
+                clearToken();
+                router.replace("/auth/brand/login");
+              }}
+            >
+              Sign Out
+            </button>
+          </div>
+        </div>
       </header>
 
       <form className={styles.card} onSubmit={handleSubmit}>
         <div>
           <h2 className={styles.sectionTitle}>Profile</h2>
           <p className={styles.hint}>Instagram-style bio that stays on-brand.</p>
+        </div>
+
+        {/* Read-only info section */}
+        <div className={styles.readOnlySection}>
+          <div className={styles.fieldGroup}>
+            <label className={styles.labelRow}>Office Email</label>
+            <div className={styles.readOnlyField}>{form.officeEmail}</div>
+          </div>
+          <div className={styles.fieldGroup}>
+            <label className={styles.labelRow}>Brand Type</label>
+            <div className={styles.readOnlyField}>{form.brandType === "local" ? "Local" : "International"}</div>
+          </div>
         </div>
 
         <div className={styles.grid}>
@@ -116,7 +207,7 @@ export default function BrandProfilePage() {
         </div>
 
         <div className={styles.field}>
-          <div className={styles.labelRow}>Short description</div>
+          <div className={styles.labelRow}>Short description / Bio</div>
           <textarea
             className={styles.textarea}
             value={form.description}

@@ -7,7 +7,7 @@ Uses local sentence-transformers model (all-MiniLM-L12-v2) - no API key needed.
 from typing import Optional, List
 from datetime import datetime
 from sqlmodel import Session, select
-from app.models.models import ProfileBrand
+from app.models.models import ProfileBrand, Brand
 
 try:
     from sentence_transformers import SentenceTransformer
@@ -39,6 +39,98 @@ class ProfileBrandsService:
             print(f"Warning: Failed to generate embedding: {e}")
             return None
     
+    def get_or_create_brand_profile(
+        self,
+        brand_id: str,
+        brand_name: str,
+        office_email: Optional[str] = None,
+        brand_type: Optional[str] = None,
+        brand_website: Optional[str] = None,
+        description: Optional[str] = None,
+    ) -> ProfileBrand:
+        """
+        Get or create a brand profile linked to a brand.
+        Idempotent: called multiple times with same brand_id returns same profile.
+        Called from brand signup to auto-initialize profile.
+        """
+        # Check if profile already exists for this brand_id
+        statement = select(ProfileBrand).where(ProfileBrand.brand_id == brand_id)
+        existing = self.db.execute(statement).scalars().first()
+        
+        if existing:
+            # Update existing profile with latest sign-up data
+            existing.brand_name = brand_name
+            existing.office_email = office_email
+            existing.brand_type = brand_type
+            existing.brand_website = brand_website
+            existing.updated_at = datetime.utcnow()
+            self.db.add(existing)
+            self.db.commit()
+            self.db.refresh(existing)
+            return existing
+        
+        # Create new profile
+        new_profile = ProfileBrand(
+            brand_id=brand_id,
+            brand_name=brand_name,
+            office_email=office_email,
+            brand_type=brand_type,
+            brand_website=brand_website,
+            description=description,
+            brand_metadata={}
+        )
+        self.db.add(new_profile)
+        self.db.commit()
+        self.db.refresh(new_profile)
+        return new_profile
+    
+    def update_brand_profile(
+        self,
+        brand_id: str,
+        brand_name: Optional[str] = None,
+        brand_website: Optional[str] = None,
+        instagram_link: Optional[str] = None,
+        brand_logo_url: Optional[str] = None,
+        description: Optional[str] = None,
+    ) -> Optional[ProfileBrand]:
+        """
+        Update only the editable fields of a brand profile.
+        Returns the updated profile or None if not found.
+        """
+        statement = select(ProfileBrand).where(ProfileBrand.brand_id == brand_id)
+        profile = self.db.execute(statement).scalars().first()
+        
+        if not profile:
+            return None
+        
+        # Update editable fields
+        if brand_name is not None:
+            profile.brand_name = brand_name
+        if brand_website is not None:
+            profile.brand_website = brand_website
+        if instagram_link is not None:
+            profile.instagram_link = instagram_link
+        if brand_logo_url is not None:
+            profile.brand_logo_url = brand_logo_url
+        if description is not None:
+            profile.description = description
+            # Update embedding when description changes
+            embedding = self._embed_text(description)
+            if embedding:
+                profile.brand_metadata = profile.brand_metadata or {}
+                profile.brand_metadata['description_embedding'] = embedding
+        
+        profile.updated_at = datetime.utcnow()
+        self.db.add(profile)
+        self.db.commit()
+        self.db.refresh(profile)
+        return profile
+    
+    def get_profile_by_brand_id(self, brand_id: str) -> Optional[ProfileBrand]:
+        """Fetch a brand profile by brand_id (one-to-one relationship)."""
+        statement = select(ProfileBrand).where(ProfileBrand.brand_id == brand_id)
+        return self.db.execute(statement).scalars().first()
+    
     def upsert_profile_brand(
         self,
         brand_name: str,
@@ -50,6 +142,7 @@ class ProfileBrandsService:
         """
         Upsert a brand profile. If brand_name exists, update it; otherwise create new.
         Generates and stores embedding for the description for semantic search.
+        [DEPRECATED] Use get_or_create_brand_profile or update_brand_profile instead.
         """
         # Check if brand already exists
         statement = select(ProfileBrand).where(ProfileBrand.brand_name == brand_name)
@@ -78,6 +171,7 @@ class ProfileBrandsService:
         else:
             # Create new brand
             new_brand = ProfileBrand(
+                brand_id="",  # This will cause issues - use get_or_create_brand_profile instead
                 brand_name=brand_name,
                 brand_website=brand_website,
                 instagram_link=instagram_link,

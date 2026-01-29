@@ -8,6 +8,8 @@ from pydantic import BaseModel, HttpUrl
 class ProfileBrandCreate(BaseModel):
     """Request schema for creating/updating a profile brand."""
     brand_name: str
+    office_email: Optional[str] = None
+    brand_type: Optional[str] = None
     brand_website: Optional[str] = None
     instagram_link: Optional[str] = None
     brand_logo_url: Optional[str] = None
@@ -16,6 +18,7 @@ class ProfileBrandCreate(BaseModel):
 
 class ProfileBrandUpdate(BaseModel):
     """Schema for partial updates to a profile brand."""
+    brand_name: Optional[str] = None
     brand_website: Optional[str] = None
     instagram_link: Optional[str] = None
     brand_logo_url: Optional[str] = None
@@ -25,7 +28,10 @@ class ProfileBrandUpdate(BaseModel):
 class ProfileBrandResponse(BaseModel):
     """Response schema for a profile brand."""
     id: str
+    brand_id: str
     brand_name: str
+    office_email: Optional[str] = None
+    brand_type: Optional[str] = None
     brand_website: Optional[str] = None
     instagram_link: Optional[str] = None
     brand_logo_url: Optional[str] = None
@@ -48,3 +54,4 @@ class ProfileBrandListResponse(BaseModel):
     """Response schema for listing profile brands."""
     brands: list[ProfileBrandResponse]
     total: int
+

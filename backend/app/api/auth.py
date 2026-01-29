@@ -67,7 +67,7 @@ def signup(user_in: UserCreate, db: Session = Depends(get_db)):
     access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     return {
         "access_token": security.create_access_token(
-            db_user.id, expires_delta=access_token_expires
+            db_user.id, expires_delta=access_token_expires, role="user"
         ),
         "token_type": "bearer",
     }
@@ -90,7 +90,7 @@ def login(
     access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     return {
         "access_token": security.create_access_token(
-            user.id, expires_delta=access_token_expires
+            user.id, expires_delta=access_token_expires, role="user"
         ),
         "token_type": "bearer",
     }

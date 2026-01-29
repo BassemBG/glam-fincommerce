@@ -1,14 +1,16 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
 
 from app.schemas.profile_qdrant import ProfileIngestRequest, ProfileResponse, ProfileListResponse
 from app.services.profile_qdrant_service import ProfileQdrantService
+from app.api.brand_auth import get_current_brand
+from app.models.models import Brand
 
 router = APIRouter(prefix="/brands/profile", tags=["brands-profile"])
 service = ProfileQdrantService()
 
 
 @router.post("/ingest", response_model=ProfileResponse)
-async def ingest_profile(payload: ProfileIngestRequest):
+async def ingest_profile(payload: ProfileIngestRequest, current_brand: Brand = Depends(get_current_brand)):
     try:
         profile = service.upsert_profile(
             brand_name=payload.brand_name,
@@ -23,7 +25,7 @@ async def ingest_profile(payload: ProfileIngestRequest):
 
 
 @router.get("/list", response_model=ProfileListResponse)
-async def list_profiles():
+async def list_profiles(current_brand: Brand = Depends(get_current_brand)):
     try:
         profiles = service.list_profiles()
         return {"profiles": profiles, "total": len(profiles)}
@@ -32,7 +34,7 @@ async def list_profiles():
 
 
 @router.get("/{brand_name}", response_model=ProfileResponse)
-async def get_profile(brand_name: str):
+async def get_profile(brand_name: str, current_brand: Brand = Depends(get_current_brand)):
     try:
         profile = service.get_profile(brand_name)
     except Exception as e:

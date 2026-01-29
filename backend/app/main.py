@@ -17,7 +17,12 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[
+        "http://localhost:3000",
+        "http://localhost:3001",
+        "http://127.0.0.1:3000",
+        "http://127.0.0.1:3001",
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -50,6 +55,7 @@ os.makedirs(uploads_dir, exist_ok=True)
 app.mount("/uploads", StaticFiles(directory=uploads_dir), name="uploads")
 
 app.include_router(auth.router, prefix=f"{settings.API_V1_STR}/auth", tags=["auth"])
+app.include_router(brand_auth.router, prefix=f"{settings.API_V1_STR}/brand-auth", tags=["brand-auth"])
 app.include_router(closet.router, prefix=f"{settings.API_V1_STR}/closet", tags=["closet"])
 app.include_router(clothing_ingestion.router)
 app.include_router(outfits.router, prefix=f"{settings.API_V1_STR}/outfits", tags=["outfits"])

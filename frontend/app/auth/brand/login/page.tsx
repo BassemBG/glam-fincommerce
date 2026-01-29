@@ -1,20 +1,17 @@
 "use client";
 
-import { useState, Suspense } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
-import styles from "../auth.module.css";
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import styles from "../../auth.module.css";
 import { API } from "@/lib/api";
 import { saveToken } from "@/lib/auth";
 
-function LoginForm() {
+export default function BrandLoginPage() {
   const router = useRouter();
-  const searchParams = useSearchParams();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  const fromSignup = searchParams.get("from") === "signup";
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -25,7 +22,7 @@ function LoginForm() {
       body.append("username", email);
       body.append("password", password);
 
-      const res = await fetch(API.auth.login, {
+      const res = await fetch(API.brandAuth.login, {
         method: "POST",
         headers: {
           "Content-Type": "application/x-www-form-urlencoded",
@@ -39,8 +36,8 @@ function LoginForm() {
       }
 
       const data = await res.json();
-      saveToken(data.access_token, "user");
-      router.replace("/");
+      saveToken(data.access_token, "brand");
+      router.replace("/advisor/brands");
     } catch (err: any) {
       setError(err.message || "Unexpected error");
     } finally {
@@ -54,26 +51,22 @@ function LoginForm() {
       <div className={styles.card}>
         <div className={styles.headerRow}>
           <div>
-            <p className={styles.eyebrow}>Access</p>
-            <h1>Sign in to your closet</h1>
-            <p className={styles.muted}>Securely continue to your outfits and wardrobe.</p>
+            <p className={styles.eyebrow}>Brand Access</p>
+            <h1>Sign in as a brand</h1>
+            <p className={styles.muted}>Manage your brand ingestion and profile.</p>
           </div>
         </div>
-
-        {fromSignup && (
-          <div className={styles.toastSuccess}>Account created. Please sign in.</div>
-        )}
 
         {error && <div className={styles.toastError}>{error}</div>}
 
         <form onSubmit={handleLogin} className={styles.form}>
-          <label className={styles.label}>Email
+          <label className={styles.label}>Office Email
             <input
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
-              placeholder="you@example.com"
+              placeholder="brand@company.com"
             />
           </label>
 
@@ -93,29 +86,21 @@ function LoginForm() {
         </form>
 
         <p className={styles.footerText}>
-          New here? <button type="button" className={styles.linkBtn} onClick={() => router.push("/auth/signup")}>Create account</button>
+          New brand? <button type="button" className={styles.linkBtn} onClick={() => router.push("/auth/brand/signup")}>Create brand account</button>
         </p>
 
         <div style={{ marginTop: "24px", paddingTop: "24px", borderTop: "1px solid rgba(0, 0, 0, 0.1)" }}>
-          <p className={styles.muted} style={{ marginBottom: "12px", fontSize: "0.9rem" }}>Are you a brand?</p>
+          <p className={styles.muted} style={{ marginBottom: "12px", fontSize: "0.9rem" }}>Are you a user?</p>
           <button 
             type="button" 
             className={styles.primaryBtn} 
-            onClick={() => router.push("/auth/brand/login")}
+            onClick={() => router.push("/auth/login")}
             style={{ width: "100%" }}
           >
-            Brand Sign In
+            User Sign In
           </button>
         </div>
       </div>
     </div>
-  );
-}
-
-export default function LoginPage() {
-  return (
-    <Suspense fallback={<div className={styles.shell}><div className={styles.card}>Loading...</div></div>}>
-      <LoginForm />
-    </Suspense>
   );
 }

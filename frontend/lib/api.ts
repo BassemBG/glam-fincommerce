@@ -9,6 +9,11 @@ export const API = {
     login: `${API_URL}/api/v1/auth/login`,
     signup: `${API_URL}/api/v1/auth/signup`,
   },
+  brandAuth: {
+    login: `${API_URL}/api/v1/brand-auth/login`,
+    signup: `${API_URL}/api/v1/brand-auth/signup`,
+    me: `${API_URL}/api/v1/brand-auth/me`,
+  },
   users: {
     me: `${API_URL}/api/v1/users/me`,
     bodyPhoto: `${API_URL}/api/v1/users/body-photo`,
@@ -48,6 +53,8 @@ export const API = {
     list: `${API_URL}/api/v1/brands`,
   },
   profileBrands: {
+    me: `${API_URL}/api/v1/profile-brands/me`,
+    meUpdate: `${API_URL}/api/v1/profile-brands/me`,
     upsert: `${API_URL}/api/v1/brands/profile/ingest`,
     list: `${API_URL}/api/v1/brands/profile/list`,
     getByName: (name: string) => `${API_URL}/api/v1/brands/profile/${name}`,

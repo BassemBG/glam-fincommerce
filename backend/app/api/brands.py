@@ -1,9 +1,11 @@
-from fastapi import APIRouter, UploadFile, File, Form, HTTPException
+from fastapi import APIRouter, UploadFile, File, Form, HTTPException, Depends
 from typing import Optional
 from pathlib import Path
 import tempfile
 
 from app.schemas.brand import BrandIngestResponse, BrandListResponse
+from app.api.brand_auth import get_current_brand
+from app.models.models import Brand
 from app.services.brand_ingestion.document_loader import DocumentLoader
 from app.services.brand_ingestion.web_scraper import scrape_brand_website
 from app.services.brand_ingestion.main import process_and_store_brand_data, process_brand_website_for_products
@@ -23,6 +25,7 @@ async def ingest_brand(
     file: UploadFile = File(default=None),
     url: Optional[str] = Form(default=None),
     brand_name: Optional[str] = Form(default=None),
+    current_brand: Brand = Depends(get_current_brand),
 ):
     """
     Ingest a brand via PDF upload or website URL and store embeddings.
