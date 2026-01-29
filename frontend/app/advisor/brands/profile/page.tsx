@@ -117,6 +117,7 @@ export default function BrandProfilePage() {
     return (
       <div className={styles.page}>
         <div className={styles.loadingContainer}>
+          <div className={styles.spinner}></div>
           <p>Loading your brand profile...</p>
         </div>
       </div>
@@ -126,49 +127,45 @@ export default function BrandProfilePage() {
   return (
     <div className={styles.page}>
       <header className={styles.header}>
-        <div className={styles.headerRow}>
-          <div>
-            <h1>Brand Profile</h1>
-            <p>Keep the brand bio, links, and avatar consistent across your advisor flows.</p>
-          </div>
-          <div className={styles.headerActions}>
-            <button
-              type="button"
-              className={styles.backButton}
-              onClick={() => router.push("/advisor/brands")}
-            >
-              Back
-            </button>
-            <button
-              type="button"
-              className={styles.signOutButton}
-              onClick={() => {
-                clearToken();
-                router.replace("/auth/brand/login");
-              }}
-            >
-              Sign Out
-            </button>
-          </div>
-        </div>
+        <h1>Brand Profile</h1>
+        <p>Manage your brand information and presence</p>
       </header>
 
-      <form className={styles.card} onSubmit={handleSubmit}>
-        <div>
-          <h2 className={styles.sectionTitle}>Profile</h2>
-          <p className={styles.hint}>Instagram-style bio that stays on-brand.</p>
+      {/* Brand Identity Card */}
+      <div className={styles.profileSection}>
+        <div className={styles.avatar}>{form.brandName?.charAt(0) || 'B'}</div>
+        <div className={styles.userInfo}>
+          <h2>{form.brandName || 'Brand Name'}</h2>
+          <p className={styles.emailText}>{form.officeEmail || 'brand@example.com'}</p>
+          <span className={styles.brandTypeBadge}>
+            {form.brandType === "local" ? "Local Brand" : "International Brand"}
+          </span>
         </div>
+        <div className={styles.headerActions}>
+          <button
+            type="button"
+            className={styles.backButton}
+            onClick={() => router.push("/advisor/brands")}
+          >
+            ← Back
+          </button>
+          <button
+            type="button"
+            className={styles.signOutButton}
+            onClick={() => {
+              clearToken();
+              router.replace("/auth/brand/login");
+            }}
+          >
+            Sign Out
+          </button>
+        </div>
+      </div>
 
-        {/* Read-only info section */}
-        <div className={styles.readOnlySection}>
-          <div className={styles.fieldGroup}>
-            <label className={styles.labelRow}>Office Email</label>
-            <div className={styles.readOnlyField}>{form.officeEmail}</div>
-          </div>
-          <div className={styles.fieldGroup}>
-            <label className={styles.labelRow}>Brand Type</label>
-            <div className={styles.readOnlyField}>{form.brandType === "local" ? "Local" : "International"}</div>
-          </div>
+      <form className={styles.card} onSubmit={handleSubmit}>
+        <div className={styles.sectionHeader}>
+          <h3>Brand Information</h3>
+          <p>Update your brand details and online presence</p>
         </div>
 
         <div className={styles.grid}>
@@ -216,14 +213,22 @@ export default function BrandProfilePage() {
           />
         </div>
 
+        {status && (
+          <div className={`${styles.status} ${status.type === "error" ? styles.error : ""}`.trim()}>
+            {status.message}
+          </div>
+        )}
+
         <div className={styles.actions}>
-          {status && (
-            <div className={`${styles.status} ${status.type === "error" ? styles.error : ""}`.trim()}>
-              {status.message}
-            </div>
-          )}
           <button type="submit" className={styles.saveButton} disabled={saving}>
-            {saving ? "Saving..." : "Save / Update"}
+            {saving ? (
+              <>
+                <span className={styles.buttonSpinner}></span>
+                Saving...
+              </>
+            ) : (
+              "Save Changes"
+            )}
           </button>
         </div>
       </form>
