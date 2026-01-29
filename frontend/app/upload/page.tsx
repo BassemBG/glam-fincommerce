@@ -140,12 +140,6 @@ export default function UploadPage() {
 
                     {status === 'done' && analysis && (
                         <div className={styles.resultCard}>
-                            <div className={styles.tags}>
-                                <span className={styles.tag}>{analysis.body_region.replace('_', ' ')}</span>
-                                <span className={styles.tag}>{analysis.vibe}</span>
-                                {analysis.brand && <span className={styles.tag} style={{ background: '#000', color: '#fff' }}>{analysis.brand}</span>}
-                            </div>
-
                             <h3>{analysis.sub_category}</h3>
                             {analysis.price && (
                                 <p className={styles.priceTag}>${analysis.price} (Estimated)</p>

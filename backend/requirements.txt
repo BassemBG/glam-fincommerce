@@ -36,3 +36,4 @@ langchain-openai
 langchain-community
 langchain-groq
 sentence-transformers
+beautifulsoup4

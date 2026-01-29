@@ -12,6 +12,64 @@ interface AIStylistAssistantProps {
     onClose: () => void;
 }
 
+// Suggested prompts for quick actions
+const SUGGESTED_PROMPTS = [
+    { icon: '☀️', text: 'Show me casual outfits for summer', category: 'outfits' },
+    { icon: '🛍️', text: 'What brands match my style?', category: 'shopping' },
+    { icon: '👔', text: 'Help me organize my closet', category: 'closet' },
+    { icon: '💰', text: 'Find affordable options for me', category: 'budget' },
+    { icon: '🎨', text: 'What colors look good on me?', category: 'style' },
+    { icon: '🌟', text: 'Create an outfit for a special event', category: 'occasion' }
+];
+
+// Smart follow-up suggestions based on context
+const getSmartFollowUps = (lastMessage: string, messageHistory: any[]) => {
+    const lowercaseMsg = lastMessage.toLowerCase();
+    
+    // Brand search follow-ups
+    if (lowercaseMsg.includes('brand') || lowercaseMsg.includes('shop') || lowercaseMsg.includes('buy')) {
+        return [
+            { icon: '💸', text: 'Show me items under my budget' },
+            { icon: '🎯', text: 'Filter by specific brands' },
+            { icon: '⭐', text: 'What are the best rated items?' }
+        ];
+    }
+    
+    // Outfit creation follow-ups
+    if (lowercaseMsg.includes('outfit') || lowercaseMsg.includes('wear') || lowercaseMsg.includes('style')) {
+        return [
+            { icon: '👗', text: 'Try this outfit on me' },
+            { icon: '🔄', text: 'Show me more outfit ideas' },
+            { icon: '📸', text: 'Save this outfit to my collection' }
+        ];
+    }
+    
+    // Closet organization follow-ups
+    if (lowercaseMsg.includes('closet') || lowercaseMsg.includes('wardrobe') || lowercaseMsg.includes('organize')) {
+        return [
+            { icon: '📤', text: 'Upload more clothing items' },
+            { icon: '🏷️', text: 'Categorize my items better' },
+            { icon: '🗑️', text: 'Find items I never wear' }
+        ];
+    }
+    
+    // Color/style analysis follow-ups
+    if (lowercaseMsg.includes('color') || lowercaseMsg.includes('vibe') || lowercaseMsg.includes('aesthetic')) {
+        return [
+            { icon: '🎨', text: 'Update my style preferences' },
+            { icon: '🌈', text: 'Show items in my color palette' },
+            { icon: '✨', text: 'Suggest new styles for me' }
+        ];
+    }
+    
+    // Default follow-ups
+    return [
+        { icon: '🛍️', text: 'Browse shopping recommendations' },
+        { icon: '👔', text: 'Create a new outfit' },
+        { icon: '📊', text: 'View my style profile' }
+    ];
+};
+
 const AIStylistAssistant = ({ isOpen, onClose }: AIStylistAssistantProps) => {
     const token = useAuthGuard();
     const [messages, setMessages] = useState<any[]>([
@@ -19,6 +77,9 @@ const AIStylistAssistant = ({ isOpen, onClose }: AIStylistAssistantProps) => {
     ]);
     const [input, setInput] = useState('');
     const [isLoading, setIsLoading] = useState(false);
+    const [showSuggestions, setShowSuggestions] = useState(true);
+    const [smartFollowUps, setSmartFollowUps] = useState<any[]>([]);
+    const [typingAgent, setTypingAgent] = useState<string>('')
     const [tryOnData, setTryOnData] = useState<any>(null);
     const [userPhoto, setUserPhoto] = useState<string | null>(null);
     const [user, setUser] = useState<any>(null);
@@ -115,19 +176,26 @@ const AIStylistAssistant = ({ isOpen, onClose }: AIStylistAssistantProps) => {
 
     if (!isOpen) return null;
 
-    const sendMessage = async () => {
-        if (!input.trim() && !stagedFile) return;
+    const sendMessage = async (messageText?: string) => {
+        const textToSend = messageText || input;
+        if (!textToSend.trim() && !stagedFile) return;
+        
+        // Hide suggestions after first user message
+        setShowSuggestions(false);
+        setSmartFollowUps([]);
+        
         const userMsg = {
             role: 'user',
-            text: input,
+            text: textToSend,
             image: stagedPreview
         };
         setMessages([...messages, userMsg]);
-        const currentInput = input;
+        const currentInput = textToSend;
         const currentFile = stagedFile;
         setInput('');
         removeStagedImage();
         setIsLoading(true);
+        setTypingAgent('');
 
         const formData = new FormData();
         formData.append('message', currentInput);
@@ -153,6 +221,15 @@ const AIStylistAssistant = ({ isOpen, onClose }: AIStylistAssistantProps) => {
                         if (line.startsWith('data: ')) {
                             const event = JSON.parse(line.slice(6));
                             if (event.type === 'status') {
+                                // Extract agent name from status for typing indicator
+                                const statusText = event.content;
+                                if (statusText.includes('Advisor')) setTypingAgent('Advisor');
+                                else if (statusText.includes('Manager')) setTypingAgent('Manager');
+                                else if (statusText.includes('Closet')) setTypingAgent('Closet');
+                                else if (statusText.includes('Budget')) setTypingAgent('Budget');
+                                else if (statusText.includes('Visualizer')) setTypingAgent('Visualizer');
+                                else setTypingAgent('Stylist');
+                                
                                 setMessages(prev => {
                                     const next = [...prev];
                                     next[next.length - 1].status = event.content;
@@ -178,6 +255,12 @@ const AIStylistAssistant = ({ isOpen, onClose }: AIStylistAssistantProps) => {
                                     };
                                     return next;
                                 });
+                                
+                                // Generate smart follow-ups based on response
+                                const followUps = getSmartFollowUps(botResponse.response, messages);
+                                setSmartFollowUps(followUps);
+                                setTypingAgent('');
+                                
                                 if (botResponse.wallet_confirmation?.required) {
                                     const wc = botResponse.wallet_confirmation;
                                     setWalletModalData({
@@ -211,6 +294,25 @@ const AIStylistAssistant = ({ isOpen, onClose }: AIStylistAssistantProps) => {
                 </div>
 
                 <div className={styles.chatBody}>
+                    {/* Suggested Prompts - Show on first open */}
+                    {showSuggestions && messages.length === 1 && (
+                        <div className={styles.suggestionsContainer}>
+                            <p className={styles.suggestionsTitle}>💡 Quick Actions</p>
+                            <div className={styles.promptGrid}>
+                                {SUGGESTED_PROMPTS.map((prompt, idx) => (
+                                    <button
+                                        key={idx}
+                                        className={styles.promptChip}
+                                        onClick={() => sendMessage(prompt.text)}
+                                    >
+                                        <span className={styles.promptIcon}>{prompt.icon}</span>
+                                        <span className={styles.promptText}>{prompt.text}</span>
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+
                     {messages.map((msg, i) => (
                         <div key={i} className={`${styles.message} ${styles[msg.role]}`}>
                             <div className={styles.bubble}>
@@ -247,9 +349,39 @@ const AIStylistAssistant = ({ isOpen, onClose }: AIStylistAssistantProps) => {
                             </div>
                         </div>
                     ))}
+                    
+                    {/* Enhanced Typing Indicator */}
                     {isLoading && (!messages.length || !messages[messages.length - 1].status) && (
                         <div className={`${styles.message} ${styles.assistant}`}>
-                            <div className={styles.typing}>•••</div>
+                            <div className={styles.typingBubble}>
+                                <div className={styles.typingDots}>
+                                    <span></span>
+                                    <span></span>
+                                    <span></span>
+                                </div>
+                                {typingAgent && (
+                                    <p className={styles.typingText}>{typingAgent} is thinking...</p>
+                                )}
+                            </div>
+                        </div>
+                    )}
+                    
+                    {/* Smart Follow-ups */}
+                    {!isLoading && smartFollowUps.length > 0 && (
+                        <div className={styles.followUpsContainer}>
+                            <p className={styles.followUpsTitle}>What's next?</p>
+                            <div className={styles.followUpsGrid}>
+                                {smartFollowUps.map((followUp, idx) => (
+                                    <button
+                                        key={idx}
+                                        className={styles.followUpChip}
+                                        onClick={() => sendMessage(followUp.text)}
+                                    >
+                                        <span>{followUp.icon}</span>
+                                        <span>{followUp.text}</span>
+                                    </button>
+                                ))}
+                            </div>
                         </div>
                     )}
                 </div>

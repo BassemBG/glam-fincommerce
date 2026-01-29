@@ -3,10 +3,23 @@
     height: calc(100vh - 120px);
     display: flex;
     flex-direction: column;
+    position: relative;
+    z-index: 1;
+    isolation: isolate;
+    background: #ffffff;
+}
+
+/* Hide any global animation overlays while on the upload page */
+:global(.animationOverlay) {
+    display: none !important;
+    visibility: hidden !important;
+    opacity: 0 !important;
 }
 
 .header {
     margin-bottom: 24px;
+    position: relative;
+    z-index: 2;
 }
 
 .header h1 {
@@ -34,6 +47,7 @@
     transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
     box-shadow: 0 4px 20px rgba(0, 0, 0, 0.02);
     position: relative;
+    z-index: 20050;
     overflow: hidden;
 }
 
@@ -46,23 +60,27 @@
 
 .dropzoneContent {
     display: flex;
-    flex-direction: column;
+    flex-direction: row;
     align-items: center;
-    gap: 16px;
+    justify-content: space-between;
+    gap: 12px;
     color: #64748b;
     z-index: 2;
+    width: 100%;
+    padding: 20px 18px;
 }
 
 .icon {
-    width: 72px;
-    height: 72px;
+    order: 3;
+    margin-left: auto;
+    width: 64px;
+    height: 64px;
     background: #f0fdf4;
     color: var(--primary);
-    border-radius: 24px;
+    border-radius: 20px;
     display: flex;
     justify-content: center;
     align-items: center;
-    margin-bottom: 8px;
     transition: transform 0.3s ease;
 }
 
@@ -75,13 +93,14 @@
     font-weight: 500;
     font-family: var(--font-serif);
     color: #1e293b;
+    text-align: left;
 }
 
 .dropzoneContent p {
     font-size: 0.95rem;
     color: #94a3b8;
-    max-width: 200px;
-    text-align: center;
+    max-width: 240px;
+    text-align: left;
     line-height: 1.4;
 }
 

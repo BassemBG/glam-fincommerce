@@ -327,6 +327,211 @@
         0 1px 3px rgba(0, 0, 0, 0.04);
 }
 
+/* ==========================================
+   CONVERSATIONAL GUIDANCE STYLES
+   ========================================== */
+
+/* Suggested Prompts Container */
+.suggestionsContainer {
+    background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+    border-radius: 20px;
+    padding: 20px;
+    margin-bottom: 16px;
+    border: 1px solid #bae6fd;
+    animation: slideDown 0.4s ease-out;
+}
+
+@keyframes slideDown {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.suggestionsTitle {
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: #0369a1;
+    margin: 0 0 12px 0;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.promptGrid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+}
+
+@media (max-width: 640px) {
+    .promptGrid {
+        grid-template-columns: 1fr;
+    }
+}
+
+.promptChip {
+    background: white;
+    border: 1.5px solid #bae6fd;
+    padding: 12px 14px;
+    border-radius: 14px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    cursor: pointer;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    text-align: left;
+    font-size: 0.85rem;
+    font-weight: 500;
+    color: #0c4a6e;
+}
+
+.promptChip:hover {
+    transform: translateY(-2px);
+    border-color: var(--primary);
+    background: #f0f9ff;
+    box-shadow: 0 4px 12px rgba(14, 165, 233, 0.15);
+}
+
+.promptChip:active {
+    transform: translateY(0);
+}
+
+.promptIcon {
+    font-size: 1.3rem;
+    flex-shrink: 0;
+}
+
+.promptText {
+    flex: 1;
+    line-height: 1.3;
+}
+
+/* Smart Follow-ups Container */
+.followUpsContainer {
+    background: #f8fafc;
+    border-radius: 16px;
+    padding: 16px;
+    margin-top: 12px;
+    border: 1px solid #e2e8f0;
+    animation: fadeInUp 0.3s ease-out;
+}
+
+@keyframes fadeInUp {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.followUpsTitle {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: #64748b;
+    margin: 0 0 10px 0;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.followUpsGrid {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.followUpChip {
+    background: white;
+    border: 1.5px solid #e2e8f0;
+    padding: 10px 14px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    cursor: pointer;
+    transition: all 0.25s ease;
+    text-align: left;
+    font-size: 0.85rem;
+    font-weight: 500;
+    color: #334155;
+}
+
+.followUpChip:hover {
+    border-color: var(--primary);
+    background: #f0fdf4;
+    transform: translateX(4px);
+    box-shadow: 0 2px 8px rgba(34, 197, 94, 0.1);
+}
+
+.followUpChip span:first-child {
+    font-size: 1.1rem;
+}
+
+/* Enhanced Typing Indicator */
+.typingBubble {
+    background: #f8fafc;
+    border-radius: 20px;
+    border-bottom-left-radius: 4px;
+    padding: 16px 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    align-items: flex-start;
+}
+
+.typingDots {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+}
+
+.typingDots span {
+    width: 8px;
+    height: 8px;
+    background: #94a3b8;
+    border-radius: 50%;
+    animation: typingDot 1.4s infinite ease-in-out;
+}
+
+.typingDots span:nth-child(1) {
+    animation-delay: 0s;
+}
+
+.typingDots span:nth-child(2) {
+    animation-delay: 0.2s;
+}
+
+.typingDots span:nth-child(3) {
+    animation-delay: 0.4s;
+}
+
+@keyframes typingDot {
+    0%, 60%, 100% {
+        transform: translateY(0);
+        background: #cbd5e1;
+    }
+    30% {
+        transform: translateY(-10px);
+        background: var(--primary);
+    }
+}
+
+.typingText {
+    font-size: 0.8rem;
+    color: #64748b;
+    margin: 0;
+    font-style: italic;
+    font-weight: 500;
+}
+
+/* Legacy typing (keep for backwards compatibility) */
 .typing {
     padding: 14px 18px;
     background: #f8fafc;

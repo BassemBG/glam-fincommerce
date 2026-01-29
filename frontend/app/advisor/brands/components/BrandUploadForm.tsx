@@ -40,38 +40,38 @@ export function BrandUploadForm({ onSubmit, loading }: Props) {
   };
 
   return (
-    <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-      <div style={{ display: 'grid', gap: '20px', gridTemplateColumns: '1fr' }}>
-        <label style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-          <span style={{ fontSize: '0.9rem', fontWeight: 600, color: '#334155' }}>Upload brand PDF</span>
+    <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+      <div style={{ display: 'grid', gap: '14px', gridTemplateColumns: '1fr' }}>
+        <label style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+          <span style={{ fontSize: '0.85rem', fontWeight: 600, color: '#334155' }}>Upload brand PDF</span>
           <input
             type="file"
             accept="application/pdf"
             onChange={(e) => setFile(e.target.files?.[0] || null)}
             style={{ 
-              fontSize: '0.9rem', 
+              fontSize: '0.85rem', 
               color: '#475569',
-              padding: '10px',
+              padding: '8px 10px',
               border: '1px solid #cbd5e1',
-              borderRadius: '12px',
+              borderRadius: '10px',
               background: '#f8fafc'
             }}
           />
-          {file && <span style={{ fontSize: '0.85rem', color: '#22c55e', fontWeight: 600 }}>✓ Selected: {file.name}</span>}
+          {file && <span style={{ fontSize: '0.8rem', color: '#22c55e', fontWeight: 600 }}>✓ Selected: {file.name}</span>}
         </label>
 
-        <label style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-          <span style={{ fontSize: '0.9rem', fontWeight: 600, color: '#334155' }}>Brand website URL</span>
+        <label style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+          <span style={{ fontSize: '0.85rem', fontWeight: 600, color: '#334155' }}>Brand website URL</span>
           <input
             type="url"
             placeholder="https://brand.com"
             value={url}
             onChange={(e) => setUrl(e.target.value)}
             style={{
-              padding: '13px 16px',
+              padding: '10px 12px',
               border: '1px solid #cbd5e1',
-              borderRadius: '12px',
-              fontSize: '0.95rem',
+              borderRadius: '10px',
+              fontSize: '0.9rem',
               color: '#1e293b',
               background: '#ffffff',
               transition: 'all 0.2s'
@@ -79,21 +79,21 @@ export function BrandUploadForm({ onSubmit, loading }: Props) {
             onFocus={(e) => { e.target.style.borderColor = '#93c5fd'; e.target.style.boxShadow = '0 0 0 3px rgba(147, 197, 253, 0.1)'; }}
             onBlur={(e) => { e.target.style.borderColor = '#cbd5e1'; e.target.style.boxShadow = 'none'; }}
           />
-          <p style={{ fontSize: '0.8rem', color: '#64748b' }}>We will scrape the site if provided.</p>
+          <p style={{ fontSize: '0.75rem', color: '#64748b', margin: 0 }}>We will scrape the site if provided.</p>
         </label>
 
-        <label style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-          <span style={{ fontSize: '0.9rem', fontWeight: 600, color: '#334155' }}>Brand name (optional)</span>
+        <label style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+          <span style={{ fontSize: '0.85rem', fontWeight: 600, color: '#334155' }}>Brand name (optional)</span>
           <input
             type="text"
             placeholder="e.g., Zara"
             value={brandName}
             onChange={(e) => setBrandName(e.target.value)}
             style={{
-              padding: '13px 16px',
+              padding: '10px 12px',
               border: '1px solid #cbd5e1',
-              borderRadius: '12px',
-              fontSize: '0.95rem',
+              borderRadius: '10px',
+              fontSize: '0.9rem',
               color: '#1e293b',
               background: '#ffffff',
               transition: 'all 0.2s'
@@ -101,18 +101,18 @@ export function BrandUploadForm({ onSubmit, loading }: Props) {
             onFocus={(e) => { e.target.style.borderColor = '#93c5fd'; e.target.style.boxShadow = '0 0 0 3px rgba(147, 197, 253, 0.1)'; }}
             onBlur={(e) => { e.target.style.borderColor = '#cbd5e1'; e.target.style.boxShadow = 'none'; }}
           />
-          <p style={{ fontSize: '0.8rem', color: '#64748b' }}>Used to label the collection if the PDF/URL lacks a name.</p>
+          <p style={{ fontSize: '0.75rem', color: '#64748b', margin: 0 }}>Used to label the collection if the PDF/URL lacks a name.</p>
         </label>
       </div>
 
       {error && (
         <div style={{ 
-          padding: '12px 16px', 
+          padding: '10px 12px', 
           background: '#fef2f2', 
           border: '1px solid #fecaca', 
-          borderRadius: '12px', 
+          borderRadius: '10px', 
           color: '#dc2626', 
-          fontSize: '0.9rem' 
+          fontSize: '0.8rem' 
         }}>
           {error}
         </div>
@@ -123,12 +123,12 @@ export function BrandUploadForm({ onSubmit, loading }: Props) {
         disabled={loading}
         style={{
           width: '100%',
-          padding: '15px',
+          padding: '12px',
           background: loading ? '#86efac' : '#22c55e',
           color: '#ffffff',
           border: 'none',
-          borderRadius: '14px',
-          fontSize: '0.98rem',
+          borderRadius: '12px',
+          fontSize: '0.9rem',
           fontWeight: 600,
           cursor: loading ? 'not-allowed' : 'pointer',
           transition: 'all 0.25s ease',

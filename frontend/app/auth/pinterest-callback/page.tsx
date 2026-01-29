@@ -90,13 +90,22 @@ export default function PinterestCallbackPage() {
         }, 2000);
       } catch (error) {
         console.error("❌ Pinterest callback error:", error);
-        setError(error instanceof Error ? error.message : "Unknown error");
+        
+        // Check if it's a network/connection error
+        let errorMessage = error instanceof Error ? error.message : "Unknown error";
+        
+        if (error instanceof TypeError && (errorMessage.includes("fetch") || errorMessage.includes("network"))) {
+          errorMessage = "Unable to connect to Pinterest. Please check your internet connection and try again.";
+        } else if (errorMessage.includes("timed out") || errorMessage.includes("timeout") || errorMessage.includes("Max retries")) {
+          errorMessage = "Connection timeout. Please check your internet connection and try again.";
+        }
+        
+        setError(errorMessage);
         setLoading(false);
 
         // Redirect to onboarding with error after a delay
         setTimeout(() => {
-          const errorMsg = error instanceof Error ? error.message : "Unknown error";
-          router.push(`/settings?pinterest=error&message=${encodeURIComponent(errorMsg)}`);
+          router.push(`/settings?pinterest=error&message=${encodeURIComponent(errorMessage)}`);
         }, 3000);
       }
     };
