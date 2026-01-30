@@ -145,6 +145,7 @@ class ClothingIngestionHistory(SQLModel, table=True):
     error_message: Optional[str] = Field(default=None, sa_column=Column(Text))
     ingested_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
+
 class PinterestPin(SQLModel, table=True):
     """Stores Pinterest pins that have been filtered and indexed"""
     __tablename__ = "pinterest_pins"
@@ -181,6 +182,7 @@ class PinterestToken(SQLModel, table=True):
     
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
+
 class ProfileBrand(SQLModel, table=True):
     __tablename__ = "profile_brands"
     
@@ -196,3 +198,15 @@ class ProfileBrand(SQLModel, table=True):
     brand_metadata: Dict = Field(default={}, sa_column=Column("metadata", JSON))
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
+
+class RecommendationMetric(SQLModel, table=True):
+    __tablename__ = "recommendation_metrics"
+    
+    id: str = Field(default_factory=lambda: str(uuid4()), primary_key=True)
+    user_id: str = Field(foreign_key="users.id", index=True)
+    product_id: str = Field(index=True)
+    brand_name: str = Field(index=True)
+    event_type: str = Field(index=True)  # "impression" or "click"
+    source: str = Field(default="explore")  # "explore", "chat", "outfit"
+    
+    created_at: datetime = Field(default_factory=datetime.utcnow)

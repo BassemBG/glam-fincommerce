@@ -5,6 +5,7 @@ Uses CLIP embeddings for visual similarity search with image storage
 
 import logging
 import base64
+import os
 from typing import List, Dict, Any, Optional
 from qdrant_client import QdrantClient
 from qdrant_client.models import Distance, VectorParams, PointStruct, Filter, FieldCondition, MatchValue, PayloadSchemaType
@@ -58,8 +59,12 @@ class CLIPQdrantService:
             model_name = "openai/clip-vit-base-patch32"
             logger.info(f"Loading CLIP model: {model_name}")
             
-            # Disable weights_only for faster loading
-            self.clip_model = CLIPModel.from_pretrained(model_name, torch_dtype=torch.float32)
+            # Disable weights_only for faster loading and handle safetensors gracefully
+            self.clip_model = CLIPModel.from_pretrained(
+                model_name, 
+                torch_dtype=torch.float32,
+                use_safetensors=True if os.path.exists(os.path.join(os.path.expanduser("~"), ".cache", "huggingface")) else None
+            )
             self.clip_processor = CLIPProcessor.from_pretrained(model_name)
             self.device = "cuda" if torch.cuda.is_available() else "cpu"
             self.clip_model.to(self.device)

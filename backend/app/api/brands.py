@@ -3,9 +3,10 @@ from typing import Optional
 from pathlib import Path
 import tempfile
 
-from app.schemas.brand import BrandIngestResponse, BrandListResponse
+from app.schemas.brand import BrandIngestResponse, BrandListResponse, RecommendationClickRequest
 from app.api.brand_auth import get_current_brand
-from app.models.models import Brand
+from app.models.models import Brand, RecommendationMetric
+from app.db.session import SessionLocal
 from app.services.brand_ingestion.document_loader import DocumentLoader
 from app.services.brand_ingestion.web_scraper import scrape_brand_website
 from app.services.brand_ingestion.main import process_and_store_brand_data, process_brand_website_for_products
@@ -150,60 +151,143 @@ async def list_brands():
     return {"brands": brands}
 
 
-@router.get("/products/{brand_name}")
-async def get_brand_products(brand_name: str, limit: int = 10):
-    """Get all ingested products for a brand from Qdrant BrandEmbedding collection."""
-    from qdrant_client import QdrantClient
-    import os
-    from dotenv import load_dotenv
-    
-    load_dotenv()
-    
+@router.post("/click")
+async def record_brand_click(
+    request: RecommendationClickRequest,
+    user_id: str
+):
+    """Record a click on a brand product."""
+    db = SessionLocal()
     try:
-        client = QdrantClient(
-            url=os.getenv("QDRANT_URL", "http://localhost:6333"),
-            api_key=os.getenv("QDRANT_API_KEY")
+        click = RecommendationMetric(
+            user_id=user_id,
+            product_id=str(request.product_id),
+            brand_name=request.brand_name,
+            event_type="click",
+            source=request.source
         )
-        
-        # Scroll all points and filter by brand name in Python
-        all_points = []
-        offset = None
-        
-        while True:
-            results, next_offset = client.scroll(
-                collection_name="BrandEmbedding",
-                limit=100,
-                offset=offset,
-                with_payload=True,
-                with_vectors=False
-            )
-            
-            if not results:
-                break
-                
-            all_points.extend(results)
-            
-            if next_offset is None:
-                break
-            offset = next_offset
-        
-        # Filter by brand name
-        products = []
-        for point in all_points:
-            if point.payload.get("brand_name") == brand_name:
-                products.append({
-                    "id": point.id,
-                    "product_name": point.payload.get("product_name"),
-                    "product_description": point.payload.get("product_description"),
-                    "azure_image_url": point.payload.get("azure_image_url"),
-                    "image_base64": point.payload.get("image_base64"),
-                    "source": point.payload.get("source")
-                })
-                if len(products) >= limit:
-                    break
-        
-        return {"brand_name": brand_name, "products": products, "count": len(products)}
-        
+        db.add(click)
+        db.commit()
+        return {"status": "success"}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to fetch products: {str(e)}")
+        return {"status": "error", "message": str(e)}
+    finally:
+        db.close()
+
+
+@router.post("/purchase-click")
+async def record_brand_purchase_click(
+    request: RecommendationClickRequest,
+    user_id: str
+):
+    """Record a purchase intent click (external link)."""
+    db = SessionLocal()
+    try:
+        click = RecommendationMetric(
+            user_id=user_id,
+            product_id=str(request.product_id),
+            brand_name=request.brand_name,
+            event_type="purchase_click",
+            source=request.source
+        )
+        db.add(click)
+        db.commit()
+        return {"status": "success"}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+    finally:
+        db.close()
+
+@router.get("/explore")
+async def explore_brands(
+    user_id: Optional[str] = None,
+    limit: int = 50,
+    offset: Optional[str] = None
+):
+    """
+    Explore brand products with optional DNA-based personalization.
+    If user_id is provided, results are scored against their vibes and colors.
+    """
+    from app.services.brand_ingestion.brand_clip_service import brand_clip_service
+    from app.services.style_dna_service import style_dna_service
+    
+    data = await brand_clip_service.list_products(limit=limit, offset=offset)
+    products = data.get("products", [])
+    
+    # Record Impressions if user_id is present
+    if user_id and products:
+        db = SessionLocal()
+        try:
+            for p in products[:10]: # Just log first 10 for performance
+                imp = RecommendationMetric(
+                    user_id=user_id,
+                    product_id=str(p.get("id")),
+                    brand_name=p.get("brand_name") or "unknown",
+                    event_type="impression",
+                    source="explore"
+                )
+                db.add(imp)
+            db.commit()
+        except:
+            pass # Don't block listing if logging fails
+        finally:
+            db.close()
+
+    if not user_id or not products:
+        return {
+            "products": products,
+            "next_offset": data.get("next_offset"),
+            "personalized": False
+        }
+        
+    try:
+        # Get Style DNA
+        dna = await style_dna_service.get_user_style_dna(user_id)
+        if "error" in dna:
+            return {
+                "products": products,
+                "next_offset": data.get("next_offset"),
+                "personalized": False,
+                "note": "DNA fetch failed"
+            }
+            
+        vibes = dna.get("vibes", {})
+        top_vibe = max(vibes, key=vibes.get) if vibes else "Casual"
+        top_colors = [c.lower() for c in dna.get("colors", [])]
+        
+        # Simple scoring logic
+        scored_products = []
+        for p in products:
+            score = 0.5 # Start with neutral
+            desc = (p.get("product_description") or "").lower()
+            name = (p.get("product_name") or "").lower()
+            
+            # Vibe boost
+            if top_vibe.lower() in desc or top_vibe.lower() in name:
+                score += 0.2
+                
+            # Color boost
+            for color in top_colors:
+                if color in desc or color in name:
+                    score += 0.1
+                    
+            p["personal_score"] = round(min(score, 1.0), 2)
+            scored_products.append(p)
+            
+        # Sort by personal score
+        scored_products = sorted(scored_products, key=lambda x: x.get("personal_score", 0), reverse=True)
+        
+        return {
+            "products": scored_products,
+            "next_offset": data.get("next_offset"),
+            "personalized": True,
+            "top_vibe": top_vibe
+        }
+    except Exception as e:
+        return {
+            "products": products,
+            "next_offset": data.get("next_offset"),
+            "personalized": False,
+            "error": str(e)
+        }
 

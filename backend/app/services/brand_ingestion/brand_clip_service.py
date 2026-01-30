@@ -36,11 +36,12 @@ class BrandCLIPService:
     
     def __init__(self):
         """Initialize with CLIPQdrantService CLIP model"""
+        self.client = None
         try:
-            from app.services.clip_qdrant_service import CLIPQdrantService
+            from app.services.clip_qdrant_service import clip_qdrant_service
             
-            # Get CLIP model from existing service (reuse CLIP, not collections)
-            self.clip_service = CLIPQdrantService()
+            # Use global CLIP service instance to avoid re-loading model
+            self.clip_service = clip_qdrant_service
             self.clip_model = self.clip_service.clip_model
             self.clip_processor = self.clip_service.clip_processor
             self.device = self.clip_service.device
@@ -328,7 +329,7 @@ class BrandCLIPService:
                 "image_url": image_url,           # Store original URL as fallback
                 "azure_image_url": uploaded_url,  # Azure/local storage URL
                 "image_base64": image_base64,
-                "source": "website",
+                "source": product_url or "website",
                 "storage": "azure" if uploaded_url else "source",
                 "embedding_type": "clip"
             }
@@ -487,3 +488,69 @@ class BrandCLIPService:
             import traceback
             traceback.print_exc()
             return []
+
+    async def list_products(
+        self,
+        limit: int = 50,
+        offset: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """
+        Fetch products from the BrandEmbedding collection using scrolling.
+        
+        Args:
+            limit: Maximum items to return
+            offset: Qdrant scroll offset
+            
+        Returns:
+            Dict containing the products and the next_offset
+        """
+        if not self.client:
+            return {"products": [], "next_offset": None}
+            
+        try:
+            results, next_offset = self.client.scroll(
+                collection_name=self.collection_name,
+                limit=limit,
+                offset=offset,
+                with_payload=True,
+                with_vectors=False
+            )
+            
+            products = []
+            for res in results:
+                payload = res.payload or {}
+                display_image = payload.get("azure_image_url") or payload.get("image_url")
+                if not display_image and payload.get("image_base64"):
+                    display_image = f"data:image/jpeg;base64,{payload.get('image_base64')}"
+                
+                products.append({
+                    "id": res.id,
+                    "brand_name": payload.get("brand_name"),
+                    "product_name": payload.get("product_name"),
+                    "product_description": payload.get("product_description"),
+                    "price": payload.get("price"),
+                    "azure_image_url": display_image,
+                    "source": payload.get("source"),
+                })
+                
+            return {
+                "products": products,
+                "next_offset": str(next_offset) if next_offset else None
+            }
+        except Exception as e:
+            logger.error(f"Failed to list brand products: {e}")
+            return {"products": [], "next_offset": None}
+
+
+# Lazy-load global instance
+_brand_clip_service = None
+
+def get_brand_clip_service():
+    """Get or create the global BrandCLIPService instance"""
+    global _brand_clip_service
+    if _brand_clip_service is None:
+        _brand_clip_service = BrandCLIPService()
+    return _brand_clip_service
+
+# Brand singleton
+brand_clip_service = get_brand_clip_service()

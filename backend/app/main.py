@@ -1,5 +1,11 @@
 import os
 import logging
+
+# Set stability environment variables before Hub imports
+os.environ["HF_HUB_DISABLE_TELEMETRY"] = "1"
+os.environ["TRANSFORMERS_NO_ADVISORY_WARNINGS"] = "1"
+os.environ["HF_HUB_READ_TIMEOUT"] = "60" # Longer timeout for slower connections
+
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
