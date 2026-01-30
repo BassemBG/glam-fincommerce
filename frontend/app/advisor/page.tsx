@@ -372,26 +372,13 @@ export default function AdvisorPage() {
                                                     key={idx}
                                                     className={styles.fitBadge}
                                                     onClick={async () => {
-                                                        if (!fit.item_details || fit.item_details.length === 0) {
-                                                            alert("This outfit suggestion is missing item details. Please try again.");
-                                                            return;
-                                                        }
+                                                        if (!userPhoto || !fit.item_details) return;
 
-                                                        if (!userPhoto) {
-                                                            alert("Please upload a photo of yourself first (click the profile icon at the top right) to use the Virtual Try-On feature!");
-                                                            return;
-                                                        }
-
-                                                        // Set immediate status on the clicked message if possible, or use the last one
+                                                        // Set immediate status
                                                         setMessages(prev => {
                                                             const next = [...prev];
-                                                            // Find the message that contains this fit
-                                                            const msgIndex = next.findIndex(m => m.suggested_outfits?.some((f: any) => f.name === fit.name));
-                                                            if (msgIndex !== -1) {
-                                                                next[msgIndex].status = "Glam is sketching your virtual try-on... ✨ (60-80s)";
-                                                            } else {
-                                                                next[next.length - 1].status = "Glam is sketching your virtual try-on... ✨ (60-80s)";
-                                                            }
+                                                            const last = next[next.length - 1];
+                                                            last.status = "Glam is sketching your virtual try-on... ✨ (60-80s)";
                                                             return next;
                                                         });
 
@@ -400,17 +387,15 @@ export default function AdvisorPage() {
                                                             const itemsForBackend = fit.item_details.map((item: any) => {
                                                                 // Use the cloud-stored URL for potential purchase (if available)
                                                                 let url = item.image_url;
-                                                                if (item.id === 'potential_purchase' || item.id === 'potential_buy') {
-                                                                    url = analysisData?.image_url || preview || url;
+                                                                if (item.id === 'potential_purchase') {
+                                                                    url = analysisData?.image_url || preview;
                                                                 }
                                                                 return {
                                                                     id: item.id,
                                                                     image_url: url,
-                                                                    body_region: item.body_region || (item.sub_category?.toLowerCase().includes('shoe') ? 'feet' : (item.sub_category?.toLowerCase().includes('dress') ? 'full_body' : 'top'))
+                                                                    body_region: item.body_region || 'top'
                                                                 };
                                                             });
-
-                                                            console.log("[TRYON] Sending items:", itemsForBackend);
 
                                                             const res = await authFetch(API.stylist.tryon, {
                                                                 method: 'POST',
@@ -426,19 +411,14 @@ export default function AdvisorPage() {
                                                                     name: fit.name
                                                                 });
                                                             } else {
-                                                                const errorData = await res.text();
-                                                                console.warn("[TRYON] API failed, falling back to layering:", errorData);
+                                                                // Fallback to layering
                                                                 setTryOnData({ items: itemsForBackend, tryonImageUrl: undefined });
                                                             }
                                                         } catch (err) {
                                                             console.error("Tryon error:", err);
-                                                            // Still try to show something
-                                                            setTryOnData({ items: fit.item_details, tryonImageUrl: undefined });
                                                         } finally {
                                                             setMessages(prev => {
                                                                 const next = [...prev];
-                                                                const msgIndex = next.findIndex(m => m.suggested_outfits?.some((f: any) => f.name === fit.name));
-                                                                if (msgIndex !== -1) next[msgIndex].status = undefined;
                                                                 next[next.length - 1].status = undefined;
                                                                 return next;
                                                             });
