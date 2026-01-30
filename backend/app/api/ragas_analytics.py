@@ -27,6 +27,29 @@ def _read_jsonl(file_path: Path, limit: Optional[int] = None) -> List[Dict[str, 
                     break
     return records
 
+def _average_metrics(records: List[Dict[str, Any]], metric_keys: List[str]) -> Dict[str, float]:
+    avg_metrics: Dict[str, float] = {}
+    for key in metric_keys:
+        values = [r.get(key) for r in records if r.get(key) is not None]
+        if values:
+            avg_metrics[key] = sum(values) / len(values)
+    return avg_metrics
+
+def _aggregate_by_pipeline(records: List[Dict[str, Any]], metric_keys: List[str]) -> Dict[str, Any]:
+    pipeline_metrics: Dict[str, List[Dict[str, Any]]] = {}
+    for record in records:
+        pipelines = record.get("pipelines") or []
+        for pipeline in pipelines:
+            pipeline_metrics.setdefault(pipeline, []).append(record.get("results") or {})
+
+    return {
+        pipeline: {
+            "total_evaluations": len(metrics_list),
+            "average_metrics": _average_metrics(metrics_list, metric_keys),
+        }
+        for pipeline, metrics_list in pipeline_metrics.items()
+    }
+
 @router.get("/ragas/samples")
 async def get_ragas_samples(
     date: Optional[str] = None,
@@ -112,6 +135,89 @@ async def get_ragas_results(
             "average_metrics": avg_metrics,
             "detailed_results": results_all
         }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/ragas/aggregate")
+async def get_ragas_aggregate(
+    days: int = 30,
+    include_samples: bool = True,
+) -> Dict[str, Any]:
+    """
+    Aggregate retrieval + generation evaluation metrics across all chats and pipelines.
+
+    Args:
+        days: Number of days to look back
+        include_samples: Include sample-level traceability info
+    """
+    try:
+        ragas_dir = _get_ragas_dir()
+        retrieval_results = []
+        generation_results = []
+        sample_records = []
+
+        for i in range(days):
+            check_date = (datetime.utcnow() - timedelta(days=i)).strftime("%Y-%m-%d")
+
+            results_file = ragas_dir / f"ragas_results_{check_date}.jsonl"
+            if results_file.exists():
+                retrieval_results.extend(_read_jsonl(results_file))
+
+            generation_file = ragas_dir / f"ragas_generation_{check_date}.jsonl"
+            if generation_file.exists():
+                generation_results.extend(_read_jsonl(generation_file))
+
+            if include_samples:
+                samples_file = ragas_dir / f"ragas_samples_{check_date}.jsonl"
+                if samples_file.exists():
+                    sample_records.extend(_read_jsonl(samples_file))
+
+        retrieval_metrics = [r.get("results") for r in retrieval_results if r.get("results")]
+        generation_metrics = [r.get("results") for r in generation_results if r.get("results")]
+
+        retrieval_keys = ["context_recall", "context_precision", "faithfulness", "answer_relevancy"]
+        generation_keys = ["faithfulness", "answer_relevancy"]
+
+        response: Dict[str, Any] = {
+            "days_analyzed": days,
+            "total_retrieval_evaluations": len(retrieval_results),
+            "total_generation_evaluations": len(generation_results),
+            "average_retrieval_metrics": _average_metrics(retrieval_metrics, retrieval_keys),
+            "average_generation_metrics": _average_metrics(generation_metrics, generation_keys),
+            "retrieval_by_pipeline": _aggregate_by_pipeline(retrieval_results, retrieval_keys),
+            "generation_by_pipeline": _aggregate_by_pipeline(generation_results, generation_keys),
+        }
+
+        if include_samples and sample_records:
+            pipelines = {}
+            user_ids = {}
+            chat_ids = {}
+            metadata_keys = set()
+
+            for sample in sample_records:
+                pipeline = sample.get("pipeline")
+                if pipeline:
+                    pipelines[pipeline] = pipelines.get(pipeline, 0) + 1
+
+                metadata = sample.get("metadata") or {}
+                if isinstance(metadata, dict):
+                    metadata_keys.update(metadata.keys())
+                    user_id = metadata.get("user_id")
+                    if user_id:
+                        user_ids[user_id] = user_ids.get(user_id, 0) + 1
+                    chat_id = metadata.get("chat_id") or metadata.get("thread_id")
+                    if chat_id:
+                        chat_ids[chat_id] = chat_ids.get(chat_id, 0) + 1
+
+            response["traceability"] = {
+                "total_samples": len(sample_records),
+                "samples_by_pipeline": pipelines,
+                "samples_by_user_id": user_ids,
+                "samples_by_chat_id": chat_ids,
+                "metadata_keys": sorted(metadata_keys),
+            }
+
+        return response
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

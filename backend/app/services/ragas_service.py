@@ -160,6 +160,28 @@ class RagasService:
                 sanitized[key] = val
         return sanitized
 
+    def _extract_metadata_summary(self, samples: List[Dict[str, Any]]) -> Dict[str, Any]:
+        user_ids = set()
+        chat_ids = set()
+        metadata_keys = set()
+
+        for sample in samples:
+            metadata = sample.get("metadata") or {}
+            if isinstance(metadata, dict):
+                metadata_keys.update(metadata.keys())
+                user_id = metadata.get("user_id")
+                if user_id:
+                    user_ids.add(user_id)
+                chat_id = metadata.get("chat_id") or metadata.get("thread_id")
+                if chat_id:
+                    chat_ids.add(chat_id)
+
+        return {
+            "user_ids": sorted(user_ids),
+            "chat_ids": sorted(chat_ids),
+            "metadata_keys": sorted(metadata_keys),
+        }
+
     def _append_sample_to_file(self, sample: Dict[str, Any]) -> None:
         try:
             path = self._output_path("samples")
@@ -226,9 +248,11 @@ class RagasService:
             
             output = {
                 "timestamp": datetime.utcnow().isoformat(),
+                "evaluation_type": "retrieval_and_generation",
                 "results": sanitized_results,
                 "count": len(samples),
                 "pipelines": list({s["pipeline"] for s in samples}),
+                "metadata_summary": self._extract_metadata_summary(samples),
             }
             path = self._output_path("results")
             with open(path, "a", encoding="utf-8") as f:
@@ -295,6 +319,7 @@ class RagasService:
                 "results": sanitized_results,
                 "count": len(samples),
                 "pipelines": list({s["pipeline"] for s in samples}),
+                "metadata_summary": self._extract_metadata_summary(samples),
             }
             path = self._output_path("generation")
             with open(path, "a", encoding="utf-8") as f:
@@ -412,6 +437,7 @@ class RagasService:
                 "pipelines": [sample["pipeline"]],
                 "question": sample["question"],
                 "answer_preview": sample["answer"][:100],
+                "metadata": sample.get("metadata") or {},
             }
             path = self._output_path("generation")
             with open(path, "a", encoding="utf-8") as f:
