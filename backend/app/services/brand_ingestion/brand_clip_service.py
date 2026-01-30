@@ -89,13 +89,7 @@ class BrandCLIPService:
                 field_schema=models.PayloadSchemaType.KEYWORD,
             )
             
-            self.client.create_payload_index(
-                collection_name=self.collection_name,
-                field_name="price",
-                field_schema=models.PayloadSchemaType.FLOAT,
-            )
-            
-            logger.info("✓ Payload indexes for brand_name and price ensured")
+            logger.info("✓ Payload index for brand_name ensured")
         except Exception as e:
             logger.warning(f"Could not initialize BrandEmbedding collection: {e}")
     
@@ -413,7 +407,6 @@ class BrandCLIPService:
         self,
         query: str,
         brand_name: Optional[str] = None,
-        max_price: Optional[float] = None,
         limit: int = 10,
         score_threshold: float = 0.25
     ) -> List[Dict[str, Any]]:
@@ -423,7 +416,6 @@ class BrandCLIPService:
         Args:
             query: The search query (e.g., "blue silk dress", "minimalist sneakers")
             brand_name: Optional filter for a specific brand
-            max_price: Optional maximum price filter
             limit: Maximum number of results
             score_threshold: Minimum similarity score (0.0 to 1.0)
             
@@ -450,14 +442,6 @@ class BrandCLIPService:
                     models.FieldCondition(
                         key="brand_name",
                         match=models.MatchValue(value=brand_name)
-                    )
-                )
-                
-            if max_price is not None:
-                must_filters.append(
-                    models.FieldCondition(
-                        key="price",
-                        range=models.Range(lte=max_price)
                     )
                 )
             

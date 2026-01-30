@@ -1,15 +1,17 @@
 from langchain_core.tools import tool
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 import logging
 import json
 import httpx
+import re
 from langchain_openai import AzureChatOpenAI
 from app.core.config import settings
 from app.services.zep_service import zep_client
 from app.services.clip_qdrant_service import clip_qdrant_service
 from app.services.ragas_service import ragas_service
 from app.services.outfit_composer import outfit_composer
-from app.models.models import ClothingItem
+from app.models.models import ClothingItem, User
+from app.db.session import SessionLocal
 from langchain_core.messages import HumanMessage, SystemMessage
 
 logger = logging.getLogger(__name__)
@@ -257,7 +259,7 @@ async def brainstorm_outfits_with_potential_buy(user_id: str, potential_item_det
         return f"Error generating outfits: {str(e)}"
 
 @tool
-async def search_brand_catalog(query: str, user_id: Optional[str] = None, brand_name: Optional[str] = None, max_price: Optional[float] = None, limit: int = 5) -> str:
+async def search_brand_catalog(query: str, user_id: Optional[str] = None, brand_name: Optional[str] = None, limit: int = 5) -> str:
     """
     Search the global Brand Catalog for fashion items to recommend to the user.
     Use this when the user is looking for something new, or when you want to suggest 
@@ -265,66 +267,62 @@ async def search_brand_catalog(query: str, user_id: Optional[str] = None, brand_
     
     Args:
         query: Semantic search query (e.g. "oversized black blazer", "vegan leather boots")
-        user_id: Optional user ID to automatically check budget.
+        user_id: Optional user ID for context.
         brand_name: Optional brand name to filter by.
-        max_price: Optional explicit maximum price.
         limit: Max products to return (default 5).
     """
     from app.services.brand_ingestion.brand_clip_service import BrandCLIPService
     
-    from app.services.brand_ingestion.brand_clip_service import BrandCLIPService
-    from app.agents.tools_sets.budget_tools import manage_wallet
-    
     try:
-        # 1. Resolve max_price if user_id is provided but max_price is not
-        effective_max = max_price
-        if user_id and effective_max is None:
-            balance_str = manage_wallet.func(user_id=user_id, action="check")
-            # Extract number from "Balance: 123.45 TND."
-            import re
-            match = re.search(r'Balance: ([\d.]+)', balance_str)
-            if match:
-                effective_max = float(match.group(1))
-                logger.info(f"[Financial Context] Effective budget cap: {effective_max}")
-
         service = BrandCLIPService()
         results = await service.search_products(
             query=query, 
             brand_name=brand_name, 
-            max_price=effective_max,
             limit=limit
         )
         
         if not results:
-            budget_note = f" under {effective_max}" if effective_max else ""
-            return f"No results found in the brand catalog for '{query}'{budget_note}."
+            return f"No results found in the brand catalog for '{query}'."
 
-        output = [f"--- Brand Catalog Recommendations (Budget-Aware) ---"]
-        if effective_max:
-            output.append(f"Note: Results filtered to be within your current balance of {effective_max}.")
+        output = [f"## 🛍️ Brand Catalog Recommendations"]
+        if results:
             output.append("")
         contexts = []
         for i, p in enumerate(results, 1):
-            output.append(f"{i}. {p['product_name']} by {p['brand_name']}")
-            output.append(f"   Price: {p.get('price') or 'Contact Brand'}")
-            output.append(f"   Description: {p['product_description']}")
-            output.append(f"   Direct Image URL: {p['azure_image_url'] or 'Not available'}")
-            output.append(f"   Product ID: {p['id']}")
+            img = p.get('azure_image_url') or p.get('image_url') or ""
+            img_md = f"![{p['product_name']}]({img})" if img else ""
+            
+            output.append(f"### {i}. {p['product_name']}")
+            output.append(f"**Brand:** {p['brand_name']}")
+            output.append(f"**Price:** {p.get('price') or 'Contact Brand'}")
+            output.append(f"{img_md}")
+            output.append(f"> {p['product_description']}")
+            output.append(f"*Product ID:* `{p['id']}`")
             output.append("")
             contexts.append(
                 f"Product: {p.get('product_name')} | Brand: {p.get('brand_name')} | "
-                f"Description: {p.get('product_description')} | Image: {p.get('azure_image_url')}"
+                f"Description: {p.get('product_description')} | Image: {img}"
             )
 
         answer = "\n".join(output)
+        
+        # Add a very explicit gallery section for the Manager to parse
+        gallery = ["\n[IMAGE_GALLERY]"]
+        for p in results:
+            img = p.get('azure_image_url') or p.get('image_url') or ""
+            if img:
+                gallery.append(f"Image: {img}")
+        
+        full_answer = answer + "\n" + "\n".join(gallery)
+        
         await ragas_service.record_sample(
             pipeline="search_brand_catalog",
             question=query,
             contexts=contexts,
-            answer=answer,
+            answer=full_answer,
             metadata={"brand_name": brand_name},
         )
-        return answer
+        return full_answer
     except Exception as e:
         logger.error(f"Error searching brand catalog: {e}")
         return f"Error searching brand catalog: {str(e)}"
@@ -360,18 +358,10 @@ async def recommend_brand_items_dna(user_id: str, query: Optional[str] = None, l
             
         logger.info(f"DNA-Powered Match Query: {search_query}")
         
-        # 3. Search Catalog with budget filter
-        from app.agents.tools_sets.budget_tools import manage_wallet
-        balance_str = manage_wallet.func(user_id=user_id, action="check")
-        import re
-        match = re.search(r'Balance: ([\d.]+)', balance_str)
-        effective_max = float(match.group(1)) if match else None
-
         service = BrandCLIPService()
         # Fetch more to allow for filtering
         raw_results = await service.search_products(
             query=search_query, 
-            max_price=effective_max,
             limit=limit * 2
         )
         
@@ -400,30 +390,50 @@ async def recommend_brand_items_dna(user_id: str, query: Optional[str] = None, l
         # Sort by personal match
         scored_results = sorted(scored_results, key=lambda x: x["personal_match_score"], reverse=True)[:limit]
             
-        output = [f"--- Personalized Recommendations (Based on {top_vibe} DNA) ---"]
+        output = [f"## ✨ DNA-Matched Recommendations"]
+        output.append(f"Based on your **{top_vibe}** DNA and top colors ({', '.join(top_colors)}).")
+        output.append("")
+        
         contexts = []
         for i, p in enumerate(scored_results, 1):
-            output.append(f"{i}. {p['product_name']} by {p['brand_name']}")
-            output.append(f"   Price: {p.get('price') or 'Contact Brand'}")
-            output.append(f"   Match Level: {round(p['personal_match_score'] * 100)}%")
-            output.append(f"   Vibe: {top_vibe}")
-            output.append(f"   Direct Image URL: {p['azure_image_url'] or 'Not available'}")
+            img = p.get('azure_image_url') or p.get('image_url') or ""
+            img_md = f"![{p['product_name']}]({img})" if img else ""
+            match_pct = round(p['personal_match_score'] * 100)
+            
+            output.append(f"### {i}. {p['product_name']} by {p['brand_name']}")
+            output.append(f"🎯 **Match Level:** {match_pct}%")
+            output.append(f"💰 **Price:** {p.get('price') or 'Contact Brand'}")
+            output.append(f"{img_md}")
+            output.append(f"> {p.get('product_description') or 'No description available.'}")
             output.append("")
+            
             contexts.append(
                 f"Product: {p.get('product_name')} | Brand: {p.get('brand_name')} | "
                 f"Vibe: {top_vibe} | Description: {p.get('product_description')} | "
-                f"Match: {p.get('personal_match_score'):.2f}"
+                f"Match: {p.get('personal_match_score'):.2f} | Image: {img}"
             )
 
         answer = "\n".join(output)
+
+        # Add a very explicit gallery section for the Manager to parse
+        gallery = ["\n[IMAGE_GALLERY]"]
+        for p in scored_results:
+            img = p.get('azure_image_url') or p.get('image_url') or ""
+            if img:
+                gallery.append(f"Image: {img}")
+        
+        full_answer = answer + "\n" + "\n".join(gallery)
+
         await ragas_service.record_sample(
             pipeline="recommend_brand_items_dna",
             question=query or "personalized brand recommendations",
             contexts=contexts,
-            answer=answer,
+            answer=full_answer,
             metadata={"user_id": user_id, "top_vibe": top_vibe, "top_colors": top_colors},
         )
-        return answer
+        return full_answer
     except Exception as e:
-        logger.error(f"Error in DNA recommendations: {e}")
+        import traceback
+        tb = traceback.format_exc()
+        logger.error(f"Error in DNA recommendations: {e}\nTraceback: {tb}")
         return f"Recommendation error: {str(e)}"

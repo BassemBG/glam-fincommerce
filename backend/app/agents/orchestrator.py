@@ -211,6 +211,15 @@ class AgentOrchestrator:
             parsed = json.loads(content_to_parse)
             if "response" not in parsed:
                 parsed["response"] = text
+            
+            # Fallback: Extract images from the entire text if the 'images' array is empty
+            if not parsed.get("images"):
+                found_images = re.findall(r'!\[.*?\]\((https?://.*?)\)', text)
+                if not found_images:
+                    # Even broader: just find URLs ending in common image extensions
+                    found_images = re.findall(r'(https?://[^\s)\]]+\.(?:jpg|jpeg|png|webp|gif))', text, re.IGNORECASE)
+                parsed["images"] = list(set(found_images))
+                
             return parsed
         except Exception as e:
             logger.warning(f"Failed to parse agent JSON: {e}")
