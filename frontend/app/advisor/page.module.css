@@ -123,13 +123,13 @@
 }
 
 .dropzone:hover {
-    border-color: #22c55e;
+    border-color: var(--primary);
     background: #f9fffb;
 }
 
 .iconWrapper {
     margin-bottom: 1rem;
-    color: #22c55e;
+    color: var(--primary);
 }
 
 /* Preview State */

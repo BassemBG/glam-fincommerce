@@ -2,7 +2,6 @@
 
 import { usePathname } from "next/navigation";
 import BottomNav from "./BottomNav";
-import FloatingStylist from "./FloatingStylist";
 
 export default function LayoutShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -16,7 +15,6 @@ export default function LayoutShell({ children }: { children: React.ReactNode })
       </main>
       {!isAuth && !isOnboarding && (
         <>
-          <FloatingStylist />
           <BottomNav />
         </>
       )}

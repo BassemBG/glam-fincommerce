@@ -25,7 +25,7 @@
 .logo {
   width: 48px;
   height: 48px;
-  background: linear-gradient(135deg, var(--primary) 0%, #16a34a 100%);
+  background: linear-gradient(135deg, var(--primary) 0%, var(--primary-700) 100%);
   border-radius: 14px;
   display: flex;
   align-items: center;
@@ -188,10 +188,10 @@
 
 .infoCard {
   padding: 14px;
-  background: #f0fdf4;
-  border: 1px solid #bbf7d0;
+  background: var(--primary-50);
+  border: 1px solid var(--primary-100);
   border-radius: 12px;
-  color: #16a34a;
+  color: var(--primary);
   font-size: 0.9rem;
 }
 

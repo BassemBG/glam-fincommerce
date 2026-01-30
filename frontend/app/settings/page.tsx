@@ -269,10 +269,10 @@ function SettingsContent() {
                                 </div>
                             </div>
                         </div>
-                        <p className={styles.statusBadge} style={{ color: pinterestConnected ? "#16a34a" : "#94a3b8" }}>
+                        <p className={styles.statusBadge} style={{ color: pinterestConnected ? 'var(--primary)' : "#94a3b8" }}>
                             {pinterestConnected ? "✓ Connected" : "Not connected"}
                         </p>
-                        {pinterestMessage && <small style={{ color: pinterestConnected ? "#16a34a" : "#dc2626", marginTop: "4px", display: "block" }}>{pinterestMessage}</small>}
+                        {pinterestMessage && <small style={{ color: pinterestConnected ? 'var(--primary)' : "#dc2626", marginTop: "4px", display: "block" }}>{pinterestMessage}</small>}
                     </div>
                     <button
                         className={`${styles.actionBtn} ${pinterestConnected ? styles.connected : ""}`}

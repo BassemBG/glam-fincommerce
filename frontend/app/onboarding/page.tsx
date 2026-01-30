@@ -395,26 +395,6 @@ export default function OnboardingPage() {
                 </button>
               ))}
             </div>
-
-            <div className={styles.formGroup} style={{ marginTop: "32px" }}>
-              <label>Describe your current wardrobe (optional)</label>
-              <textarea
-                value={formData.clothing_description}
-                onChange={(e) => setFormData({ ...formData, clothing_description: e.target.value })}
-                placeholder="e.g., Mostly casual basics, love vintage pieces, prefer earth tones..."
-                rows={3}
-              />
-            </div>
-
-            <div className={styles.formGroup}>
-              <label>Your favorite styled combinations (optional)</label>
-              <textarea
-                value={formData.styled_combinations}
-                onChange={(e) => setFormData({ ...formData, styled_combinations: e.target.value })}
-                placeholder="e.g., White tee + vintage jeans + sneakers, black blazer + gold jewelry..."
-                rows={3}
-              />
-            </div>
           </div>
         </div>
       )}

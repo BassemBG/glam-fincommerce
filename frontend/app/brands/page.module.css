@@ -254,7 +254,7 @@
 .modalPrice {
     font-size: 1.25rem;
     font-weight: 700;
-    color: #22c55e;
+    color: var(--primary);
 }
 
 .imageReveal {

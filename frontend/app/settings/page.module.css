@@ -262,7 +262,7 @@
 }
 
 .infoIconWrapper:hover .infoIcon {
-    color: #22c55e;
+    color: var(--primary);
 }
 
 .infoTooltip {
@@ -326,7 +326,7 @@
 }
 
 .actionBtn.connected {
-    color: #16a34a;
+    color: var(--primary);
 }
 
 .logoutBtn {
@@ -471,9 +471,9 @@
 }
 
 .saveBtn:hover:not(:disabled) {
-    background: #16a34a;
+    background: var(--primary-700);
     transform: translateY(-1px);
-    box-shadow: 0 4px 12px rgba(34, 197, 94, 0.2);
+    box-shadow: 0 4px 12px rgba(124, 58, 237, 0.2);
 }
 
 .saveBtn:active:not(:disabled) {
@@ -486,7 +486,7 @@
 }
 
 .saveSuccess {
-    color: #16a34a;
+    color: var(--primary);
     font-size: 0.8rem;
     font-weight: 600;
     animation: fadeIn 0.3s ease;
