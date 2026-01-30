@@ -7,8 +7,10 @@ Usage:
 Options:
     --samples [date]     View samples for a specific date (default: today)
     --results [days]     View evaluation results for last N days (default: 7)
+    --generation [date]  View generation evaluations (default: today)
     --stats              Show overall statistics
     --pipeline <name>    Show metrics for specific pipeline
+    --gen-pipeline <name> Show generation evals for a pipeline (last 7 days)
     --live               Enable live monitoring mode (refreshes every 30s)
 
 Examples:
@@ -16,6 +18,8 @@ Examples:
     python view_ragas.py --samples 2026-01-29
     python view_ragas.py --results 3
     python view_ragas.py --pipeline search_closet
+    python view_ragas.py --generation 2026-01-29
+    python view_ragas.py --gen-pipeline agent_orchestrator
 """
 
 import json
@@ -181,6 +185,94 @@ def show_results(days: int = 7):
     
     print("="*70 + "\n")
 
+def show_generation(date: Optional[str] = None, limit: int = 10):
+    """Show generation evaluations for a specific date"""
+    ragas_dir = get_ragas_dir()
+    date_str = date or datetime.now().strftime("%Y-%m-%d")
+    gen_file = ragas_dir / f"ragas_generation_{date_str}.jsonl"
+
+    print("\n" + "="*70)
+    print(f"🧠 RAGAS GENERATION EVALUATIONS - {date_str}")
+    print("="*70)
+
+    if not gen_file.exists():
+        print(f"\n❌ No generation file found for {date_str}")
+        print(f"   Looking for: {gen_file}")
+        return
+
+    evaluations = read_jsonl(gen_file, limit=limit)
+
+    if not evaluations:
+        print(f"\n⚠️  No generation evaluations recorded for {date_str}")
+        return
+
+    print(f"\n📊 Showing {len(evaluations)} most recent generation evaluations:\n")
+
+    for i, item in enumerate(evaluations, 1):
+        timestamp = item.get("timestamp", "")
+        results = item.get("results", {})
+        pipelines = item.get("pipelines", [])
+        question = item.get("question", "")
+        answer_preview = item.get("answer_preview", "")
+
+        print(f"{i}. [{', '.join(pipelines) if pipelines else 'generation'}]")
+        print(f"   Time: {timestamp}")
+        if question:
+            print(f"   Question: {question[:80]}{'...' if len(question) > 80 else ''}")
+        if answer_preview:
+            print(f"   Answer: {answer_preview[:80]}{'...' if len(answer_preview) > 80 else ''}")
+
+        if "answer_relevancy" in results:
+            val = results['answer_relevancy']
+            print(f"   • answer_relevancy: {val:.3f}" if val is not None else "   • answer_relevancy: None")
+        if "faithfulness" in results:
+            val = results['faithfulness']
+            print(f"   • faithfulness: {val:.3f}" if val is not None else "   • faithfulness: None")
+        print()
+
+    print("="*70 + "\n")
+
+def show_generation_pipeline(pipeline_name: str, days: int = 7):
+    """Show generation evaluations for a pipeline across last N days"""
+    ragas_dir = get_ragas_dir()
+
+    print("\n" + "="*70)
+    print(f"🧠 GENERATION PIPELINE: {pipeline_name}")
+    print("="*70)
+
+    evaluations = []
+    for i in range(days):
+        check_date = (datetime.utcnow() - timedelta(days=i)).strftime("%Y-%m-%d")
+        gen_file = ragas_dir / f"ragas_generation_{check_date}.jsonl"
+        if gen_file.exists():
+            items = read_jsonl(gen_file)
+            for item in items:
+                pipelines = item.get("pipelines", [])
+                if pipeline_name in pipelines:
+                    evaluations.append(item)
+
+    if not evaluations:
+        print(f"\n⚠️  No generation evaluations found for pipeline '{pipeline_name}' in last {days} days")
+        return
+
+    print(f"\n📊 Total Evaluations: {len(evaluations)}")
+    print(f"   Date Range: Last {days} days\n")
+
+    for i, item in enumerate(evaluations[:10], 1):
+        timestamp = item.get("timestamp", "")
+        question = item.get("question", "")
+        results = item.get("results", {})
+        print(f"{i}. {timestamp}")
+        if question:
+            print(f"   Q: {question[:80]}{'...' if len(question) > 80 else ''}")
+        if "answer_relevancy" in results:
+            print(f"   • answer_relevancy: {results['answer_relevancy']:.3f}")
+        if "faithfulness" in results:
+            print(f"   • faithfulness: {results['faithfulness']:.3f}")
+        print()
+
+    print("="*70 + "\n")
+
 def show_pipeline(pipeline_name: str, days: int = 7):
     """Show metrics for specific pipeline"""
     ragas_dir = get_ragas_dir()
@@ -254,12 +346,25 @@ def main():
         idx = args.index("--results")
         days = int(args[idx + 1]) if len(args) > idx + 1 and args[idx + 1].isdigit() else 7
         show_results(days)
+
+    elif "--generation" in args:
+        idx = args.index("--generation")
+        date = args[idx + 1] if len(args) > idx + 1 and not args[idx + 1].startswith("--") else None
+        show_generation(date)
     
     elif "--pipeline" in args:
         idx = args.index("--pipeline")
         if len(args) > idx + 1:
             pipeline_name = args[idx + 1]
             show_pipeline(pipeline_name)
+        else:
+            print("❌ Please specify a pipeline name")
+
+    elif "--gen-pipeline" in args:
+        idx = args.index("--gen-pipeline")
+        if len(args) > idx + 1:
+            pipeline_name = args[idx + 1]
+            show_generation_pipeline(pipeline_name)
         else:
             print("❌ Please specify a pipeline name")
     

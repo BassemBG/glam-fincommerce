@@ -190,6 +190,35 @@ class AgentOrchestrator:
                     logger.info(f"[STREAM] Final response received: {response_text[:200]}...")
                     parsed = self._parse_agent_response(response_text)
                     logger.info(f"[STREAM] Parsed response: {parsed}")
+
+                    # Evaluate generation quality with RAGAS
+                    try:
+                        from app.services.ragas_service import ragas_service
+                        import asyncio
+
+                        retrieved_contexts = []
+                        for msg in final_state["messages"]:
+                            content_str = str(msg.content)
+                            if "Visual Search Results:" in content_str:
+                                retrieved_contexts.append(content_str[:500])
+                            elif "Based on your style history:" in content_str:
+                                retrieved_contexts.append(content_str[:500])
+                            elif "Personalized Recommendations" in content_str:
+                                retrieved_contexts.append(content_str[:500])
+
+                        if retrieved_contexts:
+                            asyncio.create_task(
+                                ragas_service.evaluate_generation(
+                                    question=message,
+                                    contexts=retrieved_contexts,
+                                    answer=response_text,
+                                    pipeline="agent_orchestrator",
+                                    metadata={"user_id": user_id}
+                                )
+                            )
+                    except Exception as eval_err:
+                        logger.warning(f"[RAGAS] Generation evaluation failed: {eval_err}")
+
                     yield json.dumps({"type": "final", "content": parsed})
 
         except Exception as e:

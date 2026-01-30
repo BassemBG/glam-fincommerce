@@ -15,7 +15,7 @@ pydantic-settings
 fastembed
 email-validator
 zep-cloud
-google-generativeai
+google-genai
 groq
 pytest
 httpx
@@ -34,6 +34,7 @@ langgraph
 langchain
 langchain-openai
 langchain-community
+langchain-huggingface
 langchain-groq
 sentence-transformers
 beautifulsoup4

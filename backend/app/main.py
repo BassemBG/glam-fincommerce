@@ -5,7 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
-from app.api import auth, closet, outfits, stylist, user, clothing_ingestion, brands, profile_brands, profile_qdrant, ragas_analytics
+from app.api import auth, brand_auth, closet, outfits, stylist, user, clothing_ingestion, brands, profile_brands, profile_qdrant, ragas_analytics
 from app.core.config import settings
 
 logger = logging.getLogger(__name__)

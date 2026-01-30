@@ -92,6 +92,7 @@ class Settings(BaseSettings):
     # ===========================
     OPENAI_API_KEY: Optional[str] = None
     SERPER_API_KEY: Optional[str] = None
+    HF_TOKEN: Optional[str] = None
 
     # ===========================
     # RAGAS EVALUATION
@@ -101,6 +102,10 @@ class Settings(BaseSettings):
     RAGAS_OUTPUT_DIR: str = "ragas_outputs"
     RAGAS_MAX_SAMPLES: int = 200
     RAGAS_GROUND_TRUTH_FALLBACK: str = "answer"
+    RAGAS_LLM_API_KEY: Optional[str] = None
+    RAGAS_LLM_MODEL: str = "openai/gpt-oss-120b:cerebras"
+    RAGAS_LLM_BASE_URL: str = "https://router.huggingface.co/v1"
+    RAGAS_EMBEDDINGS_MODEL: str = "sentence-transformers/all-MiniLM-L6-v2"
 
     model_config = SettingsConfigDict(
         env_file=".env",

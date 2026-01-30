@@ -1,0 +1,4 @@
+{"timestamp": "2026-01-29T22:31:48.644627", "results": "{'context_recall': nan, 'context_precision': nan, 'faithfulness': nan, 'answer_relevancy': nan}", "count": 1, "pipelines": ["search_zep_graph"]}
+{"timestamp": "2026-01-29T22:31:55.113531", "results": "{'context_recall': nan, 'context_precision': nan, 'faithfulness': nan, 'answer_relevancy': nan}", "count": 1, "pipelines": ["search_closet"]}
+{"timestamp": "2026-01-29T22:36:02.515422", "results": "{'context_recall': nan, 'context_precision': nan, 'faithfulness': nan, 'answer_relevancy': nan}", "count": 1, "pipelines": ["recommend_brand_items_dna"]}
+{"timestamp": "2026-01-29T22:49:36.312769", "results": "{'context_recall': nan, 'context_precision': nan, 'faithfulness': nan, 'answer_relevancy': nan}", "count": 1, "pipelines": ["search_brand_catalog"]}
