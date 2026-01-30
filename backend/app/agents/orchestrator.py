@@ -97,7 +97,9 @@ class AgentOrchestrator:
         if image_data:
             try:
                 from app.services.vision_analyzer import vision_analyzer
+                from app.services.groq_vision_service import groq_vision_service
                 from app.services.storage import storage_service
+                from app.services.clip_qdrant_service import clip_qdrant_service
                 import uuid
                 
                 # 1. Upload for persistent URL
@@ -108,8 +110,83 @@ class AgentOrchestrator:
                 analysis = await vision_analyzer.analyze_clothing(image_data)
                 analysis["id"] = "potential_purchase" 
                 analysis["image_url"] = img_url
+
+                redundancy = {
+                    "exact_match": False,
+                    "likely_match": False,
+                    "score": 0,
+                    "match_item": None,
+                    "method": None,
+                }
+
+                try:
+                    similar_items = await clip_qdrant_service.search_similar_clothing_by_image(
+                        image_data=image_data,
+                        user_id=user_id,
+                        limit=3,
+                        min_score=0.4
+                    )
+                    if similar_items:
+                        best_match = similar_items[0]
+                        score = best_match.get("score", 0)
+                        redundancy.update({
+                            "score": score,
+                            "match_item": {
+                                "id": best_match.get("id"),
+                                "image_url": best_match.get("image_url"),
+                                "sub_category": best_match.get("clothing", {}).get("sub_category"),
+                                "colors": best_match.get("clothing", {}).get("colors", []),
+                                "brand": best_match.get("brand"),
+                            },
+                            "method": "clip_image"
+                        })
+                        if score >= 0.92:
+                            redundancy["exact_match"] = True
+                        elif score >= 0.85:
+                            redundancy["likely_match"] = True
+                except Exception as e:
+                    logger.warning(f"Redundancy image match failed: {e}")
+
+                if not redundancy["exact_match"] and not redundancy["likely_match"] and groq_vision_service.client:
+                    try:
+                        groq_analysis = await groq_vision_service.analyze_clothing(image_data)
+                        groq_desc = ", ".join([
+                            groq_analysis.get("sub_category", ""),
+                            groq_analysis.get("material", ""),
+                            ", ".join(groq_analysis.get("colors", []) or []),
+                            groq_analysis.get("vibe", ""),
+                        ]).strip(" ,")
+                        if groq_desc:
+                            text_matches = await clip_qdrant_service.search_by_text(
+                                query_text=groq_desc,
+                                user_id=user_id,
+                                limit=3,
+                                min_score=0.5
+                            )
+                            if text_matches:
+                                best_text = text_matches[0]
+                                score = best_text.get("score", 0)
+                                if score >= 0.8:
+                                    redundancy.update({
+                                        "score": score,
+                                        "match_item": {
+                                            "id": best_text.get("id"),
+                                            "image_url": best_text.get("image_url"),
+                                            "sub_category": best_text.get("clothing", {}).get("sub_category"),
+                                            "colors": best_text.get("clothing", {}).get("colors", []),
+                                            "brand": best_text.get("brand"),
+                                        },
+                                        "likely_match": True,
+                                        "method": "groq_text"
+                                    })
+                    except Exception as e:
+                        logger.warning(f"Groq redundancy fallback failed: {e}")
                 
-                analysis_note = f"[SYSTEM NOTE: User uploaded an image of a potential purchase. Vision Analysis: {json.dumps(analysis)}]"
+                analysis_note = (
+                    f"[SYSTEM NOTE: User uploaded an image of a potential purchase. "
+                    f"Vision Analysis: {json.dumps(analysis)}. "
+                    f"Redundancy Check: {json.dumps(redundancy)}. "
+                    f"If exact_match or likely_match is true, tell the user they already own a very similar item.]")
                 langchain_history.append(SystemMessage(content=analysis_note))
             except Exception as e:
                 logger.error(f"Failed to analyze/upload image in orchestrator: {e}")

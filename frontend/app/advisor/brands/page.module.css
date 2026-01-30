@@ -48,10 +48,10 @@
 }
 
 .profileButton:hover {
-  border-color: #93c5fd;
-  background: #eff6ff;
-  color: #1e40af;
-  box-shadow: 0 6px 16px rgba(59, 130, 246, 0.1);
+  border-color: var(--primary);
+  background: var(--primary-50);
+  color: var(--primary-700);
+  box-shadow: 0 6px 16px rgba(124, 58, 237, 0.1);
 }
 
 @media (min-width: 640px) {

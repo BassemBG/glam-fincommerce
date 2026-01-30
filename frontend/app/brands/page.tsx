@@ -184,6 +184,7 @@ export default function BrandsExplore() {
                                 alt={product.product_name}
                                 className={styles.image}
                             />
+                            <span className={styles.brandPill}>{product.brand_name}</span>
                             {product.personal_score !== undefined && product.personal_score > 0.5 && (
                                 <div className={styles.matchBadge}>
                                     {Math.round(product.personal_score * 100)}% Match

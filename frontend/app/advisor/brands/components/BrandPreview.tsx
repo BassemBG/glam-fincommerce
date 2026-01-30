@@ -148,7 +148,7 @@ export function BrandPreview({ brand }: Props) {
                   <span
                     key={`${kw}-${i}`}
                     style={{
-                      background: '#f0fdf4',
+                      background: 'var(--primary-50)',
                       color: 'var(--primary)',
                       padding: '3px 8px',
                       borderRadius: '8px',

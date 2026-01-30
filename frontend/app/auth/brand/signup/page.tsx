@@ -86,12 +86,77 @@ export default function BrandSignupPage() {
             />
           </label>
 
-          <label className={styles.label}>Brand Type
-            <select value={brandType} onChange={(e) => setBrandType(e.target.value as "local" | "international")}>
-              <option value="local">Local brand</option>
-              <option value="international">International brand</option>
-            </select>
-          </label>
+          <div className={styles.label}>
+            <span style={{ marginBottom: '10px', display: 'block' }}>Brand Type</span>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+              <button
+                type="button"
+                onClick={() => setBrandType("local")}
+                style={{
+                  padding: '14px 16px',
+                  border: brandType === "local" ? '2px solid var(--primary)' : '1.5px solid #e2e8f0',
+                  borderRadius: '12px',
+                  background: brandType === "local" ? 'var(--primary-50)' : '#ffffff',
+                  color: brandType === "local" ? 'var(--primary-700)' : '#64748b',
+                  fontSize: '0.95rem',
+                  fontWeight: brandType === "local" ? 700 : 500,
+                  cursor: 'pointer',
+                  transition: 'all 0.2s',
+                  position: 'relative'
+                }}
+                onMouseEnter={(e) => {
+                  if (brandType !== "local") {
+                    e.currentTarget.style.borderColor = 'var(--primary-100)';
+                    e.currentTarget.style.background = '#f8fafc';
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (brandType !== "local") {
+                    e.currentTarget.style.borderColor = '#e2e8f0';
+                    e.currentTarget.style.background = '#ffffff';
+                  }
+                }}
+              >
+                {brandType === "local" && (
+                  <span style={{ position: 'absolute', top: '8px', right: '8px', fontSize: '1rem' }}>✓</span>
+                )}
+                🏪 Local brand
+              </button>
+              <button
+                type="button"
+                onClick={() => setBrandType("international")}
+                style={{
+                  padding: '14px 16px',
+                  border: brandType === "international" ? '2px solid var(--primary)' : '1.5px solid #e2e8f0',
+                  borderRadius: '12px',
+                  background: brandType === "international" ? 'var(--primary-50)' : '#ffffff',
+                  color: brandType === "international" ? 'var(--primary-700)' : '#64748b',
+                  fontSize: '0.95rem',
+                  fontWeight: brandType === "international" ? 700 : 500,
+                  cursor: 'pointer',
+                  transition: 'all 0.2s',
+                  position: 'relative'
+                }}
+                onMouseEnter={(e) => {
+                  if (brandType !== "international") {
+                    e.currentTarget.style.borderColor = 'var(--primary-100)';
+                    e.currentTarget.style.background = '#f8fafc';
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (brandType !== "international") {
+                    e.currentTarget.style.borderColor = '#e2e8f0';
+                    e.currentTarget.style.background = '#ffffff';
+                  }
+                }}
+              >
+                {brandType === "international" && (
+                  <span style={{ position: 'absolute', top: '8px', right: '8px', fontSize: '1rem' }}>✓</span>
+                )}
+                🌍 International
+              </button>
+            </div>
+          </div>
 
           <label className={styles.label}>Password
             <input

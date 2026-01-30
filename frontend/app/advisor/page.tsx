@@ -1,12 +1,14 @@
 "use client";
 
 import { useState, useRef, useEffect } from 'react';
+import Image from 'next/image';
 import styles from './page.module.css';
 import { API } from '../../lib/api';
 import { authFetch } from '../../lib/auth';
 import { useAuthGuard } from '../../lib/useAuthGuard';
 import TryOnVisualizer from '../../components/TryOnVisualizer';
 import { WalletConfirmationModal } from '../../components/WalletConfirmationModal';
+import cartImage from '../images/shopping advisor .png';
 
 export default function AdvisorPage() {
     useAuthGuard();
@@ -19,6 +21,7 @@ export default function AdvisorPage() {
     const [userPhoto, setUserPhoto] = useState<string | null>(null);
     const [user, setUser] = useState<any>(null);
     const [tryOnData, setTryOnData] = useState<any>(null);
+    const [showIntro, setShowIntro] = useState(true);
 
     const [walletModalData, setWalletModalData] = useState<{
         isOpen: boolean;
@@ -39,6 +42,11 @@ export default function AdvisorPage() {
     useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }, [messages]);
+
+    useEffect(() => {
+        const timer = setTimeout(() => setShowIntro(false), 2200);
+        return () => clearTimeout(timer);
+    }, []);
 
     useEffect(() => {
         const fetchUser = async () => {
@@ -66,10 +74,18 @@ export default function AdvisorPage() {
     const handleSend = async () => {
         const text = input.trim();
         const currentFile = file;
+        const currentPreview = preview;
 
         if (!text && !currentFile) return;
 
         setInput('');
+
+        if (status === 'chatting') {
+            setMessages(prev => [
+                ...prev,
+                { role: 'user', text, image: currentFile ? currentPreview : null }
+            ]);
+        }
 
         if (currentFile && !analysisData) {
             // Analyze first to get the matches/metadata for the UI & context
@@ -90,17 +106,17 @@ export default function AdvisorPage() {
                         : `Evaluate this ${targetInfo.sub_category || 'item'}. It has ${matchCount} closet matches.`;
 
                     setStatus('chatting');
-                    await sendToAI(enrichedText, currentFile);
+                    await sendToAI(enrichedText, currentFile, currentPreview, false);
                 } else {
                     setStatus('chatting');
-                    await sendToAI(text || "Evaluate this potential purchase.", currentFile);
+                    await sendToAI(text || "Evaluate this potential purchase.", currentFile, currentPreview, false);
                 }
             } catch (err) {
                 setStatus('chatting');
-                await sendToAI(text || "Evaluate this potential purchase.", currentFile);
+                await sendToAI(text || "Evaluate this potential purchase.", currentFile, currentPreview, false);
             }
         } else {
-            await sendToAI(text, currentFile);
+            await sendToAI(text, currentFile, currentPreview, false);
         }
 
         // Clear file state after sending
@@ -112,9 +128,16 @@ export default function AdvisorPage() {
         }
     };
 
-    const sendToAI = async (text: string, currentFile?: File | null) => {
+    const sendToAI = async (
+        text: string,
+        currentFile?: File | null,
+        currentPreview?: string | null,
+        appendUserMessage: boolean = true
+    ) => {
         if (!text.trim() && !currentFile) return;
-        if (status === 'chatting') setMessages(prev => [...prev, { role: 'user', text }]);
+        if (status === 'chatting' && appendUserMessage) {
+            setMessages(prev => [...prev, { role: 'user', text, image: currentFile ? currentPreview : null }]);
+        }
 
         const formData = new FormData();
 
@@ -140,7 +163,7 @@ export default function AdvisorPage() {
                 const reader = res.body.getReader();
                 const decoder = new TextDecoder();
                 let buffer = '';
-                setMessages(prev => [...prev, { role: 'assistant', text: '', status: 'Thinking...' }]);
+                setMessages(prev => [...prev, { role: 'assistant', text: '', status: 'Routing your request...' }]);
 
                 while (true) {
                     const { value, done } = await reader.read();
@@ -240,14 +263,27 @@ export default function AdvisorPage() {
 
     return (
         <div className={styles.container}>
+            {showIntro && (
+                <div className={styles.introOverlay} aria-hidden="true">
+                    <Image
+                        src={cartImage}
+                        alt=""
+                        className={styles.introCart}
+                        priority
+                    />
+                </div>
+            )}
             <header className={styles.header}>
                 <div>
                     <h1>Shopping Advisor</h1>
                     <p>Get instant feedback on potential purchases.</p>
                 </div>
                 {user && (
-                    <div className={styles.budgetBadge}>
-                        {user.wallet_balance.toLocaleString()} {user.currency || 'TND'}
+                    <div className={styles.budgetCard}>
+                        <span className={styles.budgetLabel}>My Budget</span>
+                        <div className={styles.budgetValue}>
+                            {user.wallet_balance.toLocaleString()} {user.currency || 'TND'}
+                        </div>
                     </div>
                 )}
             </header>
@@ -292,8 +328,43 @@ export default function AdvisorPage() {
                         {messages.map((msg, i) => (
                             <div key={i} className={`${styles.message} ${styles[msg.role]}`}>
                                 <div className={styles.bubble}>
+                                    {msg.image && (
+                                        <div className={styles.messageMedia}>
+                                            <img
+                                                src={msg.image}
+                                                alt="uploaded"
+                                                className={styles.messageImage}
+                                                onClick={() => window.open(msg.image, '_blank')}
+                                            />
+                                        </div>
+                                    )}
                                     <div className={styles.textContent}>{renderMarkdown(msg.text)}</div>
-                                    {msg.status && <div className={styles.streamingStatus}>{msg.status}</div>}
+                                    {msg.status && (
+                                        <div className={styles.streamingStatus}>
+                                            <span className={styles.statusLabel}>Active agent:</span>
+                                            <span>{msg.status}</span>
+                                            {!msg.text && (
+                                                <span className={styles.typingDots} aria-label="Assistant is typing">
+                                                    <span />
+                                                    <span />
+                                                    <span />
+                                                </span>
+                                            )}
+                                        </div>
+                                    )}
+                                    {msg.images && Array.isArray(msg.images) && msg.images.length > 0 && (
+                                        <div className={styles.messageMedia}>
+                                            {msg.images.map((img: string, idx: number) => (
+                                                <img
+                                                    key={idx}
+                                                    src={img}
+                                                    alt="assistant"
+                                                    className={styles.messageImage}
+                                                    onClick={() => window.open(img, '_blank')}
+                                                />
+                                            ))}
+                                        </div>
+                                    )}
                                     {msg.suggested_outfits && (
                                         <div className={styles.outfitStack}>
                                             {msg.suggested_outfits.map((fit: any, idx: number) => (
@@ -366,9 +437,26 @@ export default function AdvisorPage() {
                     </div>
 
                     {status === 'analyzing' && (
-                        <div className={styles.inlineAnalyizing}>
-                            <div className={styles.miniSpinner} />
-                            <span>Analyzing your potential buy...</span>
+                        <div className={styles.inlineAnalyzing}>
+                            <div className={styles.analyzeIcon}>🧪</div>
+                            <div className={styles.analyzeContent}>
+                                <div className={styles.analyzeTitle}>
+                                    Analyzing your potential buy
+                                    <span className={styles.loadingDots} aria-hidden="true">
+                                        <span />
+                                        <span />
+                                        <span />
+                                    </span>
+                                </div>
+                                <div className={styles.analyzeSteps}>
+                                    <span>Visual match</span>
+                                    <span>Closet check</span>
+                                    <span>Style & budget fit</span>
+                                </div>
+                                <div className={styles.analyzeBar}>
+                                    <span />
+                                </div>
+                            </div>
                         </div>
                     )}
                     <div className={styles.chatInputArea}>

@@ -30,6 +30,10 @@
     min-width: 0;
 }
 
+.navItem:hover {
+    color: var(--primary);
+}
+
 .iconWrapper {
     width: 24px;
     height: 24px;
@@ -70,7 +74,7 @@
     display: flex;
     justify-content: center;
     align-items: center;
-    box-shadow: 0 10px 25px rgba(34, 197, 94, 0.4);
+    box-shadow: 0 10px 25px rgba(124, 58, 237, 0.4);
     transform: translateY(-16px);
     transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
 }

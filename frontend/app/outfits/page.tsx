@@ -81,6 +81,36 @@ export default function OutfitsPage() {
                             Add Outfit
                         </button>
                     </div>
+                    <div className={styles.pageIntro}>
+                        <div className={styles.pageIntroIcon}>🧩</div>
+                        <div>
+                            <h2>What this page does</h2>
+                            <p>
+                                Review your saved looks, compare AI match scores, and revisit try-on previews.
+                                Use <strong>Add Outfit</strong> to create new combinations from your closet or AI suggestions.
+                            </p>
+                            <div className={styles.quickActions}>
+                                <button
+                                    className={styles.quickActionBtn}
+                                    onClick={() => setAssistantOpen(true)}
+                                >
+                                    ✨ Create from Closet
+                                </button>
+                                <button
+                                    className={styles.quickActionBtn}
+                                    onClick={() => setAssistantOpen(true)}
+                                >
+                                    🤖 Ask AI Stylist
+                                </button>
+                                <button
+                                    className={styles.quickActionGhost}
+                                    onClick={() => setAssistantOpen(true)}
+                                >
+                                    🎲 Surprise me
+                                </button>
+                            </div>
+                        </div>
+                    </div>
                 </header>
 
                 <div className={styles.outfitList}>
