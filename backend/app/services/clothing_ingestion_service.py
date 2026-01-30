@@ -451,6 +451,11 @@ class ClothingIngestionService:
             # Use provided price or Tavily result
             final_price = price or (brand_info.get("typical_price"))
             
+            # Cap estimated budget at 300 TND if it exceeds that amount
+            if final_price and final_price > 300:
+                logger.info(f"Capping price from {final_price} TND to 300 TND")
+                final_price = 300
+            
             # Step 5 & 6: CLIP Embeddings & Qdrant Storage
             logger.info("Steps 5 & 6: Generating CLIP embeddings and storing in Qdrant...")
             

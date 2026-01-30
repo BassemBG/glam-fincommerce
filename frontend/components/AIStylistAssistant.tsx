@@ -25,7 +25,7 @@ const SUGGESTED_PROMPTS = [
 // Smart follow-up suggestions based on context
 const getSmartFollowUps = (lastMessage: string, messageHistory: any[]) => {
     const lowercaseMsg = lastMessage.toLowerCase();
-    
+
     // Brand search follow-ups
     if (lowercaseMsg.includes('brand') || lowercaseMsg.includes('shop') || lowercaseMsg.includes('buy')) {
         return [
@@ -34,7 +34,7 @@ const getSmartFollowUps = (lastMessage: string, messageHistory: any[]) => {
             { icon: '⭐', text: 'What are the best rated items?' }
         ];
     }
-    
+
     // Outfit creation follow-ups
     if (lowercaseMsg.includes('outfit') || lowercaseMsg.includes('wear') || lowercaseMsg.includes('style')) {
         return [
@@ -43,7 +43,7 @@ const getSmartFollowUps = (lastMessage: string, messageHistory: any[]) => {
             { icon: '📸', text: 'Save this outfit to my collection' }
         ];
     }
-    
+
     // Closet organization follow-ups
     if (lowercaseMsg.includes('closet') || lowercaseMsg.includes('wardrobe') || lowercaseMsg.includes('organize')) {
         return [
@@ -52,7 +52,7 @@ const getSmartFollowUps = (lastMessage: string, messageHistory: any[]) => {
             { icon: '🗑️', text: 'Find items I never wear' }
         ];
     }
-    
+
     // Color/style analysis follow-ups
     if (lowercaseMsg.includes('color') || lowercaseMsg.includes('vibe') || lowercaseMsg.includes('aesthetic')) {
         return [
@@ -61,7 +61,7 @@ const getSmartFollowUps = (lastMessage: string, messageHistory: any[]) => {
             { icon: '✨', text: 'Suggest new styles for me' }
         ];
     }
-    
+
     // Default follow-ups
     return [
         { icon: '🛍️', text: 'Browse shopping recommendations' },
@@ -179,11 +179,11 @@ const AIStylistAssistant = ({ isOpen, onClose }: AIStylistAssistantProps) => {
     const sendMessage = async (messageText?: string) => {
         const textToSend = messageText || input;
         if (!textToSend.trim() && !stagedFile) return;
-        
+
         // Hide suggestions after first user message
         setShowSuggestions(false);
         setSmartFollowUps([]);
-        
+
         const userMsg = {
             role: 'user',
             text: textToSend,
@@ -229,7 +229,7 @@ const AIStylistAssistant = ({ isOpen, onClose }: AIStylistAssistantProps) => {
                                 else if (statusText.includes('Budget')) setTypingAgent('Budget');
                                 else if (statusText.includes('Visualizer')) setTypingAgent('Visualizer');
                                 else setTypingAgent('Stylist');
-                                
+
                                 setMessages(prev => {
                                     const next = [...prev];
                                     next[next.length - 1].status = event.content;
@@ -255,12 +255,12 @@ const AIStylistAssistant = ({ isOpen, onClose }: AIStylistAssistantProps) => {
                                     };
                                     return next;
                                 });
-                                
+
                                 // Generate smart follow-ups based on response
                                 const followUps = getSmartFollowUps(botResponse.response, messages);
                                 setSmartFollowUps(followUps);
                                 setTypingAgent('');
-                                
+
                                 if (botResponse.wallet_confirmation?.required) {
                                     const wc = botResponse.wallet_confirmation;
                                     setWalletModalData({
@@ -349,7 +349,7 @@ const AIStylistAssistant = ({ isOpen, onClose }: AIStylistAssistantProps) => {
                             </div>
                         </div>
                     ))}
-                    
+
                     {/* Enhanced Typing Indicator */}
                     {isLoading && (!messages.length || !messages[messages.length - 1].status) && (
                         <div className={`${styles.message} ${styles.assistant}`}>
@@ -365,7 +365,7 @@ const AIStylistAssistant = ({ isOpen, onClose }: AIStylistAssistantProps) => {
                             </div>
                         </div>
                     )}
-                    
+
                     {/* Smart Follow-ups */}
                     {!isLoading && smartFollowUps.length > 0 && (
                         <div className={styles.followUpsContainer}>

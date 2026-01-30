@@ -51,10 +51,12 @@ Task:
 2. {f"MANDATORY: Both outfits MUST include item '{required_item_id}'." if required_item_id else "Ensure variety."}
 3. COMPOSITION RULES:
    - A complete outfit MUST have garments covering the body effectively.
-   - Rule A: 1 Top + 1 Bottom + 1 Shoes.
-   - Rule B: 1 FullBody (Dress/Jumpsuit) + 1 Shoes.
+   - MANDATORY RULE A: 1 Top (category: 'top' or 'outerwear') + 1 Bottom (category: 'bottom'/'pants'/'skirts/jeans') + 1 Shoes.
+   - MANDATORY RULE B: 1 FullBody (category: 'dress'/'jumpsuit'/'fullbody') + 1 Shoes.
    - Optional extras: Outerwear (Coats), Accessories, Headwear.
-   - DO NOT mix a FullBody with a Bottom unless it's a specific stylistic choice.
+   - STRICT FORBIDDEN: NEVER mix a FullBody item (Dress/Jumpsuit) with a Bottom (Pants/Skirts/jeans). This is a fashion error for this system.
+   - STRICT FORBIDDEN: NEVER provide an outfit without Shoes.
+   - CATEGORY MAPPING: If an item belongs to 'dress', it is FullBody. If 'pants', 'skirts', or 'jeans', it is Bottom. If 't-shirts', 'shirts', 'sweaters', it is Top.
 4. Score each outfit (0-10) based on how well it fits the occasion and vibe.
 5. Provide a stylist reasoning for each outfit.
 6. Return ONLY your top 2 highest-scoring combinations.

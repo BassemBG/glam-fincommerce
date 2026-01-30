@@ -259,9 +259,18 @@ async def generate_new_outfit_ideas(user_id: str, occasion: str, vibe: str = "ch
     """
     Compose new outfit ideas based on the user's current closet items.
     'required_item_id' (Optional): Force the inclusion of a specific item ID in all suggestions.
+    
+    For formal occasions (date night, party, wedding, gala), automatically prioritizes dresses.
     """
     logger.info(f"[TOOL] generate_new_outfit_ideas called: user_id={user_id}, occasion={occasion}, vibe={vibe}")
     try:
+        # Detect if this is a formal/dress-appropriate occasion
+        formal_occasions = ["date night", "party", "wedding", "gala", "formal event", "cocktail", 
+                           "dinner", "night out", "date", "prom", "ball", "reception", "anniversary"]
+        is_formal_occasion = any(keyword in occasion.lower() for keyword in formal_occasions)
+        
+        logger.info(f"[TOOL] Formal occasion detected: {is_formal_occasion}")
+        
         qdrant_resp = await clip_qdrant_service.get_user_items(user_id=user_id, limit=50)
         closet_items = qdrant_resp.get("items", [])
         
@@ -272,6 +281,8 @@ async def generate_new_outfit_ideas(user_id: str, occasion: str, vibe: str = "ch
         
         # Create ClothingItem objects with all required fields
         pseudo_items = []
+        dress_items = []  # Track dresses separately
+        
         for i in closet_items:
             clothing_data = i.get("clothing", {})
             try:
@@ -285,15 +296,49 @@ async def generate_new_outfit_ideas(user_id: str, occasion: str, vibe: str = "ch
                     metadata_json=clothing_data
                 )
                 pseudo_items.append(item)
+                
+                # Track dresses for formal occasions
+                if is_formal_occasion:
+                    category = (clothing_data.get("category") or "").lower()
+                    sub_cat = (clothing_data.get("sub_category") or "").lower()
+                    body_region = (clothing_data.get("body_region") or "").lower()
+                    
+                    # Check if it's a dress or full-body item
+                    if any(keyword in category for keyword in ["dress", "jumpsuit", "romper"]) or \
+                       any(keyword in sub_cat for keyword in ["dress", "jumpsuit", "romper"]) or \
+                       "full_body" in body_region:
+                        dress_items.append(item)
+                        logger.info(f"[TOOL] Found dress: {sub_cat}")
+                
             except Exception as e:
                 logger.warning(f"[TOOL] Skipping item {i.get('id')}: {e}")
                 continue
         
         logger.info(f"[TOOL] Created {len(pseudo_items)} ClothingItem objects")
         
-        outfits = await outfit_composer.compose_outfits(pseudo_items, occasion, vibe, required_item_id=required_item_id)
+        # For formal occasions, prioritize dress-based outfits
+        if is_formal_occasion and dress_items:
+            logger.info(f"[TOOL] Formal occasion with {len(dress_items)} dresses available - prioritizing dress outfits")
+            # Focus on dresses + shoes + accessories
+            outfits = await outfit_composer.compose_outfits(
+                pseudo_items, 
+                occasion, 
+                vibe, 
+                required_item_id=required_item_id,
+                prefer_fullbody=True  # Signal to prefer dresses
+            )
+        else:
+            # Regular outfit composition with all items
+            outfits = await outfit_composer.compose_outfits(
+                pseudo_items, 
+                occasion, 
+                vibe, 
+                required_item_id=required_item_id
+            )
         
         if not outfits:
+            if is_formal_occasion and not dress_items:
+                return f"I couldn't find any dresses in your closet for a {occasion}. Would you like me to search for dress recommendations from our brand partners?"
             return "I couldn't create any outfit combinations from your current items. Try uploading more diverse pieces!"
         
         # Return structured JSON that the Manager can parse
@@ -301,7 +346,8 @@ async def generate_new_outfit_ideas(user_id: str, occasion: str, vibe: str = "ch
         result = {
             "success": True,
             "outfits": outfits,
-            "count": len(outfits)
+            "count": len(outfits),
+            "occasion_type": "formal_dress" if is_formal_occasion else "casual_mix"
         }
         
         logger.info(f"[TOOL] Generated {len(outfits)} outfit ideas")

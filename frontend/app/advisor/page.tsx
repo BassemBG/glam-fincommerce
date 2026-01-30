@@ -8,7 +8,7 @@ import { authFetch } from '../../lib/auth';
 import { useAuthGuard } from '../../lib/useAuthGuard';
 import TryOnVisualizer from '../../components/TryOnVisualizer';
 import { WalletConfirmationModal } from '../../components/WalletConfirmationModal';
-import cartImage from '../images/shopping advisor .png';
+import advisorImage from '../images/shopping_advisor.png';
 
 export default function AdvisorPage() {
     useAuthGuard();
@@ -266,7 +266,7 @@ export default function AdvisorPage() {
             {showIntro && (
                 <div className={styles.introOverlay} aria-hidden="true">
                     <Image
-                        src={cartImage}
+                        src={advisorImage}
                         alt=""
                         className={styles.introCart}
                         priority

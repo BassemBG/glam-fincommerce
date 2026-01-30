@@ -141,6 +141,9 @@ export default function UploadPage() {
                     {status === 'done' && analysis && (
                         <div className={styles.resultCard}>
                             <h3>{analysis.sub_category}</h3>
+                            {analysis.brand && (
+                                <p className={styles.brandTag}>👔 {analysis.brand}</p>
+                            )}
                             {analysis.price && (
                                 <p className={styles.priceTag}>${analysis.price} (Estimated)</p>
                             )}
