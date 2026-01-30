@@ -79,7 +79,23 @@ class BrandCLIPService:
                 logger.info(f"✓ BrandEmbedding collection created")
             else:
                 logger.info(f"BrandEmbedding collection already exists")
-                
+            
+            # Ensure payload indexes for filtering
+            import qdrant_client.models as models
+            
+            self.client.create_payload_index(
+                collection_name=self.collection_name,
+                field_name="brand_name",
+                field_schema=models.PayloadSchemaType.KEYWORD,
+            )
+            
+            self.client.create_payload_index(
+                collection_name=self.collection_name,
+                field_name="price",
+                field_schema=models.PayloadSchemaType.FLOAT,
+            )
+            
+            logger.info("✓ Payload indexes for brand_name and price ensured")
         except Exception as e:
             logger.warning(f"Could not initialize BrandEmbedding collection: {e}")
     
@@ -203,7 +219,7 @@ class BrandCLIPService:
 
     async def upsert_product(self, brand_name: str, product_name: str, product_description: str,
                       image_url: Optional[str] = None, product_url: Optional[str] = None,
-                      product_dict: Optional[Dict[str, Any]] = None) -> Optional[str]:
+                      price: Optional[float] = None, product_dict: Optional[Dict[str, Any]] = None) -> Optional[str]:
         """
         Generate embeddings, upload image to Azure (if configured), and upsert to BrandEmbedding.
         CRITICAL: Must have valid image URL or product is skipped entirely.
@@ -314,6 +330,8 @@ class BrandCLIPService:
                 "brand_name": brand_name,
                 "product_name": product_name,
                 "product_description": product_description,
+                "price": price,                   # Numeric price for filtering
+                "image_url": image_url,           # Store original URL as fallback
                 "azure_image_url": uploaded_url,  # Azure/local storage URL
                 "image_base64": image_base64,
                 "source": "website",
@@ -377,6 +395,7 @@ class BrandCLIPService:
                     product_description=product.get("description", ""),
                     image_url=product.get("image_url"),
                     product_url=product.get("product_url"),
+                    price=product.get("price"),
                     product_dict=product
                 )
                 if point_id:
@@ -394,6 +413,7 @@ class BrandCLIPService:
         self,
         query: str,
         brand_name: Optional[str] = None,
+        max_price: Optional[float] = None,
         limit: int = 10,
         score_threshold: float = 0.25
     ) -> List[Dict[str, Any]]:
@@ -403,6 +423,7 @@ class BrandCLIPService:
         Args:
             query: The search query (e.g., "blue silk dress", "minimalist sneakers")
             brand_name: Optional filter for a specific brand
+            max_price: Optional maximum price filter
             limit: Maximum number of results
             score_threshold: Minimum similarity score (0.0 to 1.0)
             
@@ -420,18 +441,27 @@ class BrandCLIPService:
                 logger.error(f"Could not generate embedding for query: {query}")
                 return []
                 
-            # 2. Build filter if brand_name is specified
-            query_filter = None
+            # 2. Build filter
+            import qdrant_client.models as models
+            must_filters = []
+            
             if brand_name:
-                import qdrant_client.models as models
-                query_filter = models.Filter(
-                    must=[
-                        models.FieldCondition(
-                            key="brand_name",
-                            match=models.MatchValue(value=brand_name)
-                        )
-                    ]
+                must_filters.append(
+                    models.FieldCondition(
+                        key="brand_name",
+                        match=models.MatchValue(value=brand_name)
+                    )
                 )
+                
+            if max_price is not None:
+                must_filters.append(
+                    models.FieldCondition(
+                        key="price",
+                        range=models.Range(lte=max_price)
+                    )
+                )
+            
+            query_filter = models.Filter(must=must_filters) if must_filters else None
             
             # 3. Perform vector search
             logger.info(f"🔍 Searching BrandEmbedding for: '{query}' (brand: {brand_name or 'any'})")
@@ -459,6 +489,7 @@ class BrandCLIPService:
                     "brand_name": payload.get("brand_name"),
                     "product_name": payload.get("product_name"),
                     "product_description": payload.get("product_description"),
+                    "price": payload.get("price"),
                     "azure_image_url": display_image, # Use the best available image
                     "source": payload.get("source"),
                 }

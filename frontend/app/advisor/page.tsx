@@ -12,7 +12,7 @@ export default function AdvisorPage() {
     useAuthGuard();
     const [file, setFile] = useState<File | null>(null);
     const [preview, setPreview] = useState<string | null>(null);
-    const [status, setStatus] = useState<'idle' | 'analyzing' | 'chatting'>('idle');
+    const [status, setStatus] = useState<'idle' | 'analyzing' | 'chatting'>('chatting');
     const [messages, setMessages] = useState<any[]>([]);
     const [input, setInput] = useState('');
     const [analysisData, setAnalysisData] = useState<any>(null);
@@ -59,36 +59,56 @@ export default function AdvisorPage() {
             const selected = e.target.files[0];
             setFile(selected);
             setPreview(URL.createObjectURL(selected));
-            setStatus('idle');
             setAnalysisData(null);
         }
     };
 
-    const startAnalysis = async () => {
-        if (!file) return;
-        setStatus('analyzing');
+    const handleSend = async () => {
+        const text = input.trim();
+        const currentFile = file;
 
-        const formData = new FormData();
-        formData.append('file', file);
+        if (!text && !currentFile) return;
 
-        try {
-            const res = await authFetch(API.stylist.advisor, { method: 'POST', body: formData });
-            if (res.ok) {
-                const data = await res.json();
-                setAnalysisData(data);
-                const targetInfo = data.target_analysis || {};
-                const matchCount = data.matches?.length || 0;
-                const req = `I'm considering buying this ${targetInfo.sub_category || targetInfo.category || 'item'}. It has colors like ${targetInfo.colors?.join(', ') || 'unknown'}. Can you evaluate it against my closet? I have ${matchCount} similar items already. (Glam, please transfer this to the Fashion Advisor).`;
+        setInput('');
 
+        if (currentFile && !analysisData) {
+            // Analyze first to get the matches/metadata for the UI & context
+            setStatus('analyzing');
+            const formData = new FormData();
+            formData.append('file', currentFile);
+            try {
+                const res = await authFetch(API.stylist.advisor, { method: 'POST', body: formData });
+                if (res.ok) {
+                    const data = await res.json();
+                    setAnalysisData(data);
+                    const targetInfo = data.target_analysis || {};
+                    const matchCount = data.matches?.length || 0;
+
+                    // Enriched request context
+                    const enrichedText = text
+                        ? `${text} (Context: This is a ${targetInfo.sub_category || 'item'} with ${matchCount} closet matches)`
+                        : `Evaluate this ${targetInfo.sub_category || 'item'}. It has ${matchCount} closet matches.`;
+
+                    setStatus('chatting');
+                    await sendToAI(enrichedText, currentFile);
+                } else {
+                    setStatus('chatting');
+                    await sendToAI(text || "Evaluate this potential purchase.", currentFile);
+                }
+            } catch (err) {
                 setStatus('chatting');
-                await sendToAI(req, file);
-            } else {
-                alert("Analysis failed.");
-                setStatus('idle');
+                await sendToAI(text || "Evaluate this potential purchase.", currentFile);
             }
-        } catch (err) {
-            console.error(err);
-            setStatus('idle');
+        } else {
+            await sendToAI(text, currentFile);
+        }
+
+        // Clear file state after sending
+        if (currentFile) {
+            setFile(null);
+            // We keep the preview ONLY if we have analysisData (to show the sticky panel)
+            // But actually preview is used for the sticky panel. 
+            // If we setFile(null), handleFileChange works again next time.
         }
     };
 
@@ -232,47 +252,9 @@ export default function AdvisorPage() {
                 )}
             </header>
 
-            {status === 'idle' && !preview && (
-                <div className={styles.dropzoneContainer}>
-                    <label className={styles.dropzone}>
-                        <input type="file" accept="image/*" onChange={handleFileChange} hidden />
-                        <div className={styles.iconWrapper}>
-                            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="17 8 12 3 7 8" /><line x1="12" y1="3" x2="12" y2="15" /></svg>
-                        </div>
-                        <h3>Upload Image</h3>
-                        <p>Analyze clothing before you buy</p>
-                    </label>
-                </div>
-            )}
-
-            {preview && status === 'idle' && (
-                <div className={styles.previewStep}>
-                    <div className={styles.previewCard}>
-                        <div className={styles.previewImageWrapper}>
-                            <img src={preview} alt="item" />
-                        </div>
-                        <div className={styles.previewInfo}>
-                            <h2>Analyze this?</h2>
-                            <p>Glam will check versatility and your budget.</p>
-                            <div className={styles.actionButtons}>
-                                <button className={styles.primaryBtn} onClick={startAnalysis}>Start Analysis</button>
-                                <button className={styles.ghostBtn} onClick={() => { setPreview(null); setFile(null); }}>Cancel</button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            )}
-
-            {status === 'analyzing' && (
-                <div className={styles.analyzingBox}>
-                    <div className={styles.spinner} />
-                    <p>Comparing with your wardrobe...</p>
-                </div>
-            )}
-
-            {status === 'chatting' && (
-                <div className={styles.chatContainer}>
-                    <div className={styles.chatMain}>
+            <div className={styles.chatContainer}>
+                <div className={styles.chatMain}>
+                    {preview && (
                         <div className={styles.insightPanel}>
                             <img src={preview!} className={styles.insightThumb} />
                             <div className={styles.insightStats}>
@@ -284,103 +266,138 @@ export default function AdvisorPage() {
                                     <small>Similarity</small>
                                     <div><strong>{analysisData?.matches?.[0] ? Math.round(analysisData.matches[0].score * 100) : 0}%</strong></div>
                                 </div>
-                                <div>
-                                    <small>Closet Matches</small>
-                                    <div className={styles.matchMiniList}>
-                                        {analysisData?.matches?.slice(0, 3).map((m: any, idx: number) => (
-                                            <img key={idx} src={m.image_url} className={styles.matchMiniImg} />
-                                        ))}
+                                {analysisData?.matches && (
+                                    <div>
+                                        <small>Closet Matches</small>
+                                        <div className={styles.matchMiniList}>
+                                            {analysisData.matches.slice(0, 3).map((m: any, idx: number) => (
+                                                <img key={idx} src={m.image_url} className={styles.matchMiniImg} />
+                                            ))}
+                                        </div>
                                     </div>
-                                </div>
+                                )}
                             </div>
+                            <button className={styles.closeInsight} onClick={() => { setPreview(null); setFile(null); setAnalysisData(null); }}>×</button>
                         </div>
+                    )}
 
-                        <div className={styles.chatMessages}>
-                            {messages.map((msg, i) => (
-                                <div key={i} className={`${styles.message} ${styles[msg.role]}`}>
-                                    <div className={styles.bubble}>
-                                        <div className={styles.textContent}>{renderMarkdown(msg.text)}</div>
-                                        {msg.status && <div className={styles.streamingStatus}>{msg.status}</div>}
-                                        {msg.suggested_outfits && (
-                                            <div className={styles.outfitStack}>
-                                                {msg.suggested_outfits.map((fit: any, idx: number) => (
-                                                    <button
-                                                        key={idx}
-                                                        className={styles.fitBadge}
-                                                        onClick={async () => {
-                                                            if (!userPhoto || !fit.item_details) return;
+                    <div className={styles.chatMessages}>
+                        {messages.length === 0 && (
+                            <div className={styles.welcomeTip}>
+                                <div className={styles.tipIcon}>💡</div>
+                                <h3>I'm your FinCommerce Advisor</h3>
+                                <p>Ask me about trends, your budget, or upload a "Potential Buy" to see how it fits your closet and wallet.</p>
+                            </div>
+                        )}
+                        {messages.map((msg, i) => (
+                            <div key={i} className={`${styles.message} ${styles[msg.role]}`}>
+                                <div className={styles.bubble}>
+                                    <div className={styles.textContent}>{renderMarkdown(msg.text)}</div>
+                                    {msg.status && <div className={styles.streamingStatus}>{msg.status}</div>}
+                                    {msg.suggested_outfits && (
+                                        <div className={styles.outfitStack}>
+                                            {msg.suggested_outfits.map((fit: any, idx: number) => (
+                                                <button
+                                                    key={idx}
+                                                    className={styles.fitBadge}
+                                                    onClick={async () => {
+                                                        if (!userPhoto || !fit.item_details) return;
 
-                                                            // Set immediate status
-                                                            setMessages(prev => {
-                                                                const next = [...prev];
-                                                                const last = next[next.length - 1];
-                                                                last.status = "Glam is sketching your virtual try-on... ✨ (60-80s)";
-                                                                return next;
+                                                        // Set immediate status
+                                                        setMessages(prev => {
+                                                            const next = [...prev];
+                                                            const last = next[next.length - 1];
+                                                            last.status = "Glam is sketching your virtual try-on... ✨ (60-80s)";
+                                                            return next;
+                                                        });
+
+                                                        try {
+                                                            // Prepare items for backend
+                                                            const itemsForBackend = fit.item_details.map((item: any) => {
+                                                                // Use the cloud-stored URL for potential purchase (if available)
+                                                                let url = item.image_url;
+                                                                if (item.id === 'potential_purchase') {
+                                                                    url = analysisData?.image_url || preview;
+                                                                }
+                                                                return {
+                                                                    id: item.id,
+                                                                    image_url: url,
+                                                                    body_region: item.body_region || 'top'
+                                                                };
                                                             });
 
-                                                            try {
-                                                                // Prepare items for backend
-                                                                const itemsForBackend = fit.item_details.map((item: any) => {
-                                                                    // Use the cloud-stored URL for potential purchase (if available)
-                                                                    let url = item.image_url;
-                                                                    if (item.id === 'potential_purchase') {
-                                                                        url = analysisData?.image_url || preview;
-                                                                    }
-                                                                    return {
-                                                                        id: item.id,
-                                                                        image_url: url,
-                                                                        body_region: item.body_region || 'top'
-                                                                    };
-                                                                });
+                                                            const res = await authFetch(API.stylist.tryon, {
+                                                                method: 'POST',
+                                                                headers: { 'Content-Type': 'application/json' },
+                                                                body: JSON.stringify({ items: itemsForBackend })
+                                                            });
 
-                                                                const res = await authFetch(API.stylist.tryon, {
-                                                                    method: 'POST',
-                                                                    headers: { 'Content-Type': 'application/json' },
-                                                                    body: JSON.stringify({ items: itemsForBackend })
+                                                            if (res.ok) {
+                                                                const data = await res.json();
+                                                                setTryOnData({
+                                                                    items: itemsForBackend,
+                                                                    tryonImageUrl: data.url,
+                                                                    name: fit.name
                                                                 });
-
-                                                                if (res.ok) {
-                                                                    const data = await res.json();
-                                                                    setTryOnData({
-                                                                        items: itemsForBackend,
-                                                                        tryonImageUrl: data.url,
-                                                                        name: fit.name
-                                                                    });
-                                                                } else {
-                                                                    // Fallback to layering
-                                                                    setTryOnData({ items: itemsForBackend, tryonImageUrl: undefined });
-                                                                }
-                                                            } catch (err) {
-                                                                console.error("Tryon error:", err);
-                                                            } finally {
-                                                                setMessages(prev => {
-                                                                    const next = [...prev];
-                                                                    next[next.length - 1].status = undefined;
-                                                                    return next;
-                                                                });
+                                                            } else {
+                                                                // Fallback to layering
+                                                                setTryOnData({ items: itemsForBackend, tryonImageUrl: undefined });
                                                             }
-                                                        }}
-                                                    >
-                                                        ✨ {fit.name} ({fit.score}/10)
-                                                    </button>
-                                                ))}
-                                            </div>
-                                        )}
-                                    </div>
+                                                        } catch (err) {
+                                                            console.error("Tryon error:", err);
+                                                        } finally {
+                                                            setMessages(prev => {
+                                                                const next = [...prev];
+                                                                next[next.length - 1].status = undefined;
+                                                                return next;
+                                                            });
+                                                        }
+                                                    }}
+                                                >
+                                                    ✨ {fit.name} ({fit.score}/10)
+                                                </button>
+                                            ))}
+                                        </div>
+                                    )}
                                 </div>
-                            ))}
-                            <div ref={messagesEndRef} />
-                        </div>
-
-                        <div className={styles.chatInputArea}>
-                            <div className={styles.inputWrapper}>
-                                <input placeholder="Ask about this item..." value={input} onChange={(e) => setInput(e.target.value)} onKeyPress={(e) => e.key === 'Enter' && (setInput(''), sendToAI(input))} />
                             </div>
-                            <button onClick={() => (setInput(''), sendToAI(input))} className={styles.sendBtn}>Send</button>
+                        ))}
+                        <div ref={messagesEndRef} />
+                    </div>
+
+                    {status === 'analyzing' && (
+                        <div className={styles.inlineAnalyizing}>
+                            <div className={styles.miniSpinner} />
+                            <span>Analyzing your potential buy...</span>
                         </div>
+                    )}
+                    <div className={styles.chatInputArea}>
+                        <label className={styles.uploadIconButton} title="Upload Potential Buy">
+                            <input type="file" accept="image/*" onChange={(e) => handleFileChange(e)} hidden />
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="17 8 12 3 7 8" /><line x1="12" y1="3" x2="12" y2="15" /></svg>
+                        </label>
+
+                        {file && !analysisData && (
+                            <div className={styles.pendingAttachment}>
+                                <img src={preview!} alt="attached" />
+                                <button onClick={() => { setFile(null); setPreview(null); }} className={styles.removePending}>×</button>
+                            </div>
+                        )}
+
+                        <div className={styles.inputWrapper}>
+                            <input
+                                placeholder={file ? "Add info (e.g. 'Costs 50 TND')..." : "Message advisor (e.g. 'What can I afford?')..."}
+                                value={input}
+                                onChange={(e) => setInput(e.target.value)}
+                                onKeyPress={(e) => e.key === 'Enter' && handleSend()}
+                            />
+                        </div>
+                        <button onClick={handleSend} className={styles.sendBtn}>
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="22" y1="2" x2="11" y2="13" /><polygon points="22 2 15 22 11 13 2 9 22 2" /></svg>
+                        </button>
                     </div>
                 </div>
-            )}
+            </div>
 
             {tryOnData && userPhoto && <TryOnVisualizer bodyImage={userPhoto} items={tryOnData.items} tryonImageUrl={tryOnData.tryonImageUrl} onClose={() => setTryOnData(null)} />}
             <WalletConfirmationModal {...walletModalData} onClose={() => setWalletModalData(prev => ({ ...prev, isOpen: false }))} onSuccess={handlePurchaseSuccess} />

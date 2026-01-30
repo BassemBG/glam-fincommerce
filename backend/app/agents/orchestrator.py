@@ -50,9 +50,9 @@ class AgentOrchestrator:
         }
 
         try:
-            # 2. Invoke Agent
+            # 2. Invoke Agent with increased recursion limit
             logger.info(f"Invoking stylist_graph for user_id: {user_id}")
-            final_result = await stylist_graph.ainvoke(initial_state)
+            final_result = await stylist_graph.ainvoke(initial_state, {"recursion_limit": 50})
             
             # 3. Extract final answer
             last_msg = final_result["messages"][-1]
@@ -114,19 +114,6 @@ class AgentOrchestrator:
             except Exception as e:
                 logger.error(f"Failed to analyze/upload image in orchestrator: {e}")
 
-        # 3. Weather Proactivity (New)
-        # Only add weather if it's the start of a conversation or specifically asked
-        weather_context = None
-        if len(history) <= 1:
-            try:
-                from app.services.weather_service import weather_service
-                w = await weather_service.get_weather("Tunis") # Default to Tunis as per user request
-                if w:
-                    weather_context = f"[SYSTEM NOTE: Current environment: {w['temp_c']}°C, {w['description']}. Rainy: {w['is_rainy']}]. Act proactively and mention if clothes are weather-appropriate."
-                    langchain_history.append(SystemMessage(content=weather_context))
-            except Exception as e:
-                logger.error(f"Weather injection failed: {e}")
-
         from langchain_core.messages import HumanMessage
         langchain_history.append(HumanMessage(content=message))
 
@@ -146,7 +133,7 @@ class AgentOrchestrator:
             logger.info(f"Starting streaming graph for user_id: {user_id}")
             
             # Use v2 astream_events to capture detailed progress
-            async for event in stylist_graph.astream_events(initial_state, version="v2"):
+            async for event in stylist_graph.astream_events(initial_state, {"recursion_limit": 50}, version="v2"):
                 kind = event["event"]
                 
                 # Signal Node Transitions (Agent Handoffs)

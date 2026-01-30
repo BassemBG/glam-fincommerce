@@ -156,9 +156,10 @@ def main():
         print(f"[OK] Loaded ({len(raw_text)} characters)")
         
     elif source_type == "url":
+        import asyncio
         print(f"[INFO] Processing website: {source}")
         try:
-            result = process_brand_website_for_products(source, brand_name)
+            result = asyncio.run(process_brand_website_for_products(source, brand_name))
             # Pretty-print with Unicode intact
             print(f"[OK] Result: {json.dumps(result, indent=2, ensure_ascii=False)}")
             return

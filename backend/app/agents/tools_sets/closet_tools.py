@@ -9,6 +9,41 @@ from app.models.models import ClothingItem
 logger = logging.getLogger(__name__)
 
 @tool
+async def audit_closet_inventory(user_id: str) -> str:
+    """
+    Perform a high-level audit of the user's closet by category and sub-category.
+    Use this to answer questions like 'What am I missing?', 'Audit my closet', or 'What's in my wardrobe?'.
+    Returns a summary of items grouped by category.
+    """
+    try:
+        # Get up to 100 items for a comprehensive audit
+        results = await clip_qdrant_service.get_user_items(user_id=user_id, limit=100)
+        items = results.get("items", [])
+        
+        if not items:
+            return "Your closet is currently empty. I can't perform an audit without any items!"
+            
+        inventory = {}
+        for item in items:
+            cat = item.get("clothing", {}).get("category", "Unknown")
+            sub = item.get("clothing", {}).get("sub_category", "General")
+            if cat not in inventory:
+                inventory[cat] = {}
+            if sub not in inventory[cat]:
+                inventory[cat][sub] = 0
+            inventory[cat][sub] += 1
+            
+        summary = ["Closet Inventory Audit:"]
+        for cat, subs in inventory.items():
+            summary.append(f"\nCategory: {cat.upper()}")
+            for sub, count in subs.items():
+                summary.append(f"- {sub}: {count} item(s)")
+                
+        return "\n".join(summary)
+    except Exception as e:
+        return f"Error auditing closet: {str(e)}"
+
+@tool
 async def search_closet(query: str, user_id: str) -> str:
     """
     Search for clothing items in the user's closet using Visual/Semantic Search (Text-to-Image CLIP).

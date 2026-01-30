@@ -5,13 +5,15 @@ from app.agents.state import AgentState
 from app.agents.prompts.closet import CLOSET_SYSTEM_PROMPT
 from app.agents.tools_sets.closet_tools import (
     search_closet, filter_closet_items, list_all_outfits, 
-    get_outfit_details, generate_new_outfit_ideas, search_saved_outfits, filter_saved_outfits
+    get_outfit_details, generate_new_outfit_ideas, search_saved_outfits, 
+    filter_saved_outfits, audit_closet_inventory
 )
 from app.agents.tools_sets.handoff_tools import transfer_back_to_manager
 
 closet_tools = [
     search_closet, filter_closet_items, list_all_outfits, 
-    get_outfit_details, generate_new_outfit_ideas, search_saved_outfits, filter_saved_outfits, transfer_back_to_manager
+    get_outfit_details, generate_new_outfit_ideas, search_saved_outfits, 
+    filter_saved_outfits, audit_closet_inventory, transfer_back_to_manager
 ]
 
 model = AzureChatOpenAI(

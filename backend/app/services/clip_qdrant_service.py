@@ -136,14 +136,13 @@ class CLIPQdrantService:
                 field_schema=PayloadSchemaType.KEYWORD,
             )
             
-            # Index for outfit filtering
             self.client.create_payload_index(
-                collection_name=self.outfits_collection_name,
-                field_name="style_tags",
-                field_schema=PayloadSchemaType.KEYWORD,
+                collection_name=self.collection_name,
+                field_name="price",
+                field_schema=PayloadSchemaType.FLOAT,
             )
             
-            logger.info("✓ Payload indexes for user_id, category, colors, body_region, vibe, sub_category, material, and season ensured")
+            logger.info("✓ Payload indexes for user_id, category, colors, body_region, vibe, sub_category, material, season, and price ensured")
 
         except Exception as e:
             logger.warning(f"Could not initialize collection or indexes: {e}")
