@@ -1,4 +1,4 @@
-from typing import List, Optional
+from typing import List, Optional, Union
 from pydantic import BaseModel
 
 
@@ -18,7 +18,7 @@ class BrandStyleGroup(BaseModel):
 
 
 class BrandProduct(BaseModel):
-    id: Optional[str] = None
+    id: Optional[Union[str, int]] = None
     product_name: str
     product_description: Optional[str] = None
     image_base64: Optional[str] = None
@@ -45,3 +45,8 @@ class BrandIngestResponse(BrandProfile):
 
 class BrandListResponse(BaseModel):
     brands: List[BrandProfile]
+
+class RecommendationClickRequest(BaseModel):
+    product_id: Union[str, int]
+    brand_name: str
+    source: str = "explore" # "explore", "chat", "outfit"

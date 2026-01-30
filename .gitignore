@@ -69,3 +69,4 @@ uploads/
 .env.*
 !.env.example
 >>>>>>> sabaa
+backend/ragas_outputs/

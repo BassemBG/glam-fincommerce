@@ -70,6 +70,21 @@ EXCLUDE_PATTERNS = [
 ]
 
 
+def _parse_price(price_text: Optional[str]) -> Optional[float]:
+    """Extract numeric float from price string (e.g., '$120.99' -> 120.99)"""
+    if not price_text:
+        return None
+    try:
+        import re
+        # Remove currency symbols and commas
+        clean_price = re.sub(r'[^\d.]', '', price_text.replace(',', ''))
+        if not clean_price:
+            return None
+        return float(clean_price)
+    except Exception:
+        return None
+
+
 def _is_valid_product(product: Dict) -> bool:
     """
     Validate that a product has all required fields and is not a UI element.
@@ -88,7 +103,10 @@ def _is_valid_product(product: Dict) -> bool:
     product_name = (product.get("product_name") or "").strip()
     image_url = (product.get("image_url") or "").strip()
     description = (product.get("description") or "").strip()
-    price = (product.get("price_text") or "").strip()
+    price_text = (product.get("price_text") or "").strip()
+    
+    # Try to parse numeric price early
+    product["price"] = _parse_price(price_text)
     
     # Must have name
     if not product_name or len(product_name) < 3:
@@ -101,7 +119,7 @@ def _is_valid_product(product: Dict) -> bool:
         return False
     
     # Must have description OR price
-    if not description and not price:
+    if not description and not product.get("price"):
         logger.debug(f"Rejected '{product_name}': No description or price")
         return False
     
@@ -113,11 +131,11 @@ def _is_valid_product(product: Dict) -> bool:
             return False
     
     # Exclude very short descriptions (likely UI text)
-    if description and len(description) < 20 and not price:
+    if description and len(description) < 20 and not product.get("price"):
         logger.debug(f"Rejected '{product_name}': Description too short and no price")
         return False
     
-    logger.debug(f"✓ Valid product: {product_name}")
+    logger.debug(f"✓ Valid product: {product_name} (Price: {product['price']})")
     return True
 
 

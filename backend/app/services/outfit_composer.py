@@ -23,25 +23,27 @@ class OutfitComposer:
             return []
 
         # Prepare items data
-        items_data = [
-            {
+        items_data = []
+        for item in items:
+            is_required = str(item.id) == str(required_item_id)
+            items_data.append({
                 "id": str(item.id),
                 "category": item.category,
                 "sub_category": item.sub_category,
                 "body_region": item.body_region,
                 "image_url": item.image_url,
+                "is_potential_purchase": is_required, # Highlight the NEW item
                 "metadata": item.metadata_json
-            } for item in items
-        ]
+            })
         
         logging.info(f"[OUTFIT_COMPOSER] Prepared {len(items_data)} items for Groq")
 
         prompt = f"""You are a high-end fashion stylist.
 Target Occasion: {occasion}
 Target Vibe: {vibe}
-{f"CRITICAL REQUIREMENT: Every outfit generated MUST include the item with ID: '{required_item_id}'. If an outfit does not include this item, it is considered a FAILURE." if required_item_id else ""}
+{f"CRITICAL REQUIREMENT: Every outfit generated MUST include the item with ID: '{required_item_id}' (labeled as 'is_potential_purchase': true). If an outfit does not include this item, it is considered a FAILURE." if required_item_id else ""}
 
-Available Items in Closet:
+Available Items in Closet (including the new item):
 {json.dumps(items_data, indent=2)}
 
 Task: 

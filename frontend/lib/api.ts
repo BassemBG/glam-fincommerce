@@ -51,6 +51,9 @@ export const API = {
   brandIngestion: {
     ingest: `${API_URL}/api/v1/brands/ingest`,
     list: `${API_URL}/api/v1/brands`,
+    explore: (userId?: string) => `${API_URL}/api/v1/brands/explore${userId ? `?user_id=${userId}` : ''}`,
+    recordClick: (userId: string) => `${API_URL}/api/v1/brands/click?user_id=${userId}`,
+    recordPurchaseClick: (userId: string) => `${API_URL}/api/v1/brands/purchase-click?user_id=${userId}`,
   },
   profileBrands: {
     me: `${API_URL}/api/v1/profile-brands/me`,
