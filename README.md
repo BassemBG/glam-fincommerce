@@ -9,7 +9,7 @@ Glam FinCommerce is an implementation for **Vector in Orbit Hackathon - Use Case
 
 *   **Digital Wardrobe Management**: Upload clothing items and let AI automatically categorize, describe, and analyze them.
 *   **AI Shopping Advisor**: Upload a photo of a piece you're thinking of buying, and the AI will analyze how well it fits with your current wardrobe (using visual similarity and style matching).
-*   **Personalized Outfit Generation**: Get outfit suggestions based on your personal style, the weather, and the occasion.
+*   **Personalized Outfit Generation**: Get outfit suggestions based on your personal style and the occasion.
 *   **Visual & Semantic Search**: Find items in your closet using images or natural language queries (e.g., "Find my favorite blue summer dress").
 *   **Style DNA & User Profiling**: Automatically builds a "Style DNA" profile (vibes, color palettes, body morphology) to provide hyper-personalized recommendations.
 *   **Pinterest Connectivity**: Sync your Pinterest boards to refine your AI style profile.
