@@ -1,7 +1,7 @@
 # Vector in Orbit Hackathon - Use Case 2: Virtual Closet & Personal Stylist
 ## Project: Glam FinCommerce
 
-Glam FinCommerce is the winning implementation for **Vector in Orbit Hackathon - Use Case 2**. It is a state-of-the-art digital wardrobe management and AI-driven fashion commerce platform. It leverages **vision-language models (Llama 3.2 Vision)** and **multi-modal embeddings (CLIP)** to help users organize their wardrobe, generate cohesive outfits, and receive intelligent shopping advice that considers their existing clothing collection.
+Glam FinCommerce is an implementation for **Vector in Orbit Hackathon - Use Case 2**. It is a state-of-the-art digital wardrobe management and AI-driven fashion commerce platform. It leverages **vision-language models (Llama 3.2 Vision)** and **multi-modal embeddings (CLIP)** to help users organize their wardrobe, generate cohesive outfits, and receive intelligent shopping advice that considers their existing clothing collection.
 
 ---
 
